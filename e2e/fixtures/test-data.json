@@ -1,0 +1,43 @@
+{
+  "categories": [
+    {
+      "name": "Test Category 1",
+      "description": "Automated test category"
+    },
+    {
+      "name": "Test Category 2",
+      "description": "Another test category"
+    }
+  ],
+  "codes": [
+    {
+      "name": "Test Code Alpha",
+      "isWhitelisted": true
+    },
+    {
+      "name": "Test Code Beta",
+      "isWhitelisted": false
+    },
+    {
+      "name": "Test Code Gamma",
+      "isWhitelisted": true
+    }
+  ],
+  "answers": [
+    {
+      "answer_text": "Test answer one",
+      "language": "EN",
+      "country": "US"
+    },
+    {
+      "answer_text": "Test answer two",
+      "language": "PL",
+      "country": "PL"
+    }
+  ],
+  "testUser": {
+    "email": "test@example.com",
+    "password": "testpassword123"
+  }
+}
+

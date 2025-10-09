@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* Dark mode support */
+:root { 
+  color-scheme: light dark; 
+}
+
+/* Ensure dark mode works properly */
+.dark {
+  color-scheme: dark;
+}
+
+/* Override Tailwind v4 dark mode to use class instead of media query */
+.dark .dark\:bg-zinc-950 { background-color: var(--color-zinc-950); }
+.dark .dark\:bg-zinc-900 { background-color: var(--color-zinc-900); }
+.dark .dark\:bg-zinc-800 { background-color: var(--color-zinc-800); }
+.dark .dark\:bg-zinc-700 { background-color: var(--color-zinc-700); }
+.dark .dark\:text-zinc-100 { color: var(--color-zinc-100); }
+.dark .dark\:text-zinc-300 { color: var(--color-zinc-300); }
+.dark .dark\:text-zinc-400 { color: var(--color-zinc-400); }
+.dark .dark\:border-zinc-800 { border-color: var(--color-zinc-800); }
+.dark .dark\:border-zinc-700 { border-color: var(--color-zinc-700); }
+.dark .dark\:border-zinc-600 { border-color: var(--color-zinc-600); }
+.dark .dark\:hover\:bg-zinc-800:hover { background-color: var(--color-zinc-800); }
+.dark .dark\:hover\:bg-zinc-800\/50:hover { background-color: color-mix(in oklab, var(--color-zinc-800) 50%, transparent); }
+.dark .dark\:hover\:bg-zinc-900:hover { background-color: var(--color-zinc-900); }
+.dark .dark\:placeholder-zinc-400::placeholder { color: var(--color-zinc-400); }
+
+/* Custom utilities */
+@layer utilities {
+  .saving-dots::after {
+    content: '…';
+    animation: dots 1.2s steps(4, end) infinite;
+  }
+  @keyframes dots {
+    0%, 20% { content: ''; }
+    40% { content: '.'; }
+    60% { content: '..'; }
+    80%, 100% { content: '...'; }
+  }
+}

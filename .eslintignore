@@ -1,0 +1,18 @@
+# Build outputs
+dist/
+build/
+coverage/
+
+# Test files that don't need strict linting
+e2e/
+
+# Config files
+*.config.js
+*.config.ts
+vite.config.ts.timestamp*
+
+# Node modules
+node_modules/
+
+# Coverage report files
+coverage/lcov-report/

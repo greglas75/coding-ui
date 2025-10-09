@@ -1,0 +1,211 @@
+import { useCallback, useState } from 'react';
+import { toast } from 'sonner';
+import { getSupabaseClient } from '../../../lib/supabase';
+import type { Answer } from '../../../types';
+
+const supabase = getSupabaseClient();
+
+export function useAnswerActions({
+  localAnswers,
+  setLocalAnswers,
+  isOnline,
+  queueChange,
+  addAction,
+  triggerRowAnimation,
+  categorizeAnswer,
+}: {
+  localAnswers: Answer[];
+  setLocalAnswers: (updater: (prev: Answer[]) => Answer[]) => void;
+  isOnline: boolean;
+  queueChange: (change: any) => Promise<void>;
+  addAction: (action: any) => void;
+  triggerRowAnimation: (id: number, animation: string) => void;
+  categorizeAnswer: (answerId: number) => void;
+}) {
+  const [isCategorizingRow, setIsCategorizingRow] = useState<Record<number, boolean>>({});
+
+  // Find duplicate answers
+  const findDuplicateAnswers = useCallback((targetAnswer: Answer): number[] => {
+    const duplicates = localAnswers.filter(answer =>
+      answer.category_id === targetAnswer.category_id &&
+      answer.answer_text === targetAnswer.answer_text &&
+      answer.id !== targetAnswer.id
+    );
+    return duplicates.map(a => a.id);
+  }, [localAnswers]);
+
+  // Handle Quick Status Changes
+  const handleQuickStatus = useCallback(async (
+    answer: Answer,
+    statusKey: string
+  ) => {
+    const statusMap: Record<string, string> = {
+      'Oth': 'Other',
+      'Ign': 'Ignore',
+      'gBL': 'Global Blacklist',
+      'BL': 'Blacklist',
+      'C': 'Confirmed',
+    };
+
+    const newStatus = statusMap[statusKey];
+    const currentAnswer = localAnswers.find(a => a.id === answer.id) || answer;
+    const duplicateIds = findDuplicateAnswers(answer);
+    const totalCount = duplicateIds.length + 1;
+    const allIds = [answer.id, ...duplicateIds];
+
+    console.log(`🔄 Updating ${totalCount} answer(s) (including duplicates)`);
+
+    // Capture previous state for undo
+    const previousState: Record<number, any> = {};
+    allIds.forEach(id => {
+      const ans = localAnswers.find(a => a.id === id);
+      if (ans) {
+        previousState[id] = {
+          general_status: ans.general_status,
+          quick_status: ans.quick_status,
+          selected_code: ans.selected_code,
+          coding_date: ans.coding_date,
+        };
+      }
+    });
+
+    // Optimistic update
+    const optimisticUpdate: any = {
+      general_status: newStatus as any,
+      coding_date: new Date().toISOString()
+    };
+
+    if (statusKey === 'C') {
+      optimisticUpdate.quick_status = 'Confirmed';
+    }
+    if (statusKey === 'gBL') {
+      optimisticUpdate.selected_code = null;
+    }
+
+    setLocalAnswers(prev => prev.map(a =>
+      allIds.includes(a.id) ? { ...a, ...optimisticUpdate } : a
+    ));
+
+    allIds.forEach(id => {
+      triggerRowAnimation(id, "animate-pulse bg-green-600/20 transition duration-700");
+    });
+
+    if (totalCount > 1) {
+      toast.success(
+        `Applied to ${totalCount} identical answers`,
+        {
+          description: `Updated "${answer.answer_text.substring(0, 50)}${answer.answer_text.length > 50 ? '...' : ''}"`,
+        }
+      );
+    }
+
+    // Save to database
+    try {
+      const update: any = {
+        general_status: newStatus,
+        coding_date: new Date().toISOString()
+      };
+      if (statusKey === 'C') {
+        update.quick_status = 'Confirmed';
+      }
+      if (statusKey === 'gBL') {
+        update.selected_code = null;
+      }
+
+      let saveSuccess = false;
+
+      if (isOnline) {
+        const { error } = await supabase
+          .from('answers')
+          .update(update)
+          .in('id', allIds);
+
+        if (error) throw error;
+        saveSuccess = true;
+        console.log(`✅ Updated ${totalCount} answers with status: ${newStatus}`);
+      } else {
+        await queueChange({
+          action: 'update',
+          table: 'answers',
+          data: { ids: allIds, updates: update },
+        });
+        saveSuccess = true;
+        console.log(`📝 Queued ${totalCount} answers for offline sync: ${newStatus}`);
+      }
+
+      if (saveSuccess) {
+        // Add to history
+        addAction({
+          id: `status-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          type: 'status_change',
+          timestamp: Date.now(),
+          description: `Set ${totalCount} answer(s) to ${newStatus}`,
+          answerIds: allIds,
+          previousState,
+          newState: allIds.reduce((acc, id) => {
+            acc[id] = optimisticUpdate;
+            return acc;
+          }, {} as Record<number, any>),
+          undo: async () => {
+            setLocalAnswers(prev => prev.map(a => {
+              const revert = previousState[a.id];
+              return revert ? { ...a, ...revert } : a;
+            }));
+
+            for (const [id, state] of Object.entries(previousState)) {
+              await supabase
+                .from('answers')
+                .update(state)
+                .eq('id', parseInt(id));
+            }
+          },
+          redo: async () => {
+            setLocalAnswers(prev => prev.map(a =>
+              allIds.includes(a.id) ? { ...a, ...optimisticUpdate } : a
+            ));
+
+            await supabase
+              .from('answers')
+              .update(update)
+              .in('id', allIds);
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      setLocalAnswers(prev => prev.map(a =>
+        allIds.includes(a.id) ? (a.id === answer.id ? currentAnswer : a) : a
+      ));
+      toast.error('Failed to update status');
+    }
+  }, [localAnswers, isOnline, queueChange, addAction, triggerRowAnimation, findDuplicateAnswers, setLocalAnswers]);
+
+  // Handle AI Categorization
+  const handleSingleAICategorize = useCallback(async (answerId: number) => {
+    console.log(`✨ AI categorizing single answer: ${answerId}`);
+    setIsCategorizingRow(prev => ({ ...prev, [answerId]: true }));
+
+    try {
+      // Call the actual AI categorization mutation
+      await categorizeAnswer(answerId);
+      console.log(`✅ AI categorization completed for answer ${answerId}`);
+    } catch (error) {
+      console.error(`❌ AI categorization failed for answer ${answerId}:`, error);
+    } finally {
+      // Clear categorizing state when done
+      setIsCategorizingRow(prev => {
+        const newState = { ...prev };
+        delete newState[answerId];
+        return newState;
+      });
+    }
+  }, [categorizeAnswer]);
+
+  return {
+    isCategorizingRow,
+    setIsCategorizingRow,
+    handleQuickStatus,
+    handleSingleAICategorize,
+    findDuplicateAnswers,
+  };
+}

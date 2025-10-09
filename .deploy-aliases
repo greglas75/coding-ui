@@ -1,0 +1,29 @@
+# Deployment aliases for coding-ui project
+# Add these to your ~/.bashrc, ~/.zshrc, or ~/.profile
+
+# Quick deployment aliases
+alias qd='./quick-deploy.sh'
+alias deploy='./deploy.sh'
+alias deploy-adv='./deploy-advanced.sh'
+
+# NPM script aliases
+alias npm-deploy='npm run deploy'
+alias npm-quick='npm run quick'
+alias npm-deploy-dry='npm run deploy:dry'
+
+# Git shortcuts
+alias gs='git status'
+alias ga='git add .'
+alias gc='git commit -m'
+alias gp='git push'
+
+# Project specific shortcuts
+alias dev='npm run dev'
+alias build='npm run build'
+alias lint='npm run lint'
+
+# Usage examples:
+# qd "Fix typo"           - Quick deploy with message
+# deploy                  - Standard deploy
+# deploy-adv -d           - Dry run
+# npm-quick "Update"      - Quick deploy via npm

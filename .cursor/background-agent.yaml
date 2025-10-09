@@ -1,0 +1,17 @@
+rules:
+  - name: Save Prompt History
+    description: Automatically save all closed chat sessions as markdown files.
+    trigger: on_session_close
+    actions:
+      - type: save_to_repo
+        path: "prompt-history/{{date}}_{{session_name}}.md"
+        content: "{{chat_transcript}}"
+        commit_message: "🧠 Auto-saved chat session: {{session_name}}"
+
+  - name: Autosave every 10 minutes
+    trigger: every_10_minutes
+    actions:
+      - type: save_to_repo
+        path: "prompt-history/autosave_{{date}}.md"
+        content: "{{chat_transcript}}"
+        commit_message: "💾 Autosave at {{time}}"
