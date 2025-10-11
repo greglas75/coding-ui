@@ -1,4 +1,4 @@
-import { RotateCw, Sparkles, X } from 'lucide-react';
+import { RotateCw } from 'lucide-react';
 import type { FC } from 'react';
 import { Tooltip } from '../../shared/Tooltip';
 
@@ -20,9 +20,7 @@ interface AISuggestionsCellProps {
   aiSuggestions: AISuggestionsData | null;
   isCategorizing: boolean;
   isAccepting: boolean;
-  onCategorize: () => void;
   onAccept: (suggestion: AISuggestion) => void;
-  onRemove: () => void;
   onRegenerate: () => void;
 }
 
@@ -31,9 +29,7 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
   aiSuggestions,
   isCategorizing,
   isAccepting,
-  onCategorize,
   onAccept,
-  onRemove,
   onRegenerate
 }) => {
   // Helper functions
@@ -57,100 +53,51 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
     return 'Low';
   };
 
-  const formatTimeAgo = (dateString: string): string => {
-    const now = Date.now();
-    const past = new Date(dateString).getTime();
-    const diffMs = now - past;
-
-    const minutes = Math.floor(diffMs / 60000);
-    const hours = Math.floor(diffMs / 3600000);
-    const days = Math.floor(diffMs / 86400000);
-
-    if (minutes < 1) return 'just now';
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    if (days < 30) return `${days}d ago`;
-    return `${Math.floor(days / 30)}mo ago`;
-  };
 
   return (
-    <div className="flex items-center gap-2 min-h-[40px]">
-      {/* Status Icon */}
-      <div className="flex-shrink-0">
-        {isCategorizing ? (
-          <span className="text-lg animate-spin">⏳</span>
-        ) : aiSuggestions?.suggestions && aiSuggestions.suggestions.length > 0 ? (
-          <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-        ) : (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onCategorize();
-            }}
-            className="p-0.5 rounded hover:bg-purple-100 dark:hover:bg-purple-900/20 text-gray-400 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
-            title="AI categorize"
-          >
-            <Sparkles className="h-4 w-4" />
-          </button>
-        )}
-      </div>
+    <div className="flex items-center gap-2 h-[28px] overflow-hidden">
 
       {/* Suggestions (if any) */}
       {aiSuggestions?.suggestions && aiSuggestions.suggestions.length > 0 ? (
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <div className="flex flex-wrap gap-1">
+        <div className="flex-1 overflow-hidden">
+          <div className="flex items-center gap-2 h-full">
+            <div className="flex items-center gap-1 overflow-hidden">
               {aiSuggestions.suggestions.map((suggestion, idx) => (
-                <Tooltip
-                  key={idx}
-                  content={
-                    <div className="space-y-2">
-                      <div>
-                        <span className="font-semibold">Confidence: </span>
-                        <span className={getConfidenceLabel(suggestion.confidence) === 'Very High' ? 'text-green-300' : getConfidenceLabel(suggestion.confidence) === 'High' ? 'text-blue-300' : getConfidenceLabel(suggestion.confidence) === 'Medium' ? 'text-yellow-300' : 'text-gray-300'}>
-                          {getConfidenceLabel(suggestion.confidence)} ({(suggestion.confidence * 100).toFixed(0)}%)
-                        </span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">Reasoning:</span>
-                        <p className="mt-1 text-xs text-gray-300">
-                          {suggestion.reasoning}
-                        </p>
-                      </div>
-                      {aiSuggestions.model && (
-                        <div className="text-xs text-gray-400 border-t border-gray-700 pt-2 mt-2">
-                          Model: {aiSuggestions.model}
+                  <Tooltip
+                    key={idx}
+                    content={
+                      <div className="space-y-2">
+                        <div>
+                          <span className="font-semibold">Confidence: </span>
+                          <span className={getConfidenceLabel(suggestion.confidence) === 'Very High' ? 'text-green-300' : getConfidenceLabel(suggestion.confidence) === 'High' ? 'text-blue-300' : getConfidenceLabel(suggestion.confidence) === 'Medium' ? 'text-yellow-300' : 'text-gray-300'}>
+                            {getConfidenceLabel(suggestion.confidence)} ({(suggestion.confidence * 100).toFixed(0)}%)
+                          </span>
                         </div>
-                      )}
-                    </div>
-                  }
-                >
-                  <div
-                    className={`group relative px-2 py-1 text-xs rounded border flex items-center gap-1 ${getConfidenceColor(suggestion.confidence)}`}
+                        <div>
+                          <span className="font-semibold">Reasoning:</span>
+                          <p className="mt-1 text-xs text-gray-300">
+                            {suggestion.reasoning}
+                          </p>
+                        </div>
+                        {aiSuggestions.model && (
+                          <div className="text-xs text-gray-400 border-t border-gray-700 pt-2 mt-2">
+                            Model: {aiSuggestions.model}
+                          </div>
+                        )}
+                      </div>
+                    }
                   >
-                    <button
-                      onClick={() => onAccept(suggestion)}
-                      disabled={isAccepting}
-                      className="flex items-center gap-1 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                    <div
+                      onClick={() => !isAccepting && onAccept(suggestion)}
+                      className={`group relative px-2 py-1 text-xs rounded border flex items-center gap-1 cursor-pointer transition-opacity h-[24px] whitespace-nowrap ${getConfidenceColor(suggestion.confidence)} ${isAccepting ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
                     >
-                      <span>{suggestion.code_name}</span>
-                      <span className="text-[10px] opacity-70 ml-1">
-                        {(suggestion.confidence * 100).toFixed(0)}%
-                      </span>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRemove();
-                      }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Dismiss suggestion"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                </Tooltip>
-              ))}
+                        <span className="text-xs font-semibold leading-none">{suggestion.code_name}</span>
+                        <span className="text-xs text-gray-500 font-medium leading-none">
+                          ({(suggestion.confidence * 100).toFixed(0)}%)
+                        </span>
+                    </div>
+                  </Tooltip>
+                ))}
             </div>
             <button
               onClick={(e) => {
@@ -158,17 +105,12 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
                 onRegenerate();
               }}
               disabled={isCategorizing}
-              className="text-xs text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="text-xs text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors flex-shrink-0"
               title="Regenerate AI suggestions"
             >
               <RotateCw className="h-3 w-3" />
             </button>
           </div>
-          {aiSuggestions.timestamp && (
-            <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
-              Generated {formatTimeAgo(aiSuggestions.timestamp)}
-            </div>
-          )}
         </div>
       ) : (
         <span className="text-xs text-gray-400 dark:text-gray-500">—</span>

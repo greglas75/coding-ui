@@ -15,7 +15,7 @@ export class TrainingDataExporter {
    */
   async exportTrainingData(
     categoryId?: number,
-    minConfidence: number = 0 // TODO: Apply confidence filtering during export
+    _minConfidence: number = 0 // TODO: Apply confidence filtering during export
   ): Promise<{ data: TrainingExample[]; count: number; filename: string }> {
     console.log(`📦 Exporting training data for category: ${categoryId || 'all'}`);
 

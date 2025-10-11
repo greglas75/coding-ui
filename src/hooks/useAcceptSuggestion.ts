@@ -20,7 +20,7 @@ interface AcceptSuggestionParams {
  *
  * This hook handles:
  * 1. Updating the answer with the selected code
- * 2. Setting the status to 'Confirmed' and 'whitelist'
+ * 2. Setting the status to 'Categorized'
  * 3. Setting the coding date
  * 4. Clearing or keeping AI suggestions (depending on strategy)
  *
@@ -50,11 +50,38 @@ export function useAcceptSuggestion() {
     }: AcceptSuggestionParams) => {
       console.log(`🎯 Accepting AI suggestion for answer ${answerId}:`, { codeName, confidence });
 
+      // First, get the current answer to check existing codes
+      const { data: currentAnswer, error: fetchError } = await supabase
+        .from('answers')
+        .select('selected_code')
+        .eq('id', answerId)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching current answer:', fetchError);
+        throw fetchError;
+      }
+
+      // Add code to existing codes (if any)
+      const existingCodes = currentAnswer?.selected_code;
+      let newSelectedCode = codeName;
+
+      if (existingCodes) {
+        // Check if code is not already in the list
+        const codesList = existingCodes.split(',').map((c: string) => c.trim());
+        if (!codesList.includes(codeName)) {
+          newSelectedCode = `${existingCodes}, ${codeName}`;
+        } else {
+          // Code already exists, don't add again
+          newSelectedCode = existingCodes;
+        }
+      }
+
       // Update the answer with the selected code
       const { error: updateError } = await supabase
         .from('answers')
         .update({
-          selected_code: codeName,
+          selected_code: newSelectedCode,
           quick_status: 'Confirmed',
           general_status: 'whitelist',
           coding_date: new Date().toISOString(),
@@ -128,10 +155,32 @@ export function useAcceptSuggestionsBatch() {
 
       for (const suggestion of suggestions) {
         try {
+          // First, get the current answer to check existing codes
+          const { data: currentAnswer, error: fetchError } = await supabase
+            .from('answers')
+            .select('selected_code')
+            .eq('id', suggestion.answerId)
+            .single();
+
+          if (fetchError) throw fetchError;
+
+          // Add code to existing codes (if any)
+          const existingCodes = currentAnswer?.selected_code;
+          let newSelectedCode = suggestion.codeName;
+
+          if (existingCodes) {
+            const codesList = existingCodes.split(',').map((c: string) => c.trim());
+            if (!codesList.includes(suggestion.codeName)) {
+              newSelectedCode = `${existingCodes}, ${suggestion.codeName}`;
+            } else {
+              newSelectedCode = existingCodes;
+            }
+          }
+
           const { error } = await supabase
             .from('answers')
             .update({
-              selected_code: suggestion.codeName,
+              selected_code: newSelectedCode,
               quick_status: 'Confirmed',
               general_status: 'whitelist',
               coding_date: new Date().toISOString(),

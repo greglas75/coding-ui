@@ -2,17 +2,17 @@ import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
 export interface AnswerState {
-  general_status?: string;
+  general_status?: string | null;
   selected_code?: string | null;
   quick_status?: string | null;
-  coding_date?: string;
+  coding_date?: string | null;
   ai_suggestions?: any;
   confirmed_by?: string;
 }
 
 export interface HistoryAction {
   id: string;
-  type: 'status_change' | 'code_assignment' | 'bulk_update' | 'ai_categorization';
+  type: 'status_change' | 'code_assignment' | 'bulk_update' | 'ai_categorization' | 'accept_suggestion';
   timestamp: number;
   description: string;
   answerIds: number[];

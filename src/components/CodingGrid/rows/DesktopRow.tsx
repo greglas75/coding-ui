@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import type { FC } from 'react';
 import type { Answer } from '../../../types';
+import { AIButtonCell } from '../cells/AIButtonCell';
 import { AISuggestionsCell } from '../cells/AISuggestionsCell';
 import { AnswerTextCell } from '../cells/AnswerTextCell';
 import { CodeCell } from '../cells/CodeCell';
@@ -10,7 +11,7 @@ import { StatusCell } from '../cells/StatusCell';
 
 interface DesktopRowProps {
   answer: Answer;
-  cellPad: string;
+  // cellPad removed - using fixed padding for consistent row height
   isSelected: boolean;
   isFocused: boolean;
   isCategorizing: boolean;
@@ -21,16 +22,14 @@ interface DesktopRowProps {
   onClick: (e: React.MouseEvent) => void;
   onQuickStatus: (answer: Answer, key: any) => void;
   onCodeClick: () => void;
-  onAICategorize: () => void;
+  onRollback: () => void;
   onAcceptSuggestion: (suggestion: any) => void;
-  onRemoveSuggestion: () => void;
   onRegenerateSuggestions: () => void;
   formatDate: (date: string | null | undefined) => string;
 }
 
 export const DesktopRow: FC<DesktopRowProps> = ({
   answer,
-  cellPad,
   isSelected,
   isFocused,
   isCategorizing,
@@ -41,9 +40,8 @@ export const DesktopRow: FC<DesktopRowProps> = ({
   onClick,
   onQuickStatus,
   onCodeClick,
-  onAICategorize,
+  onRollback,
   onAcceptSuggestion,
-  onRemoveSuggestion,
   onRegenerateSuggestions,
   formatDate
 }) => {
@@ -65,8 +63,9 @@ export const DesktopRow: FC<DesktopRowProps> = ({
         onClick(e);
       }}
       onFocus={onFocus}
+      style={{ height: '60px', maxHeight: '60px' }}
       className={clsx(
-        "border-b border-zinc-100 dark:border-zinc-800 transition-colors cursor-pointer relative",
+        "border-b border-zinc-100 dark:border-zinc-800 transition-colors cursor-pointer relative overflow-hidden",
         isFocused
           ? "bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-500 ring-inset"
           : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 bg-white dark:bg-zinc-900",
@@ -75,7 +74,7 @@ export const DesktopRow: FC<DesktopRowProps> = ({
       )}
     >
       {/* Selection Checkbox */}
-      <td className="px-2 py-1 w-8">
+      <td className="px-2 w-8 align-middle max-h-[60px] overflow-hidden">
         <SelectionCell
           answerId={answer.id}
           isSelected={isSelected}
@@ -84,17 +83,17 @@ export const DesktopRow: FC<DesktopRowProps> = ({
       </td>
 
       {/* Date */}
-      <td className={`${cellPad} text-[11px] leading-tight text-zinc-500 whitespace-nowrap`}>
+      <td className="px-2 py-1 text-[11px] leading-tight text-zinc-500 whitespace-nowrap align-middle max-h-[60px] overflow-hidden">
         {formatDate(answer.created_at)}
       </td>
 
       {/* Language */}
-      <td className={`${cellPad} text-sm text-zinc-800 dark:text-zinc-100 text-center hidden sm:table-cell`}>
+      <td className="px-2 py-1 text-sm text-zinc-800 dark:text-zinc-100 text-center hidden sm:table-cell align-middle max-h-[60px] overflow-hidden">
         {answer.language || '—'}
       </td>
 
       {/* Answer Text */}
-      <td className={`${cellPad} text-sm text-zinc-800 dark:text-zinc-100`}>
+      <td className="px-2 py-1 text-sm text-zinc-800 dark:text-zinc-100 align-middle max-h-[60px] overflow-hidden">
         <AnswerTextCell
           text={answer.answer_text}
           translation={answer.translation_en}
@@ -102,7 +101,7 @@ export const DesktopRow: FC<DesktopRowProps> = ({
       </td>
 
       {/* Translation (full) */}
-      <td className={`${cellPad} hidden md:table-cell`}>
+      <td className="px-2 py-1 hidden md:table-cell align-middle max-h-[60px] overflow-hidden">
         {answer.translation_en ? (
           <div className="max-w-[320px] text-sm text-zinc-700 dark:text-zinc-300 truncate">
             {answer.translation_en}
@@ -113,7 +112,7 @@ export const DesktopRow: FC<DesktopRowProps> = ({
       </td>
 
       {/* Quick Status Buttons */}
-      <td className={`${cellPad}`}>
+      <td className="px-2 py-1 align-middle max-h-[60px] overflow-hidden">
         <QuickStatusButtons
           answer={answer}
           onStatusChange={onQuickStatus}
@@ -121,43 +120,45 @@ export const DesktopRow: FC<DesktopRowProps> = ({
       </td>
 
       {/* General Status */}
-      <td className={`${cellPad}`}>
+      <td className="px-2 py-1 align-middle max-h-[60px] overflow-hidden">
         <StatusCell status={answer.general_status} />
       </td>
 
+      {/* AI Button */}
+      <td className="px-2 py-1 hidden md:table-cell text-center align-middle max-h-[60px] overflow-hidden">
+        <AIButtonCell
+          isCategorizing={isCategorizing}
+          timestamp={answer.ai_suggestions?.timestamp}
+          onRegenerate={onRegenerateSuggestions}
+        />
+      </td>
+
       {/* AI Suggestions */}
-      <td className={`${cellPad} hidden md:table-cell`}>
+      <td className="px-2 py-1 hidden md:table-cell align-middle max-h-[60px] overflow-hidden">
         <AISuggestionsCell
           answerId={answer.id}
           aiSuggestions={answer.ai_suggestions}
           isCategorizing={isCategorizing}
           isAccepting={isAccepting}
-          onCategorize={onAICategorize}
           onAccept={onAcceptSuggestion}
-          onRemove={onRemoveSuggestion}
           onRegenerate={onRegenerateSuggestions}
         />
       </td>
 
       {/* Code */}
-      <td className={`${cellPad} hidden md:table-cell`}>
+      <td className="px-2 py-1 hidden md:table-cell align-middle max-h-[60px] overflow-hidden">
         <CodeCell
           answerId={answer.id}
           selectedCode={answer.selected_code}
           generalStatus={answer.general_status}
+          codingDate={answer.coding_date}
           onClick={onCodeClick}
+          onRollback={onRollback}
         />
       </td>
 
-      {/* Coding Date */}
-      <td className={`${cellPad} hidden lg:table-cell`}>
-        <span className="text-[11px] leading-tight text-zinc-500 dark:text-zinc-300 whitespace-nowrap">
-          {formatDate(answer.coding_date)}
-        </span>
-      </td>
-
       {/* Country */}
-      <td className={`${cellPad} text-sm text-zinc-800 dark:text-zinc-100 hidden lg:table-cell`}>
+      <td className="px-2 py-1 text-sm text-zinc-800 dark:text-zinc-100 hidden lg:table-cell align-middle max-h-[60px] overflow-hidden">
         {answer.country || '—'}
       </td>
     </tr>

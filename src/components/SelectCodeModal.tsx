@@ -168,19 +168,50 @@ export function SelectCodeModal({
 
     const fullStatus = statusMap[status] || status;
 
+    // Prevent 'C' (Confirmed) if no AI suggestion available
+    if (status === 'C') {
+      const firstSuggestion = answer.ai_suggestions?.suggestions?.[0];
+      if (!firstSuggestion || !firstSuggestion.code_name) {
+        toast.error('Cannot confirm: No AI suggestion available');
+        return;
+      }
+    }
+
+    const update: any = {
+      quick_status: fullStatus,
+      general_status: fullStatus,
+    };
+
+    // Special handling for 'C' (Confirmed)
+    if (status === 'C') {
+      update.general_status = 'whitelist';
+      update.coding_date = new Date().toISOString();
+
+      // Auto-accept ALL AI suggestions if available
+      const suggestions = answer.ai_suggestions?.suggestions;
+      if (suggestions && suggestions.length > 0) {
+        const allCodes = suggestions
+          .filter(s => s.code_name)
+          .map(s => s.code_name)
+          .join(', ');
+        update.selected_code = allCodes;
+        console.log(`✅ Auto-accepting ${suggestions.length} AI suggestion(s): ${allCodes}`);
+        toast.success(`Status: Whitelist | Codes: ${allCodes}`);
+      }
+    } else {
+      update.coding_date = null;
+      toast.success(`Status: ${fullStatus}`);
+    }
+
     const { error } = await supabase
       .from('answers')
-      .update({
-        quick_status: fullStatus,
-        coding_date: new Date().toISOString()
-      })
+      .update(update)
       .eq('id', answer.id);
 
     if (error) {
       toast.error('Failed to update status');
       console.error('Status update error:', error);
     } else {
-      toast.success(`Status: ${fullStatus}`);
       onSaved(); // Refresh parent
     }
   };
@@ -338,7 +369,7 @@ export function SelectCodeModal({
           .update({
             selected_code: null,
             general_status: 'uncategorized',
-            coding_date: new Date().toISOString()
+            coding_date: null
           })
           .in("id", selectedAnswerIds);
 
@@ -586,7 +617,7 @@ export function SelectCodeModal({
                                   {suggestion.codeName}
                                 </div>
                                 <div className="text-xs">{suggestion.reason}</div>
-                                {suggestion.frequency > 0 && (
+                                {suggestion.frequency && suggestion.frequency > 0 && (
                                   <div className="text-xs text-gray-400 border-t border-gray-700 pt-1 mt-1">
                                     Used {suggestion.frequency}× before
                                   </div>
@@ -698,13 +729,42 @@ export function SelectCodeModal({
 
                     const fullStatus = statusMap[status] || status;
 
+                    // Prevent 'C' (Confirmed) if no AI suggestion available
+                    if (status === 'C') {
+                      const firstSuggestion = answer.ai_suggestions?.suggestions?.[0];
+                      if (!firstSuggestion || !firstSuggestion.code_name) {
+                        toast.error('Cannot confirm: No AI suggestion available');
+                        return;
+                      }
+                    }
+
+                    const update: any = {
+                      quick_status: fullStatus,
+                      general_status: fullStatus,
+                    };
+
+                    // Special handling for 'C' (Confirmed)
+                    if (status === 'C') {
+                      update.general_status = 'whitelist';
+                      update.coding_date = new Date().toISOString();
+
+                      // Auto-accept ALL AI suggestions
+                      const suggestions = answer.ai_suggestions?.suggestions;
+                      if (suggestions && suggestions.length > 0) {
+                        const allCodes = suggestions
+                          .filter(s => s.code_name)
+                          .map(s => s.code_name)
+                          .join(', ');
+                        update.selected_code = allCodes;
+                      }
+                    } else {
+                      update.coding_date = null;
+                    }
+
                     // Update answer status in database
                     const { error } = await supabase
                       .from('answers')
-                      .update({
-                        quick_status: fullStatus,
-                        coding_date: new Date().toISOString()
-                      })
+                      .update(update)
                       .eq('id', answer.id);
 
                     if (error) {

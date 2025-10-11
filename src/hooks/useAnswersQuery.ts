@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { normalizeStatuses } from '../lib/statusNormalization';
 import { supabase } from '../lib/supabase';
 import type { Answer } from '../types';
 
@@ -52,14 +53,16 @@ export function useAnswers(options: UseAnswersOptions) {
 
       // Apply filters
       if (filters?.types && filters.types.length > 0) {
-        query = query.in('general_status', filters.types);
+        const normalizedTypes = normalizeStatuses(filters.types);
+        query = query.in('general_status', normalizedTypes);
       }
 
       if (filters?.status && filters.status.length > 0) {
         // Apply status filter - use 'in' for array of statuses
         // Ensure it's an array even if passed as string
         const statusArray = Array.isArray(filters.status) ? filters.status : [filters.status];
-        query = query.in('general_status', statusArray);
+        const normalizedStatuses = normalizeStatuses(statusArray);
+        query = query.in('general_status', normalizedStatuses);
       }
 
       if (filters?.language) {

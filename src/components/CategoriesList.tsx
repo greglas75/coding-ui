@@ -80,7 +80,7 @@ export function CategoriesList({
     setTempName('');
   }
 
-  function formatDate(dateString: string | undefined): string {
+  function formatDate(dateString: string | null | undefined): string {
     if (!dateString) return '—';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-CA', {

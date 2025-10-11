@@ -1,3 +1,4 @@
+import { getStatusLabel, normalizeStatus } from '../../../lib/statusNormalization';
 import type { FiltersType } from '../types';
 
 /**
@@ -95,30 +96,34 @@ export function mergeStatusOptions(
   statusesList: string[],
   typesList: Array<{ key: string; label: string }>
 ): Array<{ key: string; label: string }> {
-  const allOptions = [
-    ...statusesList.map(s => ({ key: s, label: cleanStatusName(s) })),
-    ...typesList.map(t => ({ key: t.key, label: cleanStatusName(t.label) }))
-  ];
-
-  // Create mapping for duplicates (case-insensitive)
   const optionMap = new Map<string, { key: string; label: string }>();
 
-  allOptions.forEach(option => {
-    const normalizedKey = option.key.toLowerCase().replace(/_/g, '');
-
-    if (optionMap.has(normalizedKey)) {
-      // Keep the version with better formatting
-      const existing = optionMap.get(normalizedKey)!;
-      if (option.label.length > existing.label.length ||
-          (option.label.length === existing.label.length && option.label < existing.label)) {
-        optionMap.set(normalizedKey, option);
-      }
-    } else {
-      optionMap.set(normalizedKey, option);
+  typesList.forEach(option => {
+    try {
+      const canonicalKey = normalizeStatus(option.key);
+      const displayLabel = getStatusLabel(canonicalKey);
+      optionMap.set(canonicalKey, { key: canonicalKey, label: displayLabel });
+    } catch (e) {
+      console.warn('Unknown status:', option.key);
+      optionMap.set(option.key, { key: option.key, label: option.label });
     }
   });
 
-  // Convert back to array and sort alphabetically
+  statusesList.forEach(status => {
+    try {
+      const canonicalKey = normalizeStatus(status);
+      if (!optionMap.has(canonicalKey)) {
+        const displayLabel = getStatusLabel(canonicalKey);
+        optionMap.set(canonicalKey, { key: canonicalKey, label: displayLabel });
+      }
+    } catch (e) {
+      console.warn('Unknown status:', status);
+      if (!optionMap.has(status)) {
+        optionMap.set(status, { key: status, label: cleanStatusName(status) });
+      }
+    }
+  });
+
   return Array.from(optionMap.values()).sort((a, b) =>
     a.label.localeCompare(b.label, 'en', { sensitivity: 'base' })
   );

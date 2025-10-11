@@ -1,5 +1,6 @@
-// 🧩 fetchCategories.ts - Professional Supabase categories fetcher
+// 🧩 fetchCategories.ts - Professional Supabase categories fetcher with Zod validation
 import { getSupabaseClient } from "./supabase";
+import { parseCategories } from "../schemas/categorySchema";
 
 const supabase = getSupabaseClient();
 
@@ -34,8 +35,15 @@ export const fetchCategories = async () => {
       return { success: true, data: [] };
     }
 
-    console.log(`✅ [fetchCategories] Fetched ${data.length} categories:`, data);
-    return { success: true, data };
+    // Validate data with Zod schema
+    try {
+      const validatedData = parseCategories(data);
+      console.log(`✅ [fetchCategories] Fetched and validated ${validatedData.length} categories`);
+      return { success: true, data: validatedData };
+    } catch (validationError) {
+      console.error("❌ [fetchCategories] Validation failed:", validationError);
+      return { success: false, data: [], error: validationError };
+    }
   } catch (err) {
     console.error("🔥 [fetchCategories] Unexpected error:", err);
     return { success: false, data: [], error: err };

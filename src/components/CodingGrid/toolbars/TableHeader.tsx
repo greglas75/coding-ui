@@ -96,24 +96,28 @@ export const TableHeader: FC<TableHeaderProps> = ({
           Status {getSortIcon('general_status')}
         </th>
 
+        {/* AI Button Column */}
+        <th className={`text-center ${cellPad} w-[60px] text-xs font-medium uppercase tracking-wide text-zinc-500 hidden md:table-cell`}>
+          AI
+        </th>
+
         <th className={`text-left ${cellPad} w-[240px] text-xs font-medium uppercase tracking-wide text-zinc-500 hidden md:table-cell`}>
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-2">
               <span>AI Suggestions</span>
-            </span>
-            <button
-              onClick={onBulkAICategorize}
-              disabled={isBulkCategorizing || visibleCount === 0}
-              className="p-1 rounded hover:bg-purple-100 dark:hover:bg-purple-900/20 text-purple-600 dark:text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title={`AI categorize all ${visibleCount} visible answers`}
-            >
-              {isBulkCategorizing ? (
-                <span className="h-4 w-4 animate-spin">⏳</span>
-              ) : (
-                <Sparkles className="h-4 w-4" />
-              )}
-            </button>
+              <button
+                onClick={onBulkAICategorize}
+                disabled={isBulkCategorizing || visibleCount === 0}
+                className="p-1 rounded hover:bg-purple-100 dark:hover:bg-purple-900/20 text-purple-600 dark:text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title={`AI categorize all ${visibleCount} visible answers`}
+              >
+                {isBulkCategorizing ? (
+                  <span className="h-4 w-4 animate-spin">⏳</span>
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+              </button>
+            </div>
           </div>
         </th>
 
@@ -123,14 +127,6 @@ export const TableHeader: FC<TableHeaderProps> = ({
           title="Sort by code"
         >
           Code {getSortIcon('selected_code')}
-        </th>
-
-        <th
-          onClick={() => onSort('coding_date')}
-          className={`text-left ${cellPad} w-[150px] text-xs font-medium uppercase tracking-wide text-zinc-500 hidden lg:table-cell cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors`}
-          title="Sort by coding date"
-        >
-          Coding Date {getSortIcon('coding_date')}
         </th>
 
         <th

@@ -1,5 +1,6 @@
 import { Settings, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { getTemplate, type TemplatePreset } from "../config/DefaultTemplates";
 import { TestPromptModal } from "./TestPromptModal";
 
 interface EditCategoryModalProps {
@@ -9,6 +10,7 @@ interface EditCategoryModalProps {
     google_name?: string;
     description?: string;
     template?: string;
+    use_web_context?: boolean;
   };
   onClose: () => void;
   onSave: (data: {
@@ -21,6 +23,7 @@ interface EditCategoryModalProps {
     brandsSorting: string;
     minLength: number;
     maxLength: number;
+    useWebContext: boolean;
   }) => Promise<void>;
 }
 
@@ -55,7 +58,20 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
     brandsSorting: "Alphanumerical",
     minLength: 0,
     maxLength: 0,
+    useWebContext: category.use_web_context ?? true, // default: true
   });
+
+  // Auto-fill template on modal open if it's empty
+  useEffect(() => {
+    if ((!form.template || form.template.trim().length === 0) && form.preset !== 'Custom') {
+      // Don't fill placeholders - keep them dynamic
+      const rawTemplate = getTemplate(form.preset as TemplatePreset);
+      if (rawTemplate) {
+        setForm(prev => ({ ...prev, template: rawTemplate }));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount
 
   const gptModels = [
     "gpt-4.1-nano",
@@ -81,7 +97,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
       <div className={`fixed inset-0 bg-black/40 flex items-center justify-center z-50 transition-opacity duration-300 ${
         fade ? "opacity-100" : "opacity-0"
       }`}>
-        <div className="bg-white dark:bg-neutral-900 rounded-xl p-6 w-full max-w-4xl shadow-lg transform transition-all scale-100">
+        <div className="bg-white dark:bg-neutral-900 rounded-xl p-6 w-full max-w-6xl shadow-lg transform transition-all scale-100">
           {/* Header */}
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold flex items-center gap-2 text-gray-900 dark:text-gray-100">
@@ -117,7 +133,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                   Description
                 </label>
                 <textarea
-                  rows={4}
+                  rows={2}
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
@@ -129,12 +145,27 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                   GPT Template
                 </label>
                 <textarea
-                  rows={8}
+                  rows={14}
                   value={form.template}
                   onChange={(e) => setForm({ ...form, template: e.target.value })}
                   className="w-full font-mono border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   placeholder="Enter GPT system prompt template..."
                 />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  💡 Available placeholders:{' '}
+                  <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-blue-600 dark:text-blue-400">
+                    {'{category}'}
+                  </code>
+                  {' '}
+                  <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-blue-600 dark:text-blue-400">
+                    {'{searchTerm}'}
+                  </code>
+                  {' '}
+                  <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-blue-600 dark:text-blue-400">
+                    {'{codes}'}
+                  </code>
+                  {' - will be replaced when AI runs'}
+                </p>
                 <button
                   onClick={() => setTestModalOpen(true)}
                   className="mt-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium flex items-center gap-2"
@@ -165,13 +196,34 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                 </label>
                 <select
                   value={form.preset}
-                  onChange={(e) => setForm({ ...form, preset: e.target.value })}
+                  onChange={(e) => {
+                    const newPreset = e.target.value as TemplatePreset;
+                    setForm({ ...form, preset: newPreset });
+
+                    // Load template with placeholders (unless Custom)
+                    if (newPreset !== 'Custom') {
+                      const rawTemplate = getTemplate(newPreset);
+                      if (rawTemplate) {
+                        setForm(prev => ({ ...prev, template: rawTemplate }));
+                      }
+                    }
+                  }}
                   className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 >
                   <option>LLM Proper Name</option>
-                  <option>Keyword Match</option>
-                  <option>Generic Brand Detection</option>
+                  <option>LLM Brand List</option>
+                  <option>LLM First Letter</option>
+                  <option>LLM Sentiment</option>
+                  <option>LLM Entity Detection</option>
+                  <option>LLM Description Extractor</option>
+                  <option>LLM Translation Validator</option>
+                  <option>LLM Geo Brand Detector</option>
+                  <option>LLM Yes/No</option>
+                  <option>Custom</option>
                 </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  💡 Changing preset will auto-fill the template below
+                </p>
               </div>
 
               <div>
@@ -227,6 +279,26 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                   className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   title="Shorter and longer answers would be marked as Gibberish. Set 0 or empty to skip validation."
                 />
+              </div>
+
+              {/* Web Context Toggle */}
+              <div className="pt-4 border-t border-gray-200 dark:border-neutral-700">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.useWebContext}
+                    onChange={(e) => setForm({ ...form, useWebContext: e.target.checked })}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Use Google Search Context
+                    </span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      💡 Enriches AI prompts with web context (brand names, local terms, slang). Helps with regional and trending topics.
+                    </p>
+                  </div>
+                </label>
               </div>
             </div>
           </div>

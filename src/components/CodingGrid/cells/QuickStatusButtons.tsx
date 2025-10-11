@@ -8,11 +8,11 @@ interface QuickStatusButtonsProps {
 }
 
 const statusMap = {
-  Oth: { label: "Other", color: "bg-purple-500" },
-  Ign: { label: "Ignore", color: "bg-orange-500" },
-  gBL: { label: "Global Blacklist", color: "bg-red-600" },
-  BL: { label: "Blacklist", color: "bg-rose-700" },
-  C: { label: "Confirmed", color: "bg-green-600" },
+  Oth: { label: "Other", color: "bg-orange-500" },
+  Ign: { label: "Ignore", color: "bg-yellow-500" },
+  gBL: { label: "Global Blacklist", color: "bg-red-500" },
+  BL: { label: "Blacklist", color: "bg-gray-500" },
+  C: { label: "Confirmed", color: "bg-purple-500" },
 } as const;
 
 const tooltips: Record<string, string> = {
@@ -28,21 +28,28 @@ export const QuickStatusButtons: FC<QuickStatusButtonsProps> = ({
   onStatusChange
 }) => {
   return (
-    <div className="flex flex-wrap gap-1 items-center">
+    <div className="flex gap-1 items-center">
       {(Object.keys(statusMap) as Array<keyof typeof statusMap>).map((key) => {
         const isActive = answer.quick_status === statusMap[key].label;
         const { color, label: fullLabel } = statusMap[key];
 
+        // Disable 'C' button if no AI suggestions available
+        const hasAISuggestion = answer.ai_suggestions?.suggestions?.[0]?.code_name;
+        const isDisabled = key === 'C' && !hasAISuggestion;
+
         return (
           <button
             key={key}
-            onClick={() => onStatusChange(answer, key)}
-            title={tooltips[key] || fullLabel}
+            onClick={() => !isDisabled && onStatusChange(answer, key)}
+            title={isDisabled ? 'No AI suggestion available' : tooltips[key] || fullLabel}
+            disabled={isDisabled}
             className={clsx(
-              'px-1.5 py-0.5 text-[10px] rounded border transition-all cursor-pointer focus:ring-2 focus:ring-blue-500 focus:outline-none min-w-[28px] h-6 flex items-center justify-center',
-              isActive
-                ? `${color} text-white border-transparent`
-                : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-400 border-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-600'
+              'px-2 py-1 text-[10px] font-medium rounded border focus:ring-2 focus:ring-blue-500 focus:outline-none w-[40px] h-[28px] flex items-center justify-center leading-none transition-all',
+              isDisabled
+                ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-300 dark:text-zinc-600 border-zinc-300 dark:border-zinc-700 cursor-not-allowed opacity-50'
+                : isActive
+                ? `${color} text-white border-transparent font-semibold cursor-pointer`
+                : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-400 border-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-600 cursor-pointer'
             )}
           >
             {key}

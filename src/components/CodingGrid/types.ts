@@ -2,7 +2,9 @@ import type { Answer } from '../../types';
 
 export interface CodingGridProps {
   answers: Answer[];
+  totalAnswers?: number;
   density: 'comfortable' | 'compact';
+  setDensity: (density: 'comfortable' | 'compact') => void;
   currentCategoryId?: number;
   onCodingStart?: (categoryId: number | undefined) => void;
   onFiltersChange?: (filters: any) => void;

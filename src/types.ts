@@ -2,8 +2,8 @@ export interface Code {
   id: number;
   name: string;
   is_whitelisted: boolean;
-  created_at?: string;
-  updated_at?: string;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface CodeWithCategories extends Code {
@@ -13,8 +13,9 @@ export interface CodeWithCategories extends Code {
 export interface Category {
   id: number;
   name: string;
-  created_at?: string;
-  updated_at?: string;
+  use_web_context?: boolean; // default: true - enables Google Search context for AI
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export type GeneralStatus = 'uncategorized' | 'whitelist' | 'blacklist' | 'categorized' | 'global_blacklist' | 'Other' | 'Ignored' | 'Global Blacklist' | 'Whitelist' | null;
@@ -54,6 +55,6 @@ export interface Answer {
   category_id: number | null;
   coding_date: string | null;  // ISO
   confirmed_by?: string | null;  // email of user who confirmed
-  created_at?: string;
-  updated_at?: string;
+  created_at?: string | null;
+  updated_at?: string | null;
 }

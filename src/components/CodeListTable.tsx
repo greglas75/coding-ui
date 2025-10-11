@@ -9,7 +9,7 @@ interface CodeListTableProps {
   onToggleWhitelist: (id: number, isWhitelisted: boolean) => void;
   onUpdateCategories: (id: number, categoryIds: number[]) => void;
   onDelete: (id: number, name: string) => void;
-  onRecountMentions: (codeName: string) => Promise<number>;
+  onRecountMentions: (codeName: string) => Promise<number>; // TODO: Implement recount functionality
 }
 
 export function CodeListTable({
@@ -20,7 +20,7 @@ export function CodeListTable({
   onToggleWhitelist,
   onUpdateCategories,
   onDelete,
-  onRecountMentions
+  onRecountMentions: _onRecountMentions
 }: CodeListTableProps) {
   const [editingName, setEditingName] = useState<number | null>(null);
   const [editingCategories, setEditingCategories] = useState<number | null>(null);
@@ -134,21 +134,21 @@ export function CodeListTable({
   }
 
   // TODO: Implement recount mentions functionality
-  async function _handleRecountMentions(codeId: number, codeName: string) {
-    _setRecounting(prev => new Set(prev).add(codeId));
-    try {
-      const count = await onRecountMentions(codeName);
-      _setMentions(prev => new Map(prev).set(codeId, count));
-    } finally {
-      _setRecounting(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(codeId);
-        return newSet;
-      });
-    }
-  }
+  // async function _handleRecountMentions(codeId: number, codeName: string) {
+  //   _setRecounting(prev => new Set(prev).add(codeId));
+  //   try {
+  //     const count = await onRecountMentions(codeName);
+  //     _setMentions(prev => new Map(prev).set(codeId, count));
+  //   } finally {
+  //     _setRecounting(prev => {
+  //       const newSet = new Set(prev);
+  //       newSet.delete(codeId);
+  //       return newSet;
+  //     });
+  //   }
+  // }
 
-  function formatDate(dateString: string | undefined): string {
+  function formatDate(dateString: string | null | undefined): string {
     if (!dateString) return '—';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-CA', {

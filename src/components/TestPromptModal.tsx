@@ -1,5 +1,6 @@
 import { Code2, Play, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { testGPT } from "../services/apiClient";
 
 interface TestPromptModalProps {
   open: boolean;
@@ -51,16 +52,11 @@ export function TestPromptModal({ open, onClose, template, model }: TestPromptMo
 
     const start = performance.now();
     try {
-      const res = await fetch("http://localhost:3001/api/gpt-test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
+      const data = await testGPT(payload.messages, payload.model);
       const end = performance.now();
       setStats({
         time: ((end - start) / 1000).toFixed(1),
-        tokens: data?.usage?.total_tokens ?? "-"
+        tokens: String(data?.usage?.total_tokens ?? "-")
       });
       setResponseJson(JSON.stringify(data, null, 2));
     } catch (err: any) {

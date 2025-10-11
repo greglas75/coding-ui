@@ -1,25 +1,19 @@
 import type { FC } from 'react';
+import { getStatusLabel, normalizeStatus } from '../../lib/statusNormalization';
 import { FilterChip } from './chips/FilterChip';
 import type { FiltersType } from './types';
 
 interface ActiveFiltersDisplayProps {
   filters: FiltersType;
   onRemoveFilter: (key: keyof FiltersType, value?: string) => void;
+  onClearAll?: () => void;
   languageNames?: Record<string, string>;
-}
-
-// Helper function
-function cleanStatusName(status: string): string {
-  return status
-    .replace(/_/g, ' ')
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ');
 }
 
 export const ActiveFiltersDisplay: FC<ActiveFiltersDisplayProps> = ({
   filters,
   onRemoveFilter,
+  onClearAll,
   languageNames = {}
 }) => {
   const activeFilters: Array<{
@@ -43,11 +37,12 @@ export const ActiveFiltersDisplay: FC<ActiveFiltersDisplayProps> = ({
   // Status
   if (filters.status && filters.status.length > 0) {
     filters.status.forEach(status => {
+      const canonicalStatus = normalizeStatus(status);
       activeFilters.push({
         key: 'status',
         label: 'status',
         value: status,
-        displayValue: cleanStatusName(status),
+        displayValue: getStatusLabel(canonicalStatus),
         variant: 'status'
       });
     });
@@ -127,6 +122,19 @@ export const ActiveFiltersDisplay: FC<ActiveFiltersDisplayProps> = ({
       <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
         {activeFilters.length} active filter{activeFilters.length !== 1 ? 's' : ''}
       </span>
+      {/* Clear All Filters Button */}
+      {onClearAll && activeFilters.length > 0 && (
+        <>
+          <span className="text-gray-300 dark:text-gray-600 mx-1">•</span>
+          <button
+            onClick={onClearAll}
+            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline transition-colors font-medium"
+            title="Clear all active filters"
+          >
+            Clear all filters
+          </button>
+        </>
+      )}
     </div>
   );
 };

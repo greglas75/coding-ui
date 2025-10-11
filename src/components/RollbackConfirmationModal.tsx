@@ -68,6 +68,8 @@ export function RollbackConfirmationModal({
         .from("answers")
         .update({
           general_status: "uncategorized",
+          quick_status: null,  // Reset quick status button
+          selected_code: null,  // Remove code from Code column
           updated_at: new Date().toISOString(),
         })
         .eq("id", record.id);
@@ -93,6 +95,7 @@ export function RollbackConfirmationModal({
         .from("answers")
         .update({
           general_status: "uncategorized",
+          quick_status: null,  // Reset quick status button
           updated_at: new Date().toISOString(),
         })
         .eq("id", record.id);

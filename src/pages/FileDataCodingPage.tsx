@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { ImportHistoryTable } from '../components/ImportHistoryTable';
 import { MainLayout } from '../components/layout/MainLayout';
 import { fetchCategories } from '../lib/fetchCategories';
+import { uploadFile } from '../services/apiClient';
 import type { Category } from '../types';
 
 // ═══════════════════════════════════════════════════════════════
@@ -152,20 +153,10 @@ export function FileDataCodingPage() {
     try {
       toast.info('Uploading file...');
 
-      // Create FormData for multipart upload
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('category_id', selectedCategory.toString());
+      // Upload using apiClient
+      const result = await uploadFile(file, selectedCategory);
 
-      // Upload to backend API
-      const response = await fetch('http://localhost:3001/api/file-upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || result.status === 'error') {
+      if (result.status === 'error') {
         throw new Error(result.error || 'Upload failed');
       }
 

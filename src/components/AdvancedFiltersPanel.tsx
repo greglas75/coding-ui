@@ -1,6 +1,6 @@
+import { ChevronDown, ChevronUp, Filter, Plus, Save, Star, X } from 'lucide-react';
 import { useState } from 'react';
-import { Plus, X, Save, Star, Search, Filter, ChevronDown, ChevronUp } from 'lucide-react';
-import type { Filter as FilterType, FilterGroup, FilterPreset } from '../lib/filterEngine';
+import type { FilterGroup, FilterPreset, Filter as FilterType } from '../lib/filterEngine';
 import { FilterEngine } from '../lib/filterEngine';
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
   onDeletePreset: (presetId: string) => void;
   resultsCount: number;
   totalCount: number;
-  onSearchChange?: (searchTerm: string) => void;
+  onShowShortcuts?: () => void;
 }
 
 export function AdvancedFiltersPanel({
@@ -24,10 +24,9 @@ export function AdvancedFiltersPanel({
   onDeletePreset,
   resultsCount,
   totalCount,
-  onSearchChange
+  onShowShortcuts
 }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [savingPreset, setSavingPreset] = useState(false);
   const [presetName, setPresetName] = useState('');
 
@@ -65,18 +64,11 @@ export function AdvancedFiltersPanel({
     setSavingPreset(false);
   };
 
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value);
-    onSearchChange?.(value);
-  };
-
   const clearAllFilters = () => {
     onFilterChange({
       logic: 'AND',
       filters: []
     });
-    setSearchTerm('');
-    onSearchChange?.('');
   };
 
   return (
@@ -124,7 +116,7 @@ export function AdvancedFiltersPanel({
           )}
 
           {/* Clear All */}
-          {(filterGroup.filters.length > 0 || searchTerm) && (
+          {filterGroup.filters.length > 0 && (
             <button
               onClick={clearAllFilters}
               className="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 rounded transition-colors"
@@ -144,19 +136,6 @@ export function AdvancedFiltersPanel({
         </div>
       </div>
 
-      {/* Search Bar (always visible) */}
-      <div className="p-4 border-b border-gray-200 dark:border-neutral-800">
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search in answers..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-          />
-        </div>
-      </div>
 
       {/* Expanded Filters */}
       {isExpanded && (

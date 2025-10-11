@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Search, X } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import type { FiltersType } from './types';
 
@@ -39,6 +39,8 @@ interface FiltersBarProps {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  searchTerm?: string;
+  onSearchChange?: (value: string) => void;
 }
 
 export function FiltersBar({
@@ -61,6 +63,8 @@ export function FiltersBar({
   onRedo,
   canUndo = false,
   canRedo = false,
+  searchTerm = '',
+  onSearchChange,
 }: FiltersBarProps) {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const statusRef = useRef<HTMLDivElement>(null);
@@ -105,6 +109,15 @@ export function FiltersBar({
   const handleStatusClearAll = useCallback(() => {
     updateFilter('status', []);
   }, [updateFilter]);
+
+  const handleStatusApply = useCallback((values: string[]) => {
+    updateFilter('status', values);
+    setOpenDropdown(null);
+  }, [updateFilter]);
+
+  const handleStatusClose = useCallback(() => {
+    setOpenDropdown(null);
+  }, []);
 
   const handleCodeToggle = useCallback(
     (value: string) => {
@@ -190,6 +203,8 @@ export function FiltersBar({
               onToggle={handleStatusToggle}
               onSelectAll={handleStatusSelectAll}
               onClearAll={handleStatusClearAll}
+              onApply={handleStatusApply}
+              onClose={handleStatusClose}
             />
           </DropdownBase>
         </div>
@@ -299,7 +314,6 @@ export function FiltersBar({
         <div className="flex items-end gap-1 pb-0">
           <ActionButtons
             onApply={onApply}
-            onReset={onReset}
             onReload={onReload}
             isApplying={isApplying}
             isReloading={isReloading}
@@ -309,12 +323,36 @@ export function FiltersBar({
             canRedo={canRedo}
           />
         </div>
+
+        {/* Search input on the right */}
+        <div className="flex-1 flex justify-end items-end">
+          <div className="relative" style={{ width: '300px' }}>
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => onSearchChange?.(e.target.value)}
+              placeholder="Search in answers & translations..."
+              className="w-full h-9 pl-9 pr-8 text-sm border border-gray-200 dark:border-neutral-700 rounded-md bg-gray-50 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => onSearchChange?.('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="pt-3 border-t border-gray-200 dark:border-neutral-800">
         <ActiveFiltersDisplay
           filters={filters}
           onRemoveFilter={handleRemoveFilter}
+          onClearAll={onReset}
           languageNames={languageNames}
         />
       </div>

@@ -130,7 +130,7 @@ export class AutoConfirmEngine {
    * Track rejected suggestion for learning
    */
   private async trackRejection(
-    answerId: number,
+    _answerId: number,
     suggestion: AICodeSuggestion
   ): Promise<void> {
     try {

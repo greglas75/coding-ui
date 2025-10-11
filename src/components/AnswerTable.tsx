@@ -1,7 +1,5 @@
-import { Menu } from '@headlessui/react';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
-import { Home, Settings } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAnswers, useBulkUpdateAnswers } from '../hooks/useAnswersQuery';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
@@ -119,7 +117,7 @@ export function AnswerTable() {
         ids: Array.from(selected),
         updates: {
           general_status: status,
-          coding_date: new Date().toISOString()
+          coding_date: status === 'whitelist' ? new Date().toISOString() : null
         }
       });
 
@@ -138,12 +136,7 @@ export function AnswerTable() {
   });
 
   if (loading) return (
-    <MainLayout
-      breadcrumbs={[
-        { label: 'Home', href: '/', icon: <Home size={14} /> },
-        { label: 'Coding' }
-      ]}
-    >
+    <MainLayout>
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         <p className="ml-4 text-gray-500 dark:text-gray-400">Loading answers...</p>
@@ -152,12 +145,7 @@ export function AnswerTable() {
   );
 
   if (err) return (
-    <MainLayout
-      breadcrumbs={[
-        { label: 'Home', href: '/', icon: <Home size={14} /> },
-        { label: 'Coding' }
-      ]}
-    >
+    <MainLayout>
       <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-red-700 dark:text-red-400">
         Error: {err}
       </div>
@@ -166,63 +154,8 @@ export function AnswerTable() {
 
   return (
     <MainLayout
-      breadcrumbs={[
-        { label: 'Home', href: '/', icon: <Home size={14} /> },
-        { label: 'Coding' }
-      ]}
       maxWidth="wide"
     >
-      {/* View Settings */}
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <div></div>
-
-        {/* View Options Dropdown */}
-        <Menu as="div" className="relative">
-          <Menu.Button
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 border border-gray-200 dark:border-neutral-700 rounded-md bg-white dark:bg-neutral-900 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors focus:ring-2 focus:ring-blue-500 outline-none"
-            title="View options"
-          >
-            <Settings size={16} />
-            <span className="hidden sm:inline">View Options</span>
-          </Menu.Button>
-
-          <Menu.Items className="absolute right-0 mt-2 w-48 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-md shadow-lg text-sm z-50 py-1">
-            <div className="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide border-b border-gray-200 dark:border-neutral-700">
-              Display Density
-            </div>
-            <Menu.Item>
-              {({ active }) => (
-                <button
-                  className={`w-full text-left px-3 py-2 transition-colors flex items-center gap-2 ${
-                    active ? 'bg-gray-100 dark:bg-neutral-800' : ''
-                  } ${
-                    density === 'comfortable' ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'
-                  }`}
-                  onClick={() => setDensity('comfortable')}
-                  title="More spacing between rows"
-                >
-                  {density === 'comfortable' && '✓ '}Comfortable
-                </button>
-              )}
-            </Menu.Item>
-            <Menu.Item>
-              {({ active }) => (
-                <button
-                  className={`w-full text-left px-3 py-2 transition-colors flex items-center gap-2 ${
-                    active ? 'bg-gray-100 dark:bg-neutral-800' : ''
-                  } ${
-                    density === 'compact' ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'
-                  }`}
-                  onClick={() => setDensity('compact')}
-                  title="Less spacing, more data visible"
-                >
-                  {density === 'compact' && '✓ '}Compact
-                </button>
-              )}
-            </Menu.Item>
-          </Menu.Items>
-        </Menu>
-      </div>
 
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border shadow-sm overflow-hidden">
         <BulkActions
@@ -233,7 +166,9 @@ export function AnswerTable() {
         <div className="p-4">
           <CodingGrid
             answers={answers}
+            totalAnswers={totalCount}
             density={density}
+            setDensity={setDensity}
             currentCategoryId={currentCategoryId}
             onCodingStart={handleCodingStart}
             onFiltersChange={handleFiltersChange}

@@ -295,3 +295,222 @@ export function logMemoryUsage() {
     console.log('💾 Memory Usage:', memory);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// API Call Tracking
+// ═══════════════════════════════════════════════════════════════
+
+interface APICallMetric {
+  endpoint: string;
+  method: string;
+  duration: number;
+  status: number;
+  success: boolean;
+  timestamp: number;
+  size?: number; // Response size in bytes
+}
+
+const apiMetrics: APICallMetric[] = [];
+const apiStats = {
+  totalCalls: 0,
+  successfulCalls: 0,
+  failedCalls: 0,
+  totalDuration: 0,
+  averageDuration: 0,
+  slowestCall: null as APICallMetric | null,
+  fastestCall: null as APICallMetric | null,
+};
+
+export function trackAPICall(metric: APICallMetric) {
+  apiMetrics.push(metric);
+
+  // Update stats
+  apiStats.totalCalls++;
+  if (metric.success) {
+    apiStats.successfulCalls++;
+  } else {
+    apiStats.failedCalls++;
+  }
+
+  apiStats.totalDuration += metric.duration;
+  apiStats.averageDuration = apiStats.totalDuration / apiStats.totalCalls;
+
+  // Track extremes
+  if (!apiStats.slowestCall || metric.duration > apiStats.slowestCall.duration) {
+    apiStats.slowestCall = metric;
+  }
+  if (!apiStats.fastestCall || metric.duration < apiStats.fastestCall.duration) {
+    apiStats.fastestCall = metric;
+  }
+
+  // Log slow calls
+  if (metric.duration > 3000) {
+    console.warn(`🐌 Slow API call: ${metric.method} ${metric.endpoint} took ${metric.duration}ms`);
+  }
+
+  // Log errors
+  if (!metric.success) {
+    console.error(`❌ API call failed: ${metric.method} ${metric.endpoint} (${metric.status})`);
+  }
+}
+
+export function getAPIMetrics() {
+  return {
+    stats: { ...apiStats },
+    recentCalls: apiMetrics.slice(-50), // Last 50 calls
+    allCalls: [...apiMetrics],
+  };
+}
+
+export function clearAPIMetrics() {
+  apiMetrics.length = 0;
+  apiStats.totalCalls = 0;
+  apiStats.successfulCalls = 0;
+  apiStats.failedCalls = 0;
+  apiStats.totalDuration = 0;
+  apiStats.averageDuration = 0;
+  apiStats.slowestCall = null;
+  apiStats.fastestCall = null;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Render Tracking
+// ═══════════════════════════════════════════════════════════════
+
+interface RenderMetric {
+  component: string;
+  duration: number;
+  timestamp: number;
+  props?: any;
+}
+
+const renderMetrics: RenderMetric[] = [];
+const renderStats = {
+  totalRenders: 0,
+  slowRenders: 0, // > 16ms (60fps budget)
+  averageDuration: 0,
+  totalDuration: 0,
+  componentCounts: new Map<string, number>(),
+};
+
+export function trackRender(component: string, duration: number, props?: any) {
+  const metric: RenderMetric = {
+    component,
+    duration,
+    timestamp: Date.now(),
+    props: import.meta.env.DEV ? props : undefined,
+  };
+
+  renderMetrics.push(metric);
+
+  // Update stats
+  renderStats.totalRenders++;
+  renderStats.totalDuration += duration;
+  renderStats.averageDuration = renderStats.totalDuration / renderStats.totalRenders;
+
+  if (duration > 16) {
+    renderStats.slowRenders++;
+  }
+
+  // Track per-component counts
+  const count = renderStats.componentCounts.get(component) || 0;
+  renderStats.componentCounts.set(component, count + 1);
+
+  // Warn about slow renders
+  if (duration > 50) {
+    console.warn(`🐌 Slow render: ${component} took ${duration.toFixed(2)}ms`);
+  }
+
+  // Warn about excessive renders
+  if (renderStats.componentCounts.get(component)! > 100) {
+    console.warn(`⚠️ ${component} has rendered ${renderStats.componentCounts.get(component)} times`);
+  }
+}
+
+export function getRenderMetrics() {
+  return {
+    stats: {
+      ...renderStats,
+      componentCounts: Array.from(renderStats.componentCounts.entries())
+        .map(([component, count]) => ({ component, count }))
+        .sort((a, b) => b.count - a.count),
+    },
+    recentRenders: renderMetrics.slice(-100), // Last 100 renders
+    slowRenders: renderMetrics.filter(m => m.duration > 16),
+  };
+}
+
+export function clearRenderMetrics() {
+  renderMetrics.length = 0;
+  renderStats.totalRenders = 0;
+  renderStats.slowRenders = 0;
+  renderStats.averageDuration = 0;
+  renderStats.totalDuration = 0;
+  renderStats.componentCounts.clear();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Error Tracking
+// ═══════════════════════════════════════════════════════════════
+
+interface ErrorMetric {
+  type: 'api' | 'render' | 'runtime';
+  message: string;
+  timestamp: number;
+  context?: string;
+  stack?: string;
+}
+
+const errorMetrics: ErrorMetric[] = [];
+
+export function trackError(error: Error, type: 'api' | 'render' | 'runtime' = 'runtime', context?: string) {
+  const metric: ErrorMetric = {
+    type,
+    message: error.message,
+    timestamp: Date.now(),
+    context,
+    stack: import.meta.env.DEV ? error.stack : undefined,
+  };
+
+  errorMetrics.push(metric);
+
+  console.error(`❌ ${type.toUpperCase()} Error in ${context || 'unknown'}:`, error);
+}
+
+export function getErrorMetrics() {
+  return {
+    total: errorMetrics.length,
+    byType: {
+      api: errorMetrics.filter(e => e.type === 'api').length,
+      render: errorMetrics.filter(e => e.type === 'render').length,
+      runtime: errorMetrics.filter(e => e.type === 'runtime').length,
+    },
+    recent: errorMetrics.slice(-20),
+    all: [...errorMetrics],
+  };
+}
+
+export function clearErrorMetrics() {
+  errorMetrics.length = 0;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Combined Stats
+// ═══════════════════════════════════════════════════════════════
+
+export function getAllMetrics() {
+  return {
+    performance: getPerformanceReport(),
+    api: getAPIMetrics(),
+    renders: getRenderMetrics(),
+    errors: getErrorMetrics(),
+    memory: getMemoryUsage(),
+  };
+}
+
+export function clearAllMetrics() {
+  clearMetrics();
+  clearAPIMetrics();
+  clearRenderMetrics();
+  clearErrorMetrics();
+}

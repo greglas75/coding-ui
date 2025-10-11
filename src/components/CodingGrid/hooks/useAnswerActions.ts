@@ -49,6 +49,16 @@ export function useAnswerActions({
 
     const newStatus = statusMap[statusKey];
     const currentAnswer = localAnswers.find(a => a.id === answer.id) || answer;
+
+    // Prevent 'C' (Confirmed) if no AI suggestion available
+    if (statusKey === 'C') {
+      const firstSuggestion = currentAnswer.ai_suggestions?.suggestions?.[0];
+      if (!firstSuggestion || !firstSuggestion.code_name) {
+        toast.error('Cannot confirm: No AI suggestion available');
+        return;
+      }
+    }
+
     const duplicateIds = findDuplicateAnswers(answer);
     const totalCount = duplicateIds.length + 1;
     const allIds = [answer.id, ...duplicateIds];
@@ -71,13 +81,30 @@ export function useAnswerActions({
 
     // Optimistic update
     const optimisticUpdate: any = {
+      quick_status: newStatus,
       general_status: newStatus as any,
-      coding_date: new Date().toISOString()
     };
 
     if (statusKey === 'C') {
       optimisticUpdate.quick_status = 'Confirmed';
+      optimisticUpdate.general_status = 'whitelist';
+      optimisticUpdate.coding_date = new Date().toISOString();
+
+      // Auto-accept ALL AI suggestions if available
+      const suggestions = currentAnswer.ai_suggestions?.suggestions;
+      if (suggestions && suggestions.length > 0) {
+        const allCodes = suggestions
+          .filter(s => s.code_name)
+          .map(s => s.code_name)
+          .join(', ');
+        optimisticUpdate.selected_code = allCodes;
+        console.log(`✅ Auto-accepting ${suggestions.length} AI suggestion(s): ${allCodes}`);
+      }
+    } else {
+      // Clear coding_date for non-whitelist statuses
+      optimisticUpdate.coding_date = null;
     }
+
     if (statusKey === 'gBL') {
       optimisticUpdate.selected_code = null;
     }
@@ -86,9 +113,10 @@ export function useAnswerActions({
       allIds.includes(a.id) ? { ...a, ...optimisticUpdate } : a
     ));
 
-    allIds.forEach(id => {
-      triggerRowAnimation(id, "animate-pulse bg-green-600/20 transition duration-700");
-    });
+    // Animation disabled per user request
+    // allIds.forEach(id => {
+    //   triggerRowAnimation(id, "animate-pulse bg-green-600/20 transition duration-700");
+    // });
 
     if (totalCount > 1) {
       toast.success(
@@ -102,12 +130,29 @@ export function useAnswerActions({
     // Save to database
     try {
       const update: any = {
+        quick_status: newStatus,
         general_status: newStatus,
-        coding_date: new Date().toISOString()
       };
+
       if (statusKey === 'C') {
         update.quick_status = 'Confirmed';
+        update.general_status = 'whitelist';
+        update.coding_date = new Date().toISOString();
+
+        // Auto-accept ALL AI suggestions if available
+        const suggestions = currentAnswer.ai_suggestions?.suggestions;
+        if (suggestions && suggestions.length > 0) {
+          const allCodes = suggestions
+            .filter(s => s.code_name)
+            .map(s => s.code_name)
+            .join(', ');
+          update.selected_code = allCodes;
+        }
+      } else {
+        // Clear coding_date for non-whitelist statuses
+        update.coding_date = null;
       }
+
       if (statusKey === 'gBL') {
         update.selected_code = null;
       }

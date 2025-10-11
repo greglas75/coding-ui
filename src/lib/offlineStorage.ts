@@ -2,8 +2,124 @@ import CryptoJS from 'crypto-js';
 import type { DBSchema, IDBPDatabase } from 'idb';
 import { openDB } from 'idb';
 
-// Encryption key from environment or fallback
-const KEY = import.meta.env.VITE_OFFLINE_KEY || 'default-key-change-me';
+// ───────────────────────────────────────────────────────────────
+// Encryption Key Management
+// ───────────────────────────────────────────────────────────────
+// SECURITY: Encryption key MUST be set via VITE_OFFLINE_KEY environment variable
+// Required format: Minimum 32 characters (recommended: 64-character hex string)
+// Generate secure key: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+/**
+ * Get and validate the encryption key from environment
+ * @throws {Error} If key is not set or invalid
+ * @returns {string} The validated encryption key
+ */
+function getEncryptionKey(): string {
+  const key = import.meta.env.VITE_OFFLINE_KEY;
+
+  // Check if key is set
+  if (!key) {
+    const errorMessage = `
+❌ VITE_OFFLINE_KEY is not set!
+
+Offline storage requires a secure encryption key.
+
+To fix this:
+1. Generate a secure key using:
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+   Or using OpenSSL:
+   openssl rand -hex 32
+
+2. Add the key to your .env file:
+   VITE_OFFLINE_KEY=your_generated_key_here
+
+3. Restart your development server
+
+For more information, see .env.example
+    `.trim();
+
+    throw new Error(errorMessage);
+  }
+
+  return key;
+}
+
+/**
+ * Validate encryption key strength and security
+ * @param key - The encryption key to validate
+ * @throws {Error} In production if key is weak
+ * @returns {boolean} True if key is valid
+ */
+function validateEncryptionKey(key: string): boolean {
+  const isDevelopment = import.meta.env.DEV;
+  const isProduction = import.meta.env.PROD;
+
+  // Check minimum length
+  if (key.length < 32) {
+    const message = `⚠️ Encryption key is too short! Minimum 32 characters required (current: ${key.length})`;
+
+    if (isProduction) {
+      throw new Error(message);
+    } else {
+      console.warn(message);
+      console.warn('⚠️ This is allowed in development but will fail in production!');
+      return false;
+    }
+  }
+
+  // Check for weak/common patterns
+  const weakPatterns = [
+    'default-key-change-me',
+    'test',
+    'dev',
+    'development',
+    'password',
+    '12345',
+    'qwerty',
+    'changeme',
+    'secret',
+  ];
+
+  const lowerKey = key.toLowerCase();
+  for (const pattern of weakPatterns) {
+    if (lowerKey.includes(pattern)) {
+      const message = `⚠️ Encryption key contains weak pattern: "${pattern}"`;
+
+      if (isProduction) {
+        throw new Error(message);
+      } else {
+        console.warn(message);
+        console.warn('⚠️ Please use a cryptographically secure random key!');
+        return false;
+      }
+    }
+  }
+
+  // Check for repeated characters (e.g., 'aaaaaaa...')
+  const hasRepeatedChars = /(.)\1{5,}/.test(key);
+  if (hasRepeatedChars) {
+    const message = '⚠️ Encryption key contains repeated characters - this is weak!';
+
+    if (isProduction) {
+      throw new Error(message);
+    } else {
+      console.warn(message);
+      return false;
+    }
+  }
+
+  // All checks passed
+  if (isDevelopment && key.length >= 32) {
+    console.log('✅ Encryption key validated successfully');
+  }
+
+  return true;
+}
+
+// Initialize and validate encryption key on module load
+const KEY = getEncryptionKey();
+validateEncryptionKey(KEY);
 
 /**
  * Encrypt data before storing in IndexedDB
@@ -36,26 +152,6 @@ function decrypt(ciphertext: string): any {
     throw new Error('Failed to decrypt data from offline storage');
   }
 }
-
-/**
- * Validate encryption key strength
- */
-function validateEncryptionKey(): boolean {
-  if (KEY === 'default-key-change-me') {
-    console.warn('⚠️ Using default encryption key! Please set VITE_OFFLINE_KEY in .env.local');
-    return false;
-  }
-
-  if (KEY.length < 32) {
-    console.warn('⚠️ Encryption key is too short! Use at least 32 characters');
-    return false;
-  }
-
-  return true;
-}
-
-// Validate key on module load
-validateEncryptionKey();
 
 export interface PendingChange {
   id: string;
@@ -170,7 +266,8 @@ export async function getPendingChanges() {
  */
 export async function getUnsyncedChanges() {
   const db = await initOfflineDB();
-  return (db as any).getAllFromIndex('pending-changes', 'synced', false) as Promise<PendingChange[]>;
+  const allChanges = await db.getAll('pending-changes');
+  return allChanges.filter(change => !change.synced);
 }
 
 /**

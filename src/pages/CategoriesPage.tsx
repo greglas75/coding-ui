@@ -269,33 +269,72 @@ export function CategoriesPage() {
     if (!editingCategory) return;
 
     try {
+      // ✅ Build safe payload - remove empty fields to avoid 400 errors
+      const updatePayload: any = {
+        name: data.name,
+      };
+
+      // Optional fields - only add if present and valid
+      if (data.googleName && data.googleName.trim()) {
+        updatePayload.google_name = data.googleName;
+      }
+
+      if (data.description && data.description.trim()) {
+        updatePayload.description = data.description;
+      }
+
+      // Template - only set if not empty (avoid 400 error)
+      if (data.template && data.template.trim()) {
+        updatePayload.template = data.template;
+      }
+
+      // Preset - ensure it has a value
+      if (data.preset) {
+        updatePayload.preset = data.preset;
+      } else {
+        updatePayload.preset = 'LLM Proper Name'; // Default
+      }
+
+      if (data.model) {
+        updatePayload.model = data.model;
+      }
+
+      if (data.brandsSorting) {
+        updatePayload.brands_sorting = data.brandsSorting;
+      }
+
+      if (data.minLength !== undefined && data.minLength !== null) {
+        updatePayload.min_length = data.minLength;
+      }
+
+      if (data.maxLength !== undefined && data.maxLength !== null) {
+        updatePayload.max_length = data.maxLength;
+      }
+
+      // Web context setting
+      if (data.useWebContext !== undefined) {
+        updatePayload.use_web_context = data.useWebContext;
+      }
+
+      console.log('📤 Saving category payload:', updatePayload);
+
       const { error } = await supabase
         .from('categories')
-        .update({
-          name: data.name,
-          google_name: data.googleName,
-          description: data.description,
-          template: data.template,
-          preset: data.preset,
-          model: data.model,
-          brands_sorting: data.brandsSorting,
-          min_length: data.minLength,
-          max_length: data.maxLength
-        })
+        .update(updatePayload)
         .eq('id', editingCategory.id);
 
       if (error) {
-        console.error('Error updating category:', error);
-        toast.error('Failed to update category settings');
+        console.error('❌ Supabase error:', error);
+        toast.error(`Failed to update category: ${error.message}`);
         return;
       }
 
-      toast.success('Category settings updated successfully');
+      toast.success('✅ Category settings updated successfully');
 
       // Update local state
       setCategories(prev => prev.map(cat =>
         cat.id === editingCategory.id
-          ? { ...cat, name: data.name }
+          ? { ...cat, name: data.name, use_web_context: data.useWebContext }
           : cat
       ));
 
@@ -304,7 +343,7 @@ export function CategoriesPage() {
         setActiveCategory(prev => prev ? { ...prev, name: data.name } : null);
       }
     } catch (error) {
-      console.error('Error saving category settings:', error);
+      console.error('❌ Unexpected error saving category settings:', error);
       toast.error('Failed to save category settings');
     }
   }

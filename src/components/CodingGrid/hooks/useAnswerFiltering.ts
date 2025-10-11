@@ -94,10 +94,11 @@ export function useAnswerFiltering(
       });
     }
 
-    // Advanced search
+    // Advanced search (searches in answer text, translation, and codes)
     if (advancedSearchTerm) {
       results = results.filter(answer =>
         answer.answer_text?.toLowerCase().includes(advancedSearchTerm.toLowerCase()) ||
+        answer.translation_en?.toLowerCase().includes(advancedSearchTerm.toLowerCase()) ||
         answer.selected_code?.toLowerCase().includes(advancedSearchTerm.toLowerCase())
       );
     }

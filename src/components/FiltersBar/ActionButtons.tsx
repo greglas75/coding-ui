@@ -1,9 +1,8 @@
-import { Filter, Redo, RefreshCw, RotateCcw, Undo } from 'lucide-react';
+import { Filter, Redo, RefreshCw, Undo } from 'lucide-react';
 import type { FC } from 'react';
 
 interface ActionButtonsProps {
   onApply: () => void;
-  onReset: () => void;
   onReload?: () => void;
   isApplying?: boolean;
   isReloading?: boolean;
@@ -15,7 +14,6 @@ interface ActionButtonsProps {
 
 export const ActionButtons: FC<ActionButtonsProps> = ({
   onApply,
-  onReset,
   onReload,
   isApplying = false,
   isReloading = false,
@@ -69,14 +67,6 @@ export const ActionButtons: FC<ActionButtonsProps> = ({
       >
         <Filter size={14} />
         {isApplying ? 'Applying...' : 'Apply Filters'}
-      </button>
-
-      <button
-        onClick={onReset}
-        className="bg-gray-200 dark:bg-neutral-700 hover:bg-gray-300 dark:hover:bg-neutral-600 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 transition-colors"
-      >
-        <RotateCcw size={14} />
-        Reset
       </button>
     </div>
   );

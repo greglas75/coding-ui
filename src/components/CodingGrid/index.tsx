@@ -1,10 +1,12 @@
+import { Menu } from '@headlessui/react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, Home, X } from 'lucide-react';
+import { ChevronRight, Home, Settings, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 // Types
+import type { Answer } from '../../types';
 import type { CodingGridProps } from './types';
 
 // Hooks - Internal
@@ -56,7 +58,9 @@ const supabase = getSupabaseClient();
 
 export function CodingGrid({
   answers,
+  totalAnswers,
   density,
+  setDensity,
   currentCategoryId,
   onCodingStart,
   onFiltersChange,
@@ -163,7 +167,7 @@ export function CodingGrid({
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
 
   // AI - Now properly integrated
-  const { mutateAsync: categorizeAnswerAsync, isPending: isCategorizing } = useCategorizeAnswer();
+  const { mutateAsync: categorizeAnswerAsync } = useCategorizeAnswer();
   const { mutateAsync: _batchCategorizeAsync } = useBatchCategorize();
   const { mutate: _acceptSuggestion, isPending: _isAcceptingSuggestion } = useAcceptSuggestion();
   const [autoConfirmEngine] = useState(() => new AutoConfirmEngine());
@@ -226,7 +230,18 @@ export function CodingGrid({
 
     if (filterParam) {
       console.log('🔍 Applying initial filter from URL:', filterParam);
-      setFilter('status', [filterParam]);
+      // Support comma-separated multiple statuses
+      const statusValues = filterParam.split(',').map(s => s.trim());
+      // Normalize to canonical values before setting
+      const normalizedStatuses = statusValues.map(s => {
+        try {
+          const { normalizeStatus } = require('../../lib/statusNormalization');
+          return normalizeStatus(s);
+        } catch {
+          return s; // Fallback to original if normalization fails
+        }
+      });
+      setFilter('status', normalizedStatuses);
     }
   }, [setFilter]);
 
@@ -399,14 +414,20 @@ export function CodingGrid({
   const handleFilterChange = (key: string, value: any) => {
     setFilter(key as any, value);
 
+    // Update URL without causing scroll jump
     const url = new URL(window.location.href);
     if (key === 'status') {
       if (Array.isArray(value) && value.length > 0) {
-        url.searchParams.set('filter', value[0]);
+        // Store normalized canonical values in URL (comma-separated for multiple)
+        url.searchParams.set('filter', value.join(','));
       } else {
         url.searchParams.delete('filter');
       }
+      // Save scroll position before updating URL
+      const scrollPosition = window.scrollY;
       window.history.replaceState({}, '', url);
+      // Restore scroll position immediately
+      window.scrollTo(0, scrollPosition);
     }
   };
 
@@ -441,6 +462,37 @@ export function CodingGrid({
   };
 
   const handleAcceptSuggestionWrapper = (answerId: number, suggestion: any) => {
+    // Find current answer to save previous state for undo
+    const currentAnswer = localAnswers.find(a => a.id === answerId);
+    if (!currentAnswer) return;
+
+    const previousState = {
+      selected_code: currentAnswer.selected_code,
+      quick_status: currentAnswer.quick_status,
+      general_status: currentAnswer.general_status,
+      coding_date: currentAnswer.coding_date,
+    };
+
+    // Calculate new selected code
+    const existingCodes = currentAnswer.selected_code;
+    let newSelectedCode = suggestion.code_name;
+
+    if (existingCodes) {
+      const codesList = existingCodes.split(',').map((c: string) => c.trim());
+      if (!codesList.includes(suggestion.code_name)) {
+        newSelectedCode = `${existingCodes}, ${suggestion.code_name}`;
+      } else {
+        newSelectedCode = existingCodes;
+      }
+    }
+
+    const newState = {
+      selected_code: newSelectedCode,
+      quick_status: 'Confirmed' as const,
+      general_status: 'whitelist' as const,
+      coding_date: new Date().toISOString(),
+    };
+
     _acceptSuggestion({
       answerId,
       codeId: suggestion.code_id,
@@ -449,20 +501,50 @@ export function CodingGrid({
     });
 
     setLocalAnswers((prev) =>
-      prev.map((a) =>
-        a.id === answerId
-          ? {
-              ...a,
-              selected_code: suggestion.code_name,
-              quick_status: 'Confirmed',
-              general_status: 'whitelist',
-              coding_date: new Date().toISOString(),
-            }
-          : a
-      )
+      prev.map((a) => (a.id === answerId ? { ...a, ...newState } : a))
     );
 
-    triggerRowAnimation(answerId, 'animate-flash-ok');
+    // Animation disabled per user request
+    // triggerRowAnimation(answerId, 'animate-flash-ok');
+
+    // Add to undo history
+    addAction({
+      id: crypto.randomUUID(),
+      type: 'accept_suggestion',
+      timestamp: Date.now(),
+      description: `Accepted AI suggestion: ${suggestion.code_name}`,
+      answerIds: [answerId],
+      previousState: { [answerId]: previousState },
+      newState: { [answerId]: newState },
+      undo: async () => {
+        const { error: undoError } = await supabase
+          .from('answers')
+          .update(previousState)
+          .eq('id', answerId);
+
+        if (!undoError) {
+          setLocalAnswers((prev) =>
+            prev.map((a) => (a.id === answerId ? { ...a, ...previousState } : a))
+          );
+          // Animation disabled per user request
+          // triggerRowAnimation(answerId, 'animate-flash-ok');
+        }
+      },
+      redo: async () => {
+        const { error: redoError } = await supabase
+          .from('answers')
+          .update(newState)
+          .eq('id', answerId);
+
+        if (!redoError) {
+          setLocalAnswers((prev) =>
+            prev.map((a) => (a.id === answerId ? { ...a, ...newState } : a))
+          );
+          // Animation disabled per user request
+          // triggerRowAnimation(answerId, 'animate-flash-ok');
+        }
+      },
+    });
   };
 
   const handleCodeSaved = async () => {
@@ -477,9 +559,10 @@ export function CodingGrid({
         : [];
 
     if (affectedIds.length > 0) {
-      affectedIds.forEach((id) => {
-        triggerRowAnimation(id, 'animate-pulse bg-green-600/20 transition duration-700');
-      });
+      // Animation disabled per user request
+      // affectedIds.forEach((id) => {
+      //   triggerRowAnimation(id, 'animate-pulse bg-green-600/20 transition duration-700');
+      // });
 
       if (selectedIds.length > 0) {
         setSelectedIds([]);
@@ -523,6 +606,103 @@ export function CodingGrid({
 
     modals.setModalOpen(false);
     modals.setSelectedAnswer(null);
+  };
+
+  const handleQuickRollback = async (answer: Answer) => {
+    try {
+      // Update in database
+      const { error } = await supabase
+        .from('answers')
+        .update({
+          general_status: 'uncategorized',
+          quick_status: null,
+          selected_code: null,
+          coding_date: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', answer.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setLocalAnswers((prev) =>
+        prev.map((a) =>
+          a.id === answer.id
+            ? {
+                ...a,
+                general_status: 'uncategorized',
+                quick_status: null,
+                selected_code: null,
+                coding_date: null,
+                updated_at: new Date().toISOString(),
+              }
+            : a
+        )
+      );
+      setHasLocalModifications(true);
+
+      // Add undo action
+      addAction({
+        id: crypto.randomUUID(),
+        type: 'status_change',
+        timestamp: Date.now(),
+        description: `Rolled back ${answer.answer_text?.substring(0, 30)}...`,
+        answerIds: [answer.id],
+        previousState: {
+          [answer.id]: {
+            general_status: answer.general_status || undefined,
+            quick_status: answer.quick_status || undefined,
+            selected_code: answer.selected_code,
+          },
+        },
+        newState: {
+          [answer.id]: {
+            general_status: 'uncategorized',
+            quick_status: undefined,
+            selected_code: null,
+          },
+        },
+        undo: async () => {
+          const { error: undoError } = await supabase
+            .from('answers')
+            .update({
+              general_status: answer.general_status,
+              quick_status: answer.quick_status,
+              selected_code: answer.selected_code,
+            })
+            .eq('id', answer.id);
+
+          if (!undoError) {
+            setLocalAnswers((prev) =>
+              prev.map((a) =>
+                a.id === answer.id
+                  ? {
+                      ...a,
+                      general_status: answer.general_status,
+                      quick_status: answer.quick_status,
+                      selected_code: answer.selected_code,
+                    }
+                  : a
+              )
+            );
+          }
+        },
+        redo: async () => {
+          await handleQuickRollback(answer);
+        },
+      });
+
+      // Animation disabled per user request
+      // triggerRowAnimation(answer.id, 'animate-flash-ok');
+
+      toast.success('Rolled back to uncategorized');
+
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['answers', currentCategoryId] });
+    } catch (error) {
+      console.error('❌ Error rolling back:', error);
+      toast.error('Failed to rollback');
+    }
   };
 
   const handleSavePreset = (name: string) => {
@@ -619,18 +799,89 @@ export function CodingGrid({
       {/* Live Updates */}
       {liveUpdate && <LiveCodeUpdate update={liveUpdate} onDismiss={() => setLiveUpdate(null)} />}
 
-      {/* Breadcrumbs */}
+      {/* Breadcrumbs and Controls */}
       {currentCategoryId && (
-        <nav className="text-sm text-gray-500 mb-4 px-3" aria-label="Breadcrumb">
-          <Link to="/" className="hover:text-blue-600 inline-flex items-center gap-1">
-            <Home size={14} />
-            Categories
-          </Link>
-          <ChevronRight size={14} className="inline mx-1" />
-          <span className="text-gray-700">{categoryName}</span>
-          <ChevronRight size={14} className="inline mx-1" />
-          <span className="text-blue-600 font-medium">Coding</span>
-        </nav>
+        <div className="flex items-center justify-between mb-4 px-3">
+          {/* Left: Breadcrumbs */}
+          <nav className="text-sm text-gray-500" aria-label="Breadcrumb">
+            <Link to="/" className="hover:text-blue-600 inline-flex items-center gap-1">
+              <Home size={14} />
+              Categories
+            </Link>
+            <ChevronRight size={14} className="inline mx-1" />
+            <span className="text-gray-700">{categoryName}</span>
+            <ChevronRight size={14} className="inline mx-1" />
+            <span className="text-blue-600 font-medium">Coding</span>
+          </nav>
+
+          {/* Right: Status + Shortcuts + View Options */}
+          <div className="flex items-center gap-2">
+            {/* Online/Offline Status */}
+            <SyncStatusIndicator
+              syncStatus={syncStatus}
+              pendingCount={pendingCount}
+              syncProgress={syncProgress}
+              onSyncNow={syncPendingChanges}
+            />
+
+            {/* Shortcuts button */}
+            <button
+              className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 border border-gray-200 dark:border-neutral-700 rounded-md bg-white dark:bg-neutral-900 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+              onClick={() => modals.setShowShortcutsHelp(true)}
+              title="Show keyboard shortcuts"
+            >
+              <span>?</span>
+              <span className="hidden sm:inline">Shortcuts</span>
+            </button>
+
+            {/* View Options Dropdown */}
+            <Menu as="div" className="relative">
+              <Menu.Button
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 border border-gray-200 dark:border-neutral-700 rounded-md bg-white dark:bg-neutral-900 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors focus:ring-2 focus:ring-blue-500 outline-none"
+                title="View options"
+              >
+                <Settings size={16} />
+                <span className="hidden sm:inline">View Options</span>
+              </Menu.Button>
+
+              <Menu.Items className="absolute right-0 mt-2 w-48 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-md shadow-lg text-sm z-50 py-1">
+                <div className="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide border-b border-gray-200 dark:border-neutral-700">
+                  Display Density
+                </div>
+                <Menu.Item>
+                  {({ active }) => (
+                    <button
+                      className={`w-full text-left px-3 py-2 transition-colors flex items-center gap-2 ${
+                        active ? 'bg-gray-100 dark:bg-neutral-800' : ''
+                      } ${
+                        density === 'comfortable' ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'
+                      }`}
+                      onClick={() => setDensity('comfortable')}
+                      title="More spacing between rows"
+                    >
+                      {density === 'comfortable' && '✓ '}Comfortable
+                    </button>
+                  )}
+                </Menu.Item>
+                <Menu.Item>
+                  {({ active }) => (
+                    <button
+                      className={`w-full text-left px-3 py-2 transition-colors flex items-center gap-2 ${
+                        active ? 'bg-gray-100 dark:bg-neutral-800' : ''
+                      } ${
+                        density === 'compact' ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'
+                      }`}
+                      onClick={() => setDensity('compact')}
+                      title="Less spacing, more data visible"
+                    >
+                      {density === 'compact' && '✓ '}Compact
+                    </button>
+                  )}
+                </Menu.Item>
+              </Menu.Items>
+            </Menu>
+          </div>
+        </div>
       )}
 
       {/* Filters and Results Counter */}
@@ -640,11 +891,11 @@ export function CodingGrid({
             filters={filters}
             updateFilter={handleFilterChange}
             typesList={[
-              { key: 'uncategorized', label: 'Not categorized' },
+              { key: 'uncategorized', label: 'Not Categorized' },
               { key: 'categorized', label: 'Categorized' },
               { key: 'whitelist', label: 'Whitelist' },
               { key: 'blacklist', label: 'Blacklist' },
-              { key: 'global_blacklist', label: 'gBlacklist' },
+              { key: 'global_blacklist', label: 'Global Blacklist' },
               { key: 'ignored', label: 'Ignored' },
               { key: 'other', label: 'Other' },
             ]}
@@ -665,6 +916,8 @@ export function CodingGrid({
             onRedo={redo}
             canUndo={canUndo}
             canRedo={canRedo}
+            searchTerm={advancedSearchTerm}
+            onSearchChange={setAdvancedSearchTerm}
           />
 
           <AdvancedFiltersPanel
@@ -674,39 +927,26 @@ export function CodingGrid({
             onSavePreset={handleSavePreset}
             onLoadPreset={handleLoadPreset}
             onDeletePreset={handleDeletePreset}
-            resultsCount={filtering.sortedAndFilteredAnswers.length}
-            totalCount={answers.length}
-            onSearchChange={setAdvancedSearchTerm}
+            resultsCount={(() => {
+              // Show total count if no filters are active, otherwise show filtered count
+              const hasActiveFilters = (
+                filters.search !== '' ||
+                filters.status.length > 0 ||
+                filters.codes.length > 0 ||
+                filters.language !== '' ||
+                filters.country !== '' ||
+                filters.minLength > 0 ||
+                filters.maxLength > 0 ||
+                filterGroup.filters.length > 0 ||
+                advancedSearchTerm !== ''
+              );
+
+              return hasActiveFilters ? filtering.sortedAndFilteredAnswers.length : (totalAnswers || answers.length);
+            })()}
+            totalCount={totalAnswers || answers.length}
+            onShowShortcuts={() => modals.setShowShortcutsHelp(true)}
           />
 
-          {/* Results Counter with Shortcuts - Same row as Advanced Filters */}
-          <div className="flex items-center justify-between w-full px-4 py-2 bg-gray-50 dark:bg-neutral-800 border-b border-gray-200 dark:border-neutral-700">
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                {localAnswers.length} of {answers.length} answers
-                {localAnswers.length !== filtering.filteredAnswers.length && (
-                  <span className="ml-2 text-blue-600 dark:text-blue-400 font-medium">
-                    ({filtering.filteredAnswers.length} filtered)
-                  </span>
-                )}
-              </span>
-              {filtering.sortField && (
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  Sorted by: <span className="font-medium text-gray-700 dark:text-gray-300">{filtering.sortField}</span> <span className="text-blue-600 dark:text-blue-400">{filtering.sortOrder === 'asc' ? '▲' : '▼'}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Right side: Shortcuts button */}
-            <button
-              className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
-              onClick={() => modals.setShowShortcutsHelp(true)}
-              title="Show keyboard shortcuts"
-            >
-              <span>?</span>
-              <span>Shortcuts</span>
-            </button>
-          </div>
         </>
       )}
 
@@ -724,16 +964,6 @@ export function CodingGrid({
           isProcessing={batchProcessor.getProgress().status === 'running'}
         />
       )}
-
-      {/* Results Counter moved to same row as Advanced Filters above */}
-
-      {/* Sync Status */}
-      <SyncStatusIndicator
-        syncStatus={syncStatus}
-        pendingCount={pendingCount}
-        syncProgress={syncProgress}
-        onSyncNow={syncPendingChanges}
-      />
 
       {/* Desktop Table */}
       <div
@@ -789,7 +1019,6 @@ export function CodingGrid({
               <DesktopRow
                 key={answer.id}
                 answer={answer}
-                cellPad={cellPad}
                 isFocused={focusedRowId === answer.id}
                 isSelected={batchSelection.isSelected(String(answer.id))}
                 isCategorizing={answerActions.isCategorizingRow[answer.id] || false}
@@ -809,9 +1038,8 @@ export function CodingGrid({
                 }}
                 onQuickStatus={(ans, key) => answerActions.handleQuickStatus(ans, key)}
                 onCodeClick={() => modals.handleCodeClick(answer)}
-                onAICategorize={() => answerActions.handleSingleAICategorize(answer.id)}
+                onRollback={() => handleQuickRollback(answer)}
                 onAcceptSuggestion={(suggestion) => handleAcceptSuggestionWrapper(answer.id, suggestion)}
-                onRemoveSuggestion={() => {}}
                 onRegenerateSuggestions={() => answerActions.handleSingleAICategorize(answer.id)}
                 formatDate={(date) => {
                   if (!date) return '—';
@@ -842,7 +1070,6 @@ export function CodingGrid({
             answer={answer}
             isFocused={focusedRowId === answer.id}
             isSelected={batchSelection.isSelected(String(answer.id))}
-            isCategorizing={answerActions.isCategorizingRow[answer.id] || false}
             rowAnimation={rowAnimations[answer.id] || ''}
             onFocus={() => setFocusedRowId(answer.id)}
             onClick={(_e) => {
@@ -854,7 +1081,7 @@ export function CodingGrid({
             }}
             onQuickStatus={(ans, key) => answerActions.handleQuickStatus(ans, key)}
             onCodeClick={() => modals.handleCodeClick(answer)}
-            onAICategorize={() => answerActions.handleSingleAICategorize(answer.id)}
+            onRollback={() => handleQuickRollback(answer)}
             formatDate={(date) => {
               if (!date) return '—';
               const d = new Date(date);

@@ -55,18 +55,18 @@ class ErrorLogger {
   }
 
   // TODO: Implement sending to error tracking service (Sentry, custom API, etc.)
-  private async _sendToService(_errorLog: ErrorLog) {
-    // Example: Sentry
-    // Sentry.captureException(new Error(errorLog.message), {
-    //   extra: errorLog
-    // });
+  // private async _sendToService(_errorLog: ErrorLog) {
+  //   // Example: Sentry
+  //   // Sentry.captureException(new Error(errorLog.message), {
+  //   //   extra: errorLog
+  //   // });
 
-    // Example: Custom API
-    // await fetch('/api/errors', {
-    //   method: 'POST',
-    //   body: JSON.stringify(errorLog)
-    // });
-  }
+  //   // Example: Custom API
+  //   // await fetch('/api/errors', {
+  //   //   method: 'POST',
+  //   //   body: JSON.stringify(errorLog)
+  //   // });
+  // }
 }
 
 export const errorLogger = new ErrorLogger();

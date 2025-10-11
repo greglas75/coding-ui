@@ -71,7 +71,7 @@ export function CodeSuggestions({ suggestions, onApply, isLoading }: Props) {
                   </span>
 
                   {/* Frequency Badge */}
-                  {suggestion.frequency > 0 && (
+                  {suggestion.frequency && suggestion.frequency > 0 && (
                     <span className="flex-shrink-0 px-2 py-0.5 text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 rounded-full">
                       {suggestion.frequency}× used
                     </span>

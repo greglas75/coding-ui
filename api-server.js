@@ -1,34 +1,108 @@
-import express from 'express';
-import cors from 'cors';
-import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
-import multer from 'multer';
-import Papa from 'papaparse';
-import xlsx from 'xlsx';
+import cors from 'cors';
+import 'dotenv/config';
+import express from 'express';
 import fs from 'fs';
+import multer from 'multer';
+import OpenAI from 'openai';
+import Papa from 'papaparse';
 import path from 'path';
+import xlsx from 'xlsx';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import { randomUUID } from 'crypto';
+import pricingFetcher from './server/pricing/pricingFetcher.js';
 
 const app = express();
 const port = 3001;
+const isProd = process.env.NODE_ENV === 'production';
+
+// Structured logger (JSON) and request id middleware
+const log = {
+  info: (msg, meta) => console.log(JSON.stringify({ level: 'info', time: new Date().toISOString(), msg, ...meta })),
+  warn: (msg, meta) => console.warn(JSON.stringify({ level: 'warn', time: new Date().toISOString(), msg, ...meta })),
+  error: (msg, meta, err) => {
+    const safeErr = err ? {
+      name: err.name,
+      message: err.message,
+      stack: isProd ? undefined : err.stack?.split('\n').slice(0, 2).join('\n'),
+    } : undefined;
+    console.error(JSON.stringify({ level: 'error', time: new Date().toISOString(), msg, ...meta, error: safeErr }));
+  },
+};
+
+app.use((req, res, next) => {
+  req.requestId = randomUUID();
+  res.setHeader('x-request-id', req.requestId);
+  if (!isProd) {
+    log.info('request', { id: req.requestId, method: req.method, path: req.path });
+  }
+  next();
+});
 
 // Multer configuration for file uploads
-const upload = multer({ 
+const strictUpload = process.env.STRICT_UPLOAD_VALIDATION === 'true';
+const upload = multer({
   dest: 'uploads/',
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['.csv', '.xlsx', '.xls'];
+    const allowedExt = ['.csv', '.xlsx', '.xls'];
+    const allowedMime = [
+      'text/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
     const ext = path.extname(file.originalname).toLowerCase();
-    if (allowedTypes.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only CSV and Excel files are allowed.'));
+    if (strictUpload) {
+      if (!allowedExt.includes(ext) || !allowedMime.includes(file.mimetype)) {
+        return cb(new Error('Invalid file type. Only CSV and Excel files are allowed.'));
+      }
+      return cb(null, true);
     }
+    if (!allowedExt.includes(ext)) {
+      return cb(new Error('Invalid file type. Only CSV and Excel files are allowed.'));
+    }
+    cb(null, true);
   }
 });
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+// Security headers
+app.use(helmet({ contentSecurityPolicy: false }));
+
+// CORS - configurable allowlist via ENV; default keep current permissive behavior
+const corsOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : undefined;
+app.use(cors({ origin: corsOrigins || true }));
+
+// JSON body size limit - gated
+if (process.env.JSON_LIMIT) {
+  app.use(express.json({ limit: process.env.JSON_LIMIT }));
+} else {
+  app.use(express.json());
+}
+
+// Optional global rate limiting - gated
+let uploadRateLimitMiddleware = (req, res, next) => next();
+if (process.env.ENABLE_RATE_LIMIT === 'true') {
+  const globalLimiter = rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
+  app.use(globalLimiter);
+  uploadRateLimitMiddleware = rateLimit({ windowMs: 5 * 60 * 1000, max: 20 });
+}
+
+// Optional API auth - gated
+function authenticate(req, res, next) {
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (!token) return res.status(401).json({ error: 'Unauthorized', id: req.requestId });
+  if (isProd && process.env.API_ACCESS_TOKEN && token !== process.env.API_ACCESS_TOKEN) {
+    return res.status(403).json({ error: 'Forbidden', id: req.requestId });
+  }
+  req.user = { id: 'service-user' };
+  next();
+}
+if (process.env.ENABLE_API_AUTH === 'true') {
+  app.use('/api', authenticate);
+}
 
 // Initialize OpenAI client
 const client = new OpenAI({
@@ -44,19 +118,19 @@ const supabase = createClient(
 // GPT Test endpoint
 app.post('/api/gpt-test', async (req, res) => {
   const startTime = Date.now();
-  
+
   try {
     const { model, messages, max_completion_tokens, temperature, top_p } = req.body;
-    
+
     // Validate request
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ 
-        error: 'Invalid request: messages array is required' 
+      return res.status(400).json({
+        error: 'Invalid request: messages array is required'
       });
     }
 
     const requestedModel = model || 'gpt-4o-mini';
-    
+
     console.log('🧪 [GPT Test] Request:', {
       model: requestedModel,
       messageCount: messages.length,
@@ -64,11 +138,11 @@ app.post('/api/gpt-test', async (req, res) => {
       temperature: temperature ?? 0,
       topP: top_p ?? 0.1
     });
-    
+
     // Demo mode - return mock response
     if (process.env.OPENAI_API_KEY === 'demo-key' || !process.env.OPENAI_API_KEY) {
       console.log('⚠️ [GPT Test] Running in DEMO mode (no API key)');
-      
+
       const mockResponse = {
         id: "chatcmpl-demo",
         object: "chat.completion",
@@ -92,20 +166,20 @@ app.post('/api/gpt-test', async (req, res) => {
           total_tokens: 75
         }
       };
-      
+
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 800));
-      
+
       const elapsed = Date.now() - startTime;
       console.log(`✅ [GPT Test] Demo response sent (${elapsed}ms)`);
-      
+
       res.status(200).json(mockResponse);
       return;
     }
-    
+
     // Production mode - call OpenAI API
     console.log(`🚀 [GPT Test] Calling OpenAI API with model: ${requestedModel}`);
-    
+
     const completion = await client.chat.completions.create({
       model: requestedModel,
       messages: messages,
@@ -113,9 +187,9 @@ app.post('/api/gpt-test', async (req, res) => {
       temperature: temperature ?? 0,
       top_p: top_p ?? 0.1,
     });
-    
+
     const elapsed = Date.now() - startTime;
-    
+
     console.log(`✅ [GPT Test] Success:`, {
       model: completion.model,
       finishReason: completion.choices[0]?.finish_reason,
@@ -124,18 +198,18 @@ app.post('/api/gpt-test', async (req, res) => {
       totalTokens: completion.usage?.total_tokens,
       timeMs: elapsed
     });
-    
+
     res.status(200).json(completion);
   } catch (error) {
     const elapsed = Date.now() - startTime;
-    
+
     console.error(`❌ [GPT Test] Failed after ${elapsed}ms:`, {
       error: error.message,
       type: error.constructor.name,
       stack: error.stack?.split('\n')[0]
     });
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       error: error.message,
       type: error.constructor.name,
       timeMs: elapsed
@@ -263,7 +337,7 @@ app.post('/api/answers/filter', async (req, res) => {
     if (codes && Array.isArray(codes) && codes.length > 0) {
       results = results.filter(item => {
         if (!item.selected_code) return false;
-        return codes.some(code => 
+        return codes.some(code =>
           item.selected_code.toLowerCase().includes(code.toLowerCase())
         );
       });
@@ -280,7 +354,7 @@ app.post('/api/answers/filter', async (req, res) => {
 
   } catch (err) {
     console.error('❌ Filter endpoint error:', err.message);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       error: err.message,
       details: err.toString(),
@@ -331,7 +405,7 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
     if (fileExtension === '.csv') {
       console.log('🔍 [File Upload] Parsing CSV file...');
       const fileContent = fs.readFileSync(uploadedFilePath, 'utf8');
-      
+
       const parseResult = Papa.parse(fileContent, {
         skipEmptyLines: true,
         delimiter: ',',
@@ -357,7 +431,7 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
           country: row[3] ? String(row[3]).trim() : null,
         };
       }).filter(Boolean);
-    } 
+    }
     // Parse Excel
     else if (['.xlsx', '.xls'].includes(fileExtension)) {
       console.log('🔍 [File Upload] Parsing Excel file...');
@@ -365,7 +439,7 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
       const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-      const jsonData = xlsx.utils.sheet_to_json(worksheet, { 
+      const jsonData = xlsx.utils.sheet_to_json(worksheet, {
         header: 1,
         raw: false,
         defval: ''
@@ -529,11 +603,66 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     timestamp: new Date().toISOString(),
     supabaseConfigured: !!(process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY),
   });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// 💰 AI PRICING ENDPOINTS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/ai-pricing
+ * Fetch AI model pricing data (with 24h cache)
+ */
+app.get('/api/ai-pricing', async (req, res) => {
+  try {
+    console.log('📊 GET /api/ai-pricing');
+
+    const pricingData = await pricingFetcher.fetchPricing();
+
+    // Add response metadata
+    const response = {
+      ...pricingData,
+      cacheExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      nextUpdate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('❌ Error in /api/ai-pricing:', error);
+    res.status(500).json({
+      error: 'Failed to fetch pricing data',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/ai-pricing/refresh
+ * Force refresh pricing data (clear cache)
+ */
+app.post('/api/ai-pricing/refresh', async (req, res) => {
+  try {
+    console.log('🔄 POST /api/ai-pricing/refresh - forcing cache refresh');
+
+    const pricingData = await pricingFetcher.forceRefresh();
+
+    res.json({
+      success: true,
+      message: 'Pricing data refreshed successfully',
+      data: pricingData,
+    });
+  } catch (error) {
+    console.error('❌ Error refreshing pricing:', error);
+    res.status(500).json({
+      error: 'Failed to refresh pricing data',
+      message: error.message,
+    });
+  }
 });
 
 app.listen(port, () => {
@@ -542,5 +671,7 @@ app.listen(port, () => {
   console.log(`   - POST http://localhost:${port}/api/file-upload (File upload)`);
   console.log(`   - POST http://localhost:${port}/api/answers/filter (Filter answers)`);
   console.log(`   - POST http://localhost:${port}/api/gpt-test (GPT test)`);
+  console.log(`   - GET  http://localhost:${port}/api/ai-pricing (AI pricing)`);
+  console.log(`   - POST http://localhost:${port}/api/ai-pricing/refresh (Refresh pricing)`);
   console.log(`   - GET  http://localhost:${port}/api/health (Health check)`);
 });

@@ -1,14 +1,12 @@
 import type { FC } from 'react';
 import { EditableNameCell } from '../shared/EditableTable/EditableNameCell';
 
-interface Category {
+// CategoryWithCount must match the parent component's definition
+interface CategoryWithCount {
   id: number;
   name: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-interface CategoryWithCount extends Category {
+  created_at?: string | null;
+  updated_at?: string | null;
   codes_count: number;
 }
 
@@ -41,7 +39,7 @@ export const CategoryCard: FC<CategoryCardProps> = ({
   onSelect,
   onDelete
 }) => {
-  const formatDate = (dateString: string | undefined): string => {
+  const formatDate = (dateString: string | null | undefined): string => {
     if (!dateString) return '—';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-CA', {

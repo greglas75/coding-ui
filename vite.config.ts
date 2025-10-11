@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
 
   build: {
-    sourcemap: true,
+    sourcemap: process.env.NODE_ENV !== 'production',
     target: 'es2020',
     minify: 'esbuild',
     cssCodeSplit: true,

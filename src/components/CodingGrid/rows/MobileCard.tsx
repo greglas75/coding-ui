@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { CheckSquare, Loader2, Sparkles, Square } from 'lucide-react';
+import { CheckSquare, Square } from 'lucide-react';
 import type { FC } from 'react';
 import type { Answer } from '../../../types';
 import { CodeCell } from '../cells/CodeCell';
@@ -10,14 +10,13 @@ interface MobileCardProps {
   answer: Answer;
   isSelected: boolean;
   isFocused: boolean;
-  isCategorizing: boolean;
   rowAnimation: string;
   onToggleSelection: (id: string, event: React.MouseEvent) => void;
   onFocus: () => void;
   onClick: (e: React.MouseEvent) => void;
   onQuickStatus: (answer: Answer, key: any) => void;
   onCodeClick: () => void;
-  onAICategorize: () => void;
+  onRollback: () => void;
   formatDate: (date: string | null | undefined) => string;
 }
 
@@ -25,14 +24,13 @@ export const MobileCard: FC<MobileCardProps> = ({
   answer,
   isSelected,
   isFocused,
-  isCategorizing,
   rowAnimation,
   onToggleSelection: _onToggleSelection, // TODO: Add selection UI to mobile cards
   onFocus: _onFocus, // TODO: Add focus handling to mobile cards
   onClick,
   onQuickStatus,
   onCodeClick,
-  onAICategorize,
+  onRollback,
   formatDate
 }) => {
   return (
@@ -116,26 +114,6 @@ export const MobileCard: FC<MobileCardProps> = ({
         <div className="text-sm font-medium text-zinc-800 dark:text-zinc-100 mb-2">
           AI Actions:
         </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onAICategorize();
-          }}
-          disabled={isCategorizing}
-          className="px-3 py-2 rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/30 bg-purple-50 dark:bg-purple-900/10 text-purple-600 dark:text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
-        >
-          {isCategorizing ? (
-            <>
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm">Categorizing...</span>
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-5 w-5" />
-              <span className="text-sm">Generate AI Suggestions</span>
-            </>
-          )}
-        </button>
       </div>
 
       {/* Code */}
@@ -147,7 +125,9 @@ export const MobileCard: FC<MobileCardProps> = ({
           answerId={answer.id}
           selectedCode={answer.selected_code}
           generalStatus={answer.general_status}
+          codingDate={answer.coding_date}
           onClick={onCodeClick}
+          onRollback={onRollback}
         />
       </div>
 
