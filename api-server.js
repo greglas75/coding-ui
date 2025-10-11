@@ -1,16 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 import cors from 'cors';
+import { randomUUID } from 'crypto';
 import 'dotenv/config';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import fs from 'fs';
+import helmet from 'helmet';
 import multer from 'multer';
 import OpenAI from 'openai';
 import Papa from 'papaparse';
 import path from 'path';
 import xlsx from 'xlsx';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import { randomUUID } from 'crypto';
 import pricingFetcher from './server/pricing/pricingFetcher.js';
 
 const app = express();
@@ -30,6 +30,23 @@ const log = {
     console.error(JSON.stringify({ level: 'error', time: new Date().toISOString(), msg, ...meta, error: safeErr }));
   },
 };
+
+// In-memory ring buffer for recent logs to expose via debug endpoint (visible in Cursor)
+const ringLogs = [];
+const MAX_LOGS = 500;
+function pushLog(entry) {
+  ringLogs.push(entry);
+  if (ringLogs.length > MAX_LOGS) ringLogs.shift();
+}
+['log','info','warn','error'].forEach((m) => {
+  const orig = console[m] instanceof Function ? console[m].bind(console) : console.log.bind(console);
+  console[m] = (...args) => {
+    try {
+      pushLog({ level: m === 'log' ? 'info' : m, time: new Date().toISOString(), text: args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ') });
+    } catch (_) {}
+    return orig(...args);
+  };
+});
 
 app.use((req, res, next) => {
   req.requestId = randomUUID();
@@ -104,6 +121,16 @@ if (process.env.ENABLE_API_AUTH === 'true') {
   app.use('/api', authenticate);
 }
 
+// Debug logs endpoint (gated via token or dev env)
+app.get('/api/debug/logs', (req, res) => {
+  const devToken = req.headers['x-debug-token'];
+  if (!(process.env.NODE_ENV !== 'production' || (process.env.DEBUG_TOKEN && devToken === process.env.DEBUG_TOKEN))) {
+    return res.status(403).json({ error: 'Forbidden', id: req.requestId });
+  }
+  const limit = Math.min(parseInt(req.query.limit) || 200, 1000);
+  return res.json({ id: req.requestId, logs: ringLogs.slice(-limit) });
+});
+
 // Initialize OpenAI client
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'demo-key',
@@ -131,7 +158,8 @@ app.post('/api/gpt-test', async (req, res) => {
 
     const requestedModel = model || 'gpt-4o-mini';
 
-    console.log('🧪 [GPT Test] Request:', {
+    log.info('[GPT Test] Request', {
+      id: req.requestId,
       model: requestedModel,
       messageCount: messages.length,
       maxTokens: max_completion_tokens || 500,
@@ -141,7 +169,7 @@ app.post('/api/gpt-test', async (req, res) => {
 
     // Demo mode - return mock response
     if (process.env.OPENAI_API_KEY === 'demo-key' || !process.env.OPENAI_API_KEY) {
-      console.log('⚠️ [GPT Test] Running in DEMO mode (no API key)');
+      log.info('[GPT Test] Running in DEMO mode (no API key)', { id: req.requestId });
 
       const mockResponse = {
         id: "chatcmpl-demo",
@@ -171,14 +199,14 @@ app.post('/api/gpt-test', async (req, res) => {
       await new Promise(resolve => setTimeout(resolve, 800));
 
       const elapsed = Date.now() - startTime;
-      console.log(`✅ [GPT Test] Demo response sent (${elapsed}ms)`);
+      log.info('[GPT Test] Demo response sent', { id: req.requestId, timeMs: elapsed });
 
       res.status(200).json(mockResponse);
       return;
     }
 
     // Production mode - call OpenAI API
-    console.log(`🚀 [GPT Test] Calling OpenAI API with model: ${requestedModel}`);
+    log.info('[GPT Test] Calling OpenAI API', { id: req.requestId, model: requestedModel });
 
     const completion = await client.chat.completions.create({
       model: requestedModel,
@@ -190,7 +218,8 @@ app.post('/api/gpt-test', async (req, res) => {
 
     const elapsed = Date.now() - startTime;
 
-    console.log(`✅ [GPT Test] Success:`, {
+    log.info('[GPT Test] Success', {
+      id: req.requestId,
       model: completion.model,
       finishReason: completion.choices[0]?.finish_reason,
       promptTokens: completion.usage?.prompt_tokens,
@@ -203,17 +232,9 @@ app.post('/api/gpt-test', async (req, res) => {
   } catch (error) {
     const elapsed = Date.now() - startTime;
 
-    console.error(`❌ [GPT Test] Failed after ${elapsed}ms:`, {
-      error: error.message,
-      type: error.constructor.name,
-      stack: error.stack?.split('\n')[0]
-    });
-
-    res.status(500).json({
-      error: error.message,
-      type: error.constructor.name,
-      timeMs: elapsed
-    });
+    log.error('[GPT Test] Failed', { id: req.requestId, timeMs: elapsed }, error);
+    const safe = isProd ? { error: 'Internal server error', id: req.requestId } : { error: error.message, type: error.constructor.name, timeMs: elapsed, id: req.requestId };
+    res.status(500).json(safe);
   }
 });
 
@@ -222,7 +243,18 @@ app.post('/api/answers/filter', async (req, res) => {
   try {
     const { search, types, status, codes, language, country, categoryId } = req.body;
 
-    console.log('🔍 Filter request:', { search, types, status, codes, language, country, categoryId });
+    log.info('[Filter] Request', {
+      id: req.requestId,
+      filters: {
+        hasSearch: Boolean(search?.trim()),
+        typesCount: Array.isArray(types) ? types.length : 0,
+        hasStatus: Boolean(status),
+        codesCount: Array.isArray(codes) ? codes.length : 0,
+        hasLanguage: Boolean(language),
+        hasCountry: Boolean(country),
+        hasCategoryId: Boolean(categoryId),
+      }
+    });
 
     // Check if Supabase is configured
     if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_ANON_KEY) {
@@ -328,7 +360,7 @@ app.post('/api/answers/filter', async (req, res) => {
     const { data, error } = await query;
 
     if (error) {
-      console.error('❌ Supabase query failed:', error);
+      log.error('Supabase query failed', { id: req.requestId }, error);
       throw error;
     }
 
@@ -343,7 +375,7 @@ app.post('/api/answers/filter', async (req, res) => {
       });
     }
 
-    console.log(`✅ Filtered ${results.length} answers from ${data?.length || 0} total`);
+    log.info('[Filter] Results', { id: req.requestId, filtered: results.length, total: data?.length || 0 });
 
     res.status(200).json({
       success: true,
@@ -353,22 +385,19 @@ app.post('/api/answers/filter', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('❌ Filter endpoint error:', err.message);
-    res.status(500).json({
-      success: false,
-      error: err.message,
-      details: err.toString(),
-    });
+    log.error('Filter endpoint error', { id: req.requestId }, err);
+    const safe = isProd ? { success: false, error: 'Internal server error', id: req.requestId } : { success: false, error: err.message, id: req.requestId };
+    res.status(500).json(safe);
   }
 });
 
 // File upload endpoint
-app.post('/api/file-upload', upload.single('file'), async (req, res) => {
+app.post('/api/file-upload', uploadRateLimitMiddleware, upload.single('file'), async (req, res) => {
   const startTime = Date.now();
   let uploadedFilePath = null;
 
   try {
-    console.log('📤 [File Upload] Request received');
+    log.info('[File Upload] Request received', { id: req.requestId });
 
     // Check if file was uploaded
     if (!req.file) {
@@ -383,11 +412,12 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
     const fileExtension = path.extname(originalName).toLowerCase();
     const categoryId = req.body.category_id;
 
-    console.log('📂 [File Upload] File:', {
+    log.info('[File Upload] File', {
+      id: req.requestId,
       name: originalName,
-      size: `${(req.file.size / 1024).toFixed(2)} KB`,
+      sizeKB: Number((req.file.size / 1024).toFixed(2)),
       extension: fileExtension,
-      categoryId
+      hasCategoryId: Boolean(categoryId)
     });
 
     // Validate category
@@ -403,7 +433,7 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
 
     // Parse CSV
     if (fileExtension === '.csv') {
-      console.log('🔍 [File Upload] Parsing CSV file...');
+      log.info('[File Upload] Parsing CSV file...', { id: req.requestId });
       const fileContent = fs.readFileSync(uploadedFilePath, 'utf8');
 
       const parseResult = Papa.parse(fileContent, {
@@ -434,7 +464,7 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
     }
     // Parse Excel
     else if (['.xlsx', '.xls'].includes(fileExtension)) {
-      console.log('🔍 [File Upload] Parsing Excel file...');
+      log.info('[File Upload] Parsing Excel file...', { id: req.requestId });
       const fileBuffer = fs.readFileSync(uploadedFilePath);
       const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
@@ -476,7 +506,8 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
 
     const skipped = parsedRows.length - validRows.length;
 
-    console.log('📊 [File Upload] Parsing results:', {
+    log.info('[File Upload] Parsing results', {
+      id: req.requestId,
       total: parsedRows.length,
       valid: validRows.length,
       skipped,
@@ -505,7 +536,7 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
       // Store external_id in metadata if you have a jsonb column, or add a dedicated column
     }));
 
-    console.log('💾 [File Upload] Inserting to Supabase...');
+    log.info('[File Upload] Inserting to Supabase...', { id: req.requestId });
 
     // Insert to Supabase
     const { data: insertedData, error: insertError } = await supabase
@@ -514,12 +545,12 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
       .select();
 
     if (insertError) {
-      console.error('❌ [File Upload] Supabase insert failed:', insertError);
+      log.error('[File Upload] Supabase insert failed', { id: req.requestId }, insertError);
       throw new Error(`Database insert failed: ${insertError.message}`);
     }
 
     const elapsed = Date.now() - startTime;
-    console.log(`✅ [File Upload] Success: ${insertedData.length} records inserted in ${elapsed}ms`);
+    log.info('[File Upload] Success', { id: req.requestId, inserted: insertedData.length, timeMs: elapsed });
 
     // Log import to history table
     try {
@@ -536,9 +567,9 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
       });
 
       if (historyError) {
-        console.warn('⚠️ [File Upload] Failed to log import history:', historyError.message);
+        log.warn('[File Upload] Failed to log import history', { id: req.requestId, error: historyError.message });
       } else {
-        console.log('📝 [File Upload] Import logged to history');
+        log.info('[File Upload] Import logged to history', { id: req.requestId });
       }
     } catch (historyErr) {
       console.warn('⚠️ [File Upload] History logging error:', historyErr);
@@ -547,7 +578,7 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
     // Clean up uploaded file
     if (uploadedFilePath && fs.existsSync(uploadedFilePath)) {
       fs.unlinkSync(uploadedFilePath);
-      console.log('🗑️ [File Upload] Temp file cleaned up');
+      log.info('[File Upload] Temp file cleaned up', { id: req.requestId });
     }
 
     res.status(200).json({
@@ -560,7 +591,7 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [File Upload] Error:', error);
+    log.error('[File Upload] Error', { id: req.requestId }, error);
 
     // Log failed import to history
     try {
@@ -577,9 +608,9 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
         processing_time_ms: elapsed,
         created_at: new Date().toISOString()
       });
-      console.log('📝 [File Upload] Failed import logged to history');
+      log.info('[File Upload] Failed import logged to history', { id: req.requestId });
     } catch (historyErr) {
-      console.warn('⚠️ [File Upload] Failed to log error to history:', historyErr);
+      log.warn('[File Upload] Failed to log error to history', { id: req.requestId });
     }
 
     // Clean up uploaded file on error
@@ -587,7 +618,7 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
       try {
         fs.unlinkSync(uploadedFilePath);
       } catch (cleanupError) {
-        console.error('Failed to cleanup temp file:', cleanupError);
+        log.error('Failed to cleanup temp file', { id: req.requestId }, cleanupError);
       }
     }
 
@@ -603,11 +634,15 @@ app.post('/api/file-upload', upload.single('file'), async (req, res) => {
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({
+  const payload = {
     status: 'OK',
     timestamp: new Date().toISOString(),
-    supabaseConfigured: !!(process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY),
-  });
+    id: req.requestId,
+  };
+  if (!isProd) {
+    payload.supabaseConfigured = !!(process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY);
+  }
+  res.json(payload);
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -620,7 +655,7 @@ app.get('/api/health', (req, res) => {
  */
 app.get('/api/ai-pricing', async (req, res) => {
   try {
-    console.log('📊 GET /api/ai-pricing');
+    log.info('GET /api/ai-pricing', { id: req.requestId });
 
     const pricingData = await pricingFetcher.fetchPricing();
 
@@ -633,7 +668,7 @@ app.get('/api/ai-pricing', async (req, res) => {
 
     res.json(response);
   } catch (error) {
-    console.error('❌ Error in /api/ai-pricing:', error);
+    log.error('Error in /api/ai-pricing', { id: req.requestId }, error);
     res.status(500).json({
       error: 'Failed to fetch pricing data',
       message: error.message,
@@ -647,7 +682,7 @@ app.get('/api/ai-pricing', async (req, res) => {
  */
 app.post('/api/ai-pricing/refresh', async (req, res) => {
   try {
-    console.log('🔄 POST /api/ai-pricing/refresh - forcing cache refresh');
+    log.info('POST /api/ai-pricing/refresh - forcing cache refresh', { id: req.requestId });
 
     const pricingData = await pricingFetcher.forceRefresh();
 
@@ -657,7 +692,7 @@ app.post('/api/ai-pricing/refresh', async (req, res) => {
       data: pricingData,
     });
   } catch (error) {
-    console.error('❌ Error refreshing pricing:', error);
+    log.error('Error refreshing pricing', { id: req.requestId }, error);
     res.status(500).json({
       error: 'Failed to refresh pricing data',
       message: error.message,
