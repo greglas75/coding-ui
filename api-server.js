@@ -6,12 +6,14 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import fs from 'fs';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import multer from 'multer';
 import OpenAI from 'openai';
 import Papa from 'papaparse';
 import path from 'path';
 import xlsx from 'xlsx';
 import pricingFetcher from './server/pricing/pricingFetcher.js';
+import { z } from 'zod';
 
 const app = express();
 const port = 3001;
@@ -84,18 +86,45 @@ const upload = multer({
 });
 
 // Middleware
-// Security headers
-app.use(helmet({ contentSecurityPolicy: false }));
+// Security headers (ENABLE_CSP to turn on CSP)
+const enableCsp = process.env.ENABLE_CSP === 'true';
+app.use(helmet({
+  contentSecurityPolicy: enableCsp ? {
+    useDefaults: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'", `http://localhost:${port}`],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'none'"],
+    }
+  } : false
+}));
 
-// CORS - configurable allowlist via ENV; default keep current permissive behavior
-const corsOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : undefined;
-app.use(cors({ origin: corsOrigins || true }));
+// CORS - in prod, if REQUIRE_CORS_ORIGINS=true then require explicit list
+const requireCors = process.env.REQUIRE_CORS_ORIGINS === 'true';
+const corsOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean) : undefined;
+app.use(cors({ origin: (isProd && requireCors) ? (corsOrigins || false) : (corsOrigins || true) }));
 
 // JSON body size limit - gated
 if (process.env.JSON_LIMIT) {
   app.use(express.json({ limit: process.env.JSON_LIMIT }));
 } else {
   app.use(express.json());
+}
+
+// Optional CSRF for cookie-based flows
+if (process.env.ENABLE_CSRF === 'true') {
+  app.use(cookieParser());
+  try {
+    const csurf = (await import('csurf')).default;
+    app.use(csurf({ cookie: { httpOnly: true, sameSite: 'lax', secure: isProd } }));
+  } catch (e) {
+    log.warn('CSRF enabled but csurf not installed', { id: 'startup' });
+  }
 }
 
 // Optional global rate limiting - gated
@@ -121,15 +150,13 @@ if (process.env.ENABLE_API_AUTH === 'true') {
   app.use('/api', authenticate);
 }
 
-// Debug logs endpoint (gated via token or dev env)
-app.get('/api/debug/logs', (req, res) => {
-  const devToken = req.headers['x-debug-token'];
-  if (!(process.env.NODE_ENV !== 'production' || (process.env.DEBUG_TOKEN && devToken === process.env.DEBUG_TOKEN))) {
-    return res.status(403).json({ error: 'Forbidden', id: req.requestId });
-  }
-  const limit = Math.min(parseInt(req.query.limit) || 200, 1000);
-  return res.json({ id: req.requestId, logs: ringLogs.slice(-limit) });
-});
+// Debug logs endpoint (gated via ENABLE_DEBUG_LOGS or dev env)
+if (!isProd || process.env.ENABLE_DEBUG_LOGS === 'true') {
+  app.get('/api/debug/logs', (req, res) => {
+    const limit = Math.min(parseInt(req.query.limit) || 200, 1000);
+    return res.json({ id: req.requestId, logs: ringLogs.slice(-limit) });
+  });
+}
 
 // Initialize OpenAI client
 const client = new OpenAI({
@@ -241,7 +268,22 @@ app.post('/api/gpt-test', async (req, res) => {
 // Answers filter endpoint
 app.post('/api/answers/filter', async (req, res) => {
   try {
-    const { search, types, status, codes, language, country, categoryId } = req.body;
+    const filterSchema = z.object({
+      search: z.string().max(200).optional().nullable(),
+      types: z.array(z.string()).max(10).optional(),
+      status: z.string().max(50).optional().nullable(),
+      codes: z.array(z.string().max(100)).max(50).optional(),
+      language: z.string().max(10).optional().nullable(),
+      country: z.string().max(50).optional().nullable(),
+      categoryId: z.number().int().positive().optional(),
+    });
+
+    const parseResult = filterSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ success: false, error: 'Invalid filter parameters', id: req.requestId });
+    }
+
+    const { search, types, status, codes, language, country, categoryId } = parseResult.data;
 
     log.info('[Filter] Request', {
       id: req.requestId,
@@ -408,7 +450,7 @@ app.post('/api/file-upload', uploadRateLimitMiddleware, upload.single('file'), a
     }
 
     uploadedFilePath = req.file.path;
-    const originalName = req.file.originalname;
+    const originalName = path.basename(req.file.originalname).replace(/[\\/]/g, '');
     const fileExtension = path.extname(originalName).toLowerCase();
     const categoryId = req.body.category_id;
 
