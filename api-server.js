@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { randomUUID } from 'crypto';
 import 'dotenv/config';
@@ -6,14 +7,13 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import fs from 'fs';
 import helmet from 'helmet';
-import cookieParser from 'cookie-parser';
 import multer from 'multer';
 import OpenAI from 'openai';
 import Papa from 'papaparse';
 import path from 'path';
 import xlsx from 'xlsx';
-import pricingFetcher from './server/pricing/pricingFetcher.js';
 import { z } from 'zod';
+import pricingFetcher from './server/pricing/pricingFetcher.js';
 
 const app = express();
 const port = 3001;
@@ -86,8 +86,8 @@ const upload = multer({
 });
 
 // Middleware
-// Security headers (ENABLE_CSP to turn on CSP)
-const enableCsp = process.env.ENABLE_CSP === 'true';
+// Security headers (ENABLE_CSP or auto-on in production)
+const enableCsp = process.env.ENABLE_CSP === 'true' || isProd;
 app.use(helmet({
   contentSecurityPolicy: enableCsp ? {
     useDefaults: true,
@@ -104,10 +104,12 @@ app.use(helmet({
   } : false
 }));
 
-// CORS - in prod, if REQUIRE_CORS_ORIGINS=true then require explicit list
-const requireCors = process.env.REQUIRE_CORS_ORIGINS === 'true';
+// CORS - in prod require explicit list (fail-fast if missing)
 const corsOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean) : undefined;
-app.use(cors({ origin: (isProd && requireCors) ? (corsOrigins || false) : (corsOrigins || true) }));
+if (isProd && (!corsOrigins || corsOrigins.length === 0)) {
+  throw new Error('CORS_ORIGINS must be set in production');
+}
+app.use(cors({ origin: corsOrigins || true }));
 
 // JSON body size limit - gated
 if (process.env.JSON_LIMIT) {

@@ -367,27 +367,22 @@ async function callOpenAI(
   maxTokens: number,
   timeout: number
 ): Promise<string> {
-  const apiKey = localStorage.getItem('openai_api_key') || import.meta.env.VITE_OPENAI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('OpenAI API key not configured. Please add it in Settings.');
-  }
-
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Route through backend to protect API keys
+    const response = await fetch('/api/gpt-test', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model,
         messages: [{ role: 'user', content: prompt }],
         temperature,
-        max_tokens: maxTokens,
+        max_completion_tokens: maxTokens,
+        top_p: 0.1,
       }),
       signal: controller.signal,
     });
@@ -399,7 +394,10 @@ async function callOpenAI(
     }
 
     const data = await response.json();
-    return data?.choices?.[0]?.message?.content || '[Error: No response]';
+    const content = data?.choices?.[0]?.message?.content
+      || data?.choices?.[0]?.message?.content?.text
+      || (typeof data === 'string' ? data : undefined);
+    return content || '[Error: No response]';
   } catch (error) {
     clearTimeout(timeoutId);
     throw error;
