@@ -37,7 +37,7 @@ export default defineConfig({
   // Shared settings for all projects
 use: {
   // Base URL for your app
-  baseURL: 'http://localhost:4173',
+  baseURL: 'http://localhost:5173',
 
   // 🖥️ VIEWPORT - DUŻE OKNO (1920x1080)
   viewport: { width: 2560, height: 1440 },
