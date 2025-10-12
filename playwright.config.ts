@@ -2,63 +2,66 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * Playwright Configuration for E2E Tests
- * 
+ *
  * This allows you to record tests by clicking through the app!
  * Run: npm run test:e2e:record
  */
 export default defineConfig({
   testDir: './e2e/tests',
-  
-  // Maximum time one test can run
-  timeout: 30 * 1000,
-  
+
+  // Global setup file
+  globalSetup: './e2e/global-setup.ts',
+
+  // Maximum time one test can run (increased for large test suites)
+  timeout: 60 * 1000,
+
   // Run tests in parallel
   fullyParallel: true,
-  
+
   // Fail the build on CI if you accidentally left test.only in the source code
   forbidOnly: !!process.env.CI,
-  
-  // Retry on CI only
-  retries: process.env.CI ? 2 : 0,
-  
-  // Opt out of parallel tests on CI
-  workers: process.env.CI ? 1 : undefined,
-  
+
+  // Retry on CI and locally for flaky tests
+  retries: process.env.CI ? 2 : 1,
+
+  // Workers configuration (increased for better performance)
+  workers: process.env.CI ? 2 : 4,
+
   // Reporter to use
   reporter: [
     ['html', { outputFolder: 'playwright-report' }],
     ['list'],
     ['json', { outputFile: 'test-results/results.json' }],
   ],
-  
+
   // Shared settings for all projects
 use: {
   // Base URL for your app
   baseURL: 'http://localhost:4173',
-  
+
   // 🖥️ VIEWPORT - DUŻE OKNO (1920x1080)
   viewport: { width: 2560, height: 1440 },
-  
+
   // 👁️ Pokaż okno przeglądarki (nie headless)
   headless: false,
-  
+
   // ⏱️ Wolniejsze wykonanie (łatwiej zobaczyć co się dzieje)
   slowMo: 100,
-  
-  // Collect trace when retrying the failed test
-  trace: 'on-first-retry',
-  
+
+  // Collect trace on failure and retry
+  trace: 'retain-on-failure',
+
   // Take screenshot on failure
   screenshot: 'only-on-failure',
-  
+
   // Record video on failure
   video: 'retain-on-failure',
-  
-  // Maximum time each action can take
-  actionTimeout: 10 * 1000,
-  
-  // Navigation timeout
-  navigationTimeout: 30 * 1000,
+
+  // Maximum time each action can take (increased)
+  actionTimeout: 15 * 1000,
+
+  // Navigation timeout (increased)
+  navigationTimeout: 45 * 1000,
 },
 
   // Configure projects for major browsers

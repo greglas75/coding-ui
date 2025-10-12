@@ -1,0 +1,12 @@
+code_name,category,is_whitelisted
+Nike,Sports Brands,true
+Adidas,Sports Brands,true
+Puma,Sports Brands,false
+Chanel,Fashion Brands,true
+Dior,Fashion Brands,true
+Gucci,Fashion Brands,false
+Apple,Tech Brands,true
+Samsung,Tech Brands,false
+Sony,Tech Brands,true
+Tesla,Automotive,true
+

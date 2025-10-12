@@ -52,13 +52,13 @@ export async function goToCodingPage(page: Page, categoryId: number) {
 export async function addCategory(page: Page, categoryName: string) {
   // Click Add Category button
   await page.getByRole('button', { name: /add category/i }).click();
-  
+
   // Fill in the name
   await page.getByPlaceholder(/enter category name/i).fill(categoryName);
-  
+
   // Click Save
   await page.getByRole('button', { name: /save/i }).click();
-  
+
   // Wait for success (modal closes)
   await page.waitForTimeout(500);
 }
@@ -69,13 +69,13 @@ export async function addCategory(page: Page, categoryName: string) {
 export async function deleteCategory(page: Page, categoryName: string) {
   // Find the category row
   const categoryRow = page.locator(`text=${categoryName}`).locator('..');
-  
+
   // Click delete button
   await categoryRow.getByRole('button', { name: /delete/i }).click();
-  
+
   // Confirm deletion
   await page.getByRole('button', { name: /confirm|yes|delete/i }).click();
-  
+
   // Wait for deletion
   await page.waitForTimeout(500);
 }
@@ -116,9 +116,9 @@ export async function selectRowByText(page: Page, text: string) {
  * Take a screenshot with a descriptive name
  */
 export async function takeScreenshot(page: Page, name: string) {
-  await page.screenshot({ 
+  await page.screenshot({
     path: `test-results/screenshots/${name}.png`,
-    fullPage: true 
+    fullPage: true
   });
 }
 
@@ -126,9 +126,9 @@ export async function takeScreenshot(page: Page, name: string) {
  * Wait for specific element to be visible
  */
 export async function waitForElement(page: Page, selector: string, timeout = 5000) {
-  await page.waitForSelector(selector, { 
+  await page.waitForSelector(selector, {
     state: 'visible',
-    timeout 
+    timeout
   });
 }
 
@@ -189,3 +189,183 @@ export async function closeModal(page: Page) {
   await page.waitForTimeout(300);
 }
 
+/**
+ * ============================================
+ * AI HELPERS
+ * ============================================
+ */
+
+/**
+ * Trigger AI suggestion for a specific row
+ */
+export async function triggerAISuggestion(page: Page, rowIndex: number) {
+  const aiButton = page.locator('tbody tr').nth(rowIndex).getByRole('button', { name: /ai|suggest/i });
+  await aiButton.click();
+  await page.waitForTimeout(1000); // Wait for AI to respond
+}
+
+/**
+ * Accept AI suggestion for a specific row
+ */
+export async function acceptAISuggestion(page: Page, rowIndex: number) {
+  const acceptButton = page.locator('tbody tr').nth(rowIndex).getByRole('button', { name: /accept|confirm/i });
+  await acceptButton.click();
+  await page.waitForTimeout(500);
+}
+
+/**
+ * Reject AI suggestion for a specific row
+ */
+export async function rejectAISuggestion(page: Page, rowIndex: number) {
+  const rejectButton = page.locator('tbody tr').nth(rowIndex).getByRole('button', { name: /reject|dismiss/i });
+  await rejectButton.click();
+  await page.waitForTimeout(500);
+}
+
+/**
+ * ============================================
+ * API HELPERS
+ * ============================================
+ */
+
+/**
+ * Make an API request
+ */
+export async function makeApiRequest(
+  request: any,
+  endpoint: string,
+  method: string,
+  body?: any
+): Promise<any> {
+  const options: any = { data: body };
+
+  let response;
+  switch (method.toUpperCase()) {
+    case 'GET':
+      response = await request.get(endpoint);
+      break;
+    case 'POST':
+      response = await request.post(endpoint, options);
+      break;
+    case 'PUT':
+      response = await request.put(endpoint, options);
+      break;
+    case 'DELETE':
+      response = await request.delete(endpoint);
+      break;
+    default:
+      throw new Error(`Unsupported HTTP method: ${method}`);
+  }
+
+  return response;
+}
+
+/**
+ * Upload file to page
+ */
+export async function uploadFile(page: Page, filePath: string) {
+  const fileInput = page.locator('input[type="file"]');
+  await fileInput.setInputFiles(filePath);
+  await page.waitForTimeout(500);
+}
+
+/**
+ * Download file and return download object
+ */
+export async function downloadFile(page: Page, buttonText: string) {
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: new RegExp(buttonText, 'i') }).click();
+  const download = await downloadPromise;
+  return download;
+}
+
+/**
+ * ============================================
+ * KEYBOARD HELPERS
+ * ============================================
+ */
+
+/**
+ * Press a keyboard shortcut
+ */
+export async function pressKeyboardShortcut(page: Page, key: string) {
+  await page.keyboard.press(key);
+  await page.waitForTimeout(300);
+}
+
+/**
+ * Navigate with arrow keys
+ */
+export async function navigateWithArrows(
+  page: Page,
+  direction: 'up' | 'down' | 'left' | 'right'
+) {
+  const keyMap = {
+    up: 'ArrowUp',
+    down: 'ArrowDown',
+    left: 'ArrowLeft',
+    right: 'ArrowRight'
+  };
+
+  await page.keyboard.press(keyMap[direction]);
+  await page.waitForTimeout(200);
+}
+
+/**
+ * ============================================
+ * NETWORK HELPERS
+ * ============================================
+ */
+
+/**
+ * Set context to offline mode
+ */
+export async function goOffline(context: any) {
+  await context.setOffline(true);
+  await new Promise(resolve => setTimeout(resolve, 500));
+}
+
+/**
+ * Set context to online mode
+ */
+export async function goOnline(context: any) {
+  await context.setOffline(false);
+  await new Promise(resolve => setTimeout(resolve, 500));
+}
+
+/**
+ * Mock an API error response
+ */
+export async function mockApiError(page: Page, endpoint: string, statusCode: number) {
+  await page.route(`**${endpoint}**`, route => {
+    route.fulfill({
+      status: statusCode,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'Mocked error response' })
+    });
+  });
+}
+
+/**
+ * ============================================
+ * PERFORMANCE HELPERS
+ * ============================================
+ */
+
+/**
+ * Measure page load time
+ */
+export async function measurePageLoadTime(page: Page, url: string): Promise<number> {
+  const startTime = Date.now();
+  await page.goto(url);
+  await page.waitForLoadState('networkidle');
+  const endTime = Date.now();
+  return endTime - startTime;
+}
+
+/**
+ * Wait for network to be idle
+ */
+export async function waitForNetworkIdle(page: Page) {
+  await page.waitForLoadState('networkidle', { timeout: 10000 });
+}

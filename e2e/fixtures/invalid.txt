@@ -1,0 +1,4 @@
+This is not a valid Excel or CSV file.
+It's just a plain text file that should be rejected by the upload validation.
+Random content to make it look like someone tried to upload the wrong file type.
+

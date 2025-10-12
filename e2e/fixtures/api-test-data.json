@@ -1,0 +1,68 @@
+{
+  "categories": [
+    {
+      "id": 1,
+      "name": "Test Category Alpha",
+      "description": "Category for automated testing"
+    },
+    {
+      "id": 2,
+      "name": "Test Category Beta",
+      "description": "Another category for testing"
+    },
+    {
+      "id": 3,
+      "name": "Test Category Gamma",
+      "description": "Third test category"
+    }
+  ],
+  "codes": [
+    {
+      "id": 1,
+      "code_name": "API Test Code 1",
+      "is_whitelisted": true,
+      "category_id": 1
+    },
+    {
+      "id": 2,
+      "code_name": "API Test Code 2",
+      "is_whitelisted": false,
+      "category_id": 1
+    },
+    {
+      "id": 3,
+      "code_name": "API Test Code 3",
+      "is_whitelisted": true,
+      "category_id": 2
+    }
+  ],
+  "answers": [
+    {
+      "id": 1,
+      "answer_text": "Test answer for API testing",
+      "language": "EN",
+      "country": "US",
+      "status": "pending"
+    },
+    {
+      "id": 2,
+      "answer_text": "Druga odpowiedź testowa",
+      "language": "PL",
+      "country": "PL",
+      "status": "confirmed"
+    },
+    {
+      "id": 3,
+      "answer_text": "Third test answer with more content for testing filtering and search functionality",
+      "language": "EN",
+      "country": "GB",
+      "status": "whitelist"
+    }
+  ],
+  "filters": {
+    "statuses": ["pending", "confirmed", "whitelist", "blacklist", "other", "ignore"],
+    "languages": ["EN", "PL", "DE", "FR", "ES"],
+    "countries": ["US", "PL", "GB", "DE", "FR"]
+  }
+}
+

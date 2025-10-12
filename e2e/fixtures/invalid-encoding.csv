@@ -1,0 +1,5 @@
+code_name,category,is_whitelisted
+Test™,Brands®,true
+Special©,Characters®,false
+Invalid�Data,Bad�Encoding,true
+
