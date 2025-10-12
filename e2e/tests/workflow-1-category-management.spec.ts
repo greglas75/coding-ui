@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { waitForPageLoad, waitForLoadingToFinish } from '../helpers/test-helpers';
 
 /**
@@ -142,12 +142,11 @@ test.describe('Workflow 1: Category and Code Management', () => {
     
     // Open add modal
     await page.getByRole('button', { name: /add category/i }).click();
+    await page.waitForTimeout(500);
     
-    // Try to save without entering name
-    await page.getByRole('button', { name: /save/i }).click();
-    
-    // Should show error
-    await expect(page.getByText(/required|cannot be empty/i)).toBeVisible();
+    // Save button should be disabled when name is empty
+    const saveButton = page.getByRole('button', { name: /save/i });
+    await expect(saveButton).toBeDisabled();
     
     // Modal should still be open
     await expect(page.getByText(/add new category/i)).toBeVisible();

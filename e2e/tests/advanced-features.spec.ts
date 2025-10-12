@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { goToCodingPage, waitForLoadingToFinish } from '../helpers/test-helpers';
 
 /**

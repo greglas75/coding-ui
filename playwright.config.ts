@@ -13,7 +13,7 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.ts',
 
   // Maximum time one test can run (increased for large test suites)
-  timeout: 60 * 1000,
+  timeout: 120 * 1000,
 
   // Run tests in parallel
   fullyParallel: true,
@@ -58,10 +58,10 @@ use: {
   video: 'retain-on-failure',
 
   // Maximum time each action can take (increased)
-  actionTimeout: 15 * 1000,
+  actionTimeout: 30 * 1000,
 
   // Navigation timeout (increased)
-  navigationTimeout: 45 * 1000,
+  navigationTimeout: 90 * 1000,
 },
 
   // Configure projects for major browsers

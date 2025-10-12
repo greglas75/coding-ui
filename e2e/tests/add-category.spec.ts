@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 /**
  * 🎯 CATEGORY FILTERING TEST
- * 
+ *
  * This test verifies that navigating to a coding page with categoryId and filter
  * parameters properly applies the filters and maintains the category context.
  */
@@ -12,11 +12,11 @@ test.describe('Category Filtering', () => {
     // Set up console message listener to catch errors
     const consoleMessages: string[] = [];
     const consoleErrors: string[] = [];
-    
+
     page.on('console', msg => {
       const text = msg.text();
       consoleMessages.push(text);
-      
+
       if (msg.type() === 'error') {
         consoleErrors.push(text);
       }
@@ -24,9 +24,9 @@ test.describe('Category Filtering', () => {
 
     // Navigate to the coding page with categoryId=2 and filter=whitelist
     console.log('📍 Navigating to coding page with categoryId=2 and filter=whitelist...');
-    await page.goto('/coding?categoryId=2&filter=whitelist', { 
+    await page.goto('/coding?categoryId=2&filter=whitelist', {
       waitUntil: 'networkidle',
-      timeout: 30000 
+      timeout: 30000
     });
 
     // Wait for the page to load and filters to be applied
@@ -38,10 +38,10 @@ test.describe('Category Filtering', () => {
 
     // 2. Wait for data to load (look for the grid or table)
     console.log('⏳ Waiting for data to load...');
-    
+
     // Check if there's a main content area with answers
     const hasAnswers = await page.locator('table, [role="grid"], .coding-grid').count() > 0;
-    
+
     if (hasAnswers) {
       console.log('✅ Found answer grid/table on page');
     } else {
@@ -52,7 +52,7 @@ test.describe('Category Filtering', () => {
     console.log('\n📊 Console Messages Summary:');
     console.log(`Total messages: ${consoleMessages.length}`);
     console.log(`Errors: ${consoleErrors.length}`);
-    
+
     if (consoleErrors.length > 0) {
       console.log('\n❌ Console Errors Found:');
       consoleErrors.forEach((err, i) => {
@@ -62,22 +62,22 @@ test.describe('Category Filtering', () => {
 
     // 4. Check relevant console logs for filter application
     console.log('\n🔍 Checking for filter application in console logs...');
-    const filterLogs = consoleMessages.filter(msg => 
-      msg.includes('filter') || 
-      msg.includes('categoryId') || 
+    const filterLogs = consoleMessages.filter(msg =>
+      msg.includes('filter') ||
+      msg.includes('categoryId') ||
       msg.includes('category ID') ||
       msg.includes('whitelist')
     );
-    
+
     console.log('Filter-related logs:');
     filterLogs.forEach(log => console.log(`  - ${log}`));
 
     // 5. Verify category context is maintained
     console.log('\n🔍 Verifying category context...');
-    const categoryLogs = consoleMessages.filter(msg => 
+    const categoryLogs = consoleMessages.filter(msg =>
       msg.includes('category') && msg.includes('2')
     );
-    
+
     if (categoryLogs.length > 0) {
       console.log('✅ Found category context logs:');
       categoryLogs.forEach(log => console.log(`  - ${log}`));
@@ -87,11 +87,11 @@ test.describe('Category Filtering', () => {
 
     // 6. Check if filter status is displayed in UI
     console.log('\n🔍 Checking UI for filter indicators...');
-    
+
     // Look for filter badges or indicators
     const filterBadge = page.locator('text=/whitelist/i, [class*="badge"], [class*="chip"]').first();
     const filterBadgeVisible = await filterBadge.isVisible().catch(() => false);
-    
+
     if (filterBadgeVisible) {
       console.log('✅ Filter indicator visible in UI');
     } else {
@@ -101,7 +101,7 @@ test.describe('Category Filtering', () => {
     // 7. Check for category name display
     const categoryIndicator = page.locator('[class*="category"], [class*="breadcrumb"]').first();
     const categoryVisible = await categoryIndicator.isVisible().catch(() => false);
-    
+
     if (categoryVisible) {
       const categoryText = await categoryIndicator.textContent();
       console.log(`✅ Category indicator found: "${categoryText}"`);
@@ -114,7 +114,7 @@ test.describe('Category Filtering', () => {
     console.log('\n📸 Screenshot saved to: test-results/category-filter-whitelist.png');
 
     // 9. Verify no critical console errors
-    const criticalErrors = consoleErrors.filter(err => 
+    const criticalErrors = consoleErrors.filter(err =>
       !err.includes('favicon') && // Ignore favicon errors
       !err.includes('DevTools') // Ignore DevTools messages
     );
@@ -137,7 +137,7 @@ test.describe('Category Filtering', () => {
 
   test('should apply filter from URL parameter on page load', async ({ page }) => {
     const appliedFilters: string[] = [];
-    
+
     page.on('console', msg => {
       const text = msg.text();
       // Look for filter application logs
@@ -158,7 +158,7 @@ test.describe('Category Filtering', () => {
 
   test('should maintain category when filters are applied', async ({ page }) => {
     const categoryContextLogs: string[] = [];
-    
+
     page.on('console', msg => {
       const text = msg.text();
       // Track category context
@@ -174,22 +174,22 @@ test.describe('Category Filtering', () => {
     categoryContextLogs.forEach(log => console.log(`  - ${log}`));
 
     // Check if category distribution shows only category 2
-    const distributionLog = categoryContextLogs.find(log => 
+    const distributionLog = categoryContextLogs.find(log =>
       log.includes('Category ID distribution')
     );
 
     if (distributionLog) {
       console.log('\n📊 Found distribution log:', distributionLog);
-      
+
       // The log should show category 2 (and possibly 'null' but not other category IDs)
       const hasCategory2 = distributionLog.includes('"2":') || distributionLog.includes('2:');
-      
+
       if (hasCategory2) {
         console.log('✅ Category 2 is present in distribution');
       } else {
         console.log('⚠️ Category 2 NOT found in distribution - may indicate filtering issue');
       }
-      
+
       expect(hasCategory2).toBe(true);
     }
   });
