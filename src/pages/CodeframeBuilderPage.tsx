@@ -1,11 +1,12 @@
 /**
  * AI Codeframe Builder - Main Page
- * 5-step wizard for generating and applying AI-powered codebooks
+ * 6-step wizard for generating and applying AI-powered codebooks
  */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { StepIndicator } from '@/components/CodeframeBuilder/shared/StepIndicator';
+import { Step0SelectType } from '@/components/CodeframeBuilder/steps/Step0SelectType';
 import { Step1SelectData } from '@/components/CodeframeBuilder/steps/Step1SelectData';
 import { Step2Configure } from '@/components/CodeframeBuilder/steps/Step2Configure';
 import { Step3Processing } from '@/components/CodeframeBuilder/steps/Step3Processing';
@@ -16,7 +17,7 @@ import type { CodeframeConfig } from '@/types/codeframe';
 
 export function CodeframeBuilderPage() {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(0);
   const [config, setConfig] = useState<CodeframeConfig>({
     category_id: null,
     algorithm_config: {
@@ -29,7 +30,7 @@ export function CodeframeBuilderPage() {
 
   const { generation, isGenerating, generate, error } = useCodeframeGeneration();
 
-  const steps = ['Select Data', 'Configure', 'Processing', 'Review & Edit', 'Apply'];
+  const steps = ['Select Type', 'Select Data', 'Configure', 'Processing', 'Review & Edit', 'Apply'];
 
   /**
    * Parse error and return user-friendly message
@@ -96,7 +97,7 @@ export function CodeframeBuilderPage() {
   const handleGenerate = async () => {
     try {
       await generate(config);
-      setCurrentStep(3);
+      setCurrentStep(4);
       toast.success('Codeframe generation started successfully');
     } catch (err) {
       console.error('Generation failed:', err);
@@ -108,7 +109,7 @@ export function CodeframeBuilderPage() {
       });
 
       // Reset to configure step so user can try again
-      setCurrentStep(2);
+      setCurrentStep(3);
     }
   };
 
@@ -134,6 +135,15 @@ export function CodeframeBuilderPage() {
 
       {/* Main Content */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 min-h-[500px]">
+        {currentStep === 0 && (
+          <Step0SelectType
+            config={config}
+            onChange={setConfig}
+            onNext={() => setCurrentStep(1)}
+            onCancel={() => navigate('/categories')}
+          />
+        )}
+
         {currentStep === 1 && (
           <Step1SelectData
             config={config}
@@ -205,6 +215,7 @@ export function CodeframeBuilderPage() {
       <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
         <h3 className="font-medium text-blue-900 dark:text-blue-200 mb-2">How it works</h3>
         <ol className="text-sm text-blue-800 dark:text-blue-300 space-y-1 list-decimal list-inside">
+          <li>Choose your coding type (Brand Tracking, Open-ended, or Sentiment)</li>
           <li>Select a category with uncategorized answers</li>
           <li>Configure clustering algorithm and language settings</li>
           <li>AI analyzes responses and generates hierarchical codebook</li>

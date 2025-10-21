@@ -1,0 +1,10 @@
+{
+  "cluster_texts": [
+    {"id": 1, "text": "Great toothpaste", "language": "en"},
+    {"id": 2, "text": "Fresh breath all day", "language": "en"},
+    {"id": 3, "text": "Whitens teeth effectively", "language": "en"}
+  ],
+  "category_name": "Toothpaste",
+  "category_description": "Feedback about toothpaste",
+  "target_language": "en"
+}

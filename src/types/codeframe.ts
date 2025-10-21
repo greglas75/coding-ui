@@ -2,6 +2,11 @@
  * TypeScript types for AI Codeframe Builder
  */
 
+/**
+ * Types of coding analysis available
+ */
+export type CodingType = 'brand' | 'open-ended' | 'sentiment';
+
 export interface CodeframeGeneration {
   id: string;
   category_id: number;
@@ -52,6 +57,7 @@ export interface MECEIssue {
 }
 
 export interface CodeframeConfig {
+  coding_type?: CodingType; // Type of coding analysis (brand/open-ended/sentiment)
   category_id: number | null;
   answer_ids?: number[];
   algorithm_config: {
