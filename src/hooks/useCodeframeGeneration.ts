@@ -1,0 +1,37 @@
+/**
+ * Hook for managing codeframe generation
+ */
+import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import axios from 'axios';
+import type { CodeframeConfig, GenerationResponse } from '@/types/codeframe';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+export function useCodeframeGeneration() {
+  const [generation, setGeneration] = useState<GenerationResponse | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: async (config: CodeframeConfig) => {
+      const response = await axios.post<GenerationResponse>(
+        `${API_BASE}/api/v1/codeframe/generate`,
+        config
+      );
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setGeneration(data);
+    },
+  });
+
+  return {
+    generation,
+    isGenerating: mutation.isPending,
+    generate: mutation.mutateAsync,
+    error: mutation.error,
+    reset: () => {
+      setGeneration(null);
+      mutation.reset();
+    },
+  };
+}

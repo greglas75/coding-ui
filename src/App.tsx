@@ -17,6 +17,7 @@ const CodeListPage = lazy(() => import("./pages/CodeListPage").then(m => ({ defa
 const CategoriesPage = lazy(() => import("./pages/CategoriesPage").then(m => ({ default: m.CategoriesPage })));
 const FileDataCodingPage = lazy(() => import("./pages/FileDataCodingPage").then(m => ({ default: m.FileDataCodingPage })));
 const SettingsPage = lazy(() => import("./pages/SettingsPage").then(m => ({ default: m.SettingsPage })));
+const CodeframeBuilderPage = lazy(() => import("./pages/CodeframeBuilderPage").then(m => ({ default: m.CodeframeBuilderPage })));
 
 function useDarkMode() {
   const [dark, setDark] = useState<boolean>(() => {
@@ -56,6 +57,7 @@ function AppContent() {
             <Route path="/coding" element={<AnswerTable />} />
             <Route path="/codes" element={<CodeListPage />} />
             <Route path="/categories" element={<CategoriesPage />} />
+            <Route path="/codeframe/builder" element={<CodeframeBuilderPage />} />
             <Route path="/file-data-coding" element={<FileDataCodingPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>

@@ -1,0 +1,88 @@
+{
+  "cluster_texts": [
+    {
+      "id": 1,
+      "text": "I love Nike shoes, they are comfortable and stylish",
+      "language": "en"
+    },
+    {
+      "id": 2,
+      "text": "Nike has the best athletic footwear",
+      "language": "en"
+    },
+    {
+      "id": 3,
+      "text": "Adidas is my favorite brand for sports shoes",
+      "language": "en"
+    },
+    {
+      "id": 4,
+      "text": "Adidas quality is unmatched",
+      "language": "en"
+    },
+    {
+      "id": 5,
+      "text": "Puma sneakers are really comfortable",
+      "language": "en"
+    },
+    {
+      "id": 6,
+      "text": "I prefer Puma for running",
+      "language": "en"
+    },
+    {
+      "id": 7,
+      "text": "New Balance shoes are great for everyday wear",
+      "language": "en"
+    },
+    {
+      "id": 8,
+      "text": "New Balance has excellent arch support",
+      "language": "en"
+    },
+    {
+      "id": 9,
+      "text": "Under Armour makes durable athletic shoes",
+      "language": "en"
+    },
+    {
+      "id": 10,
+      "text": "Under Armour is perfect for training",
+      "language": "en"
+    },
+    {
+      "id": 11,
+      "text": "Reebok has comfortable workout shoes",
+      "language": "en"
+    },
+    {
+      "id": 12,
+      "text": "I wear Reebok for gym sessions",
+      "language": "en"
+    },
+    {
+      "id": 13,
+      "text": "Converse sneakers are stylish and classic",
+      "language": "en"
+    },
+    {
+      "id": 14,
+      "text": "Converse is my go-to for casual wear",
+      "language": "en"
+    },
+    {
+      "id": 15,
+      "text": "Vans shoes are perfect for skateboarding",
+      "language": "en"
+    }
+  ],
+  "category_name": "Athletic Footwear Brands",
+  "category_description": "Survey responses about preferred athletic and casual shoe brands",
+  "target_language": "en",
+  "existing_codes": [],
+  "hierarchy_preference": "adaptive",
+  "algorithm_config": {
+    "min_cluster_size": 5,
+    "min_samples": 3
+  }
+}

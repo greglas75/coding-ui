@@ -1,0 +1,2164 @@
+# Research Data Categorization App - AI Assistant Rules v2.0
+
+## 🎯 Project Context
+
+**Type**: Enterprise SaaS for Research Data Categorization  
+**Stage**: Production / Active Development  
+**Core Value**: AI-powered categorization of research data with collaborative analysis  
+**Scale**: Handles 10k+ rows, 286 E2E tests, production-ready
+
+### Key Business Features
+- Categories & hierarchical code management
+- AI-powered auto-categorization (GPT-4)
+- Batch operations for 1000+ items
+- Real-time collaboration via Supabase
+- Offline-first PWA architecture
+- Advanced analytics dashboard
+
+---
+
+## 🛠️ Technology Stack
+
+### Frontend Core
+- **Framework**: React 19.1.1 (latest) + TypeScript
+- **Build**: Vite (ultra-fast HMR)
+- **Routing**: React Router DOM 7.9.3
+- **State**: TanStack Query 5.90.2 + Zustand + Context
+
+### UI & Styling
+- **CSS**: Tailwind CSS v4 (utility-first)
+- **Components**: @headlessui/react 2.2.9 (unstyled, accessible)
+- **Icons**: Lucide React
+- **Notifications**: Sonner (toast)
+- **Charts**: Recharts 3.2.1
+- **Theme**: Dark mode built-in
+
+### Performance Stack
+- **Virtual Scrolling**: react-window + react-virtualized-auto-sizer
+- **Code Splitting**: Manual chunks (react, query, supabase, ui)
+- **Lazy Loading**: Route-based + component-level
+- **Debouncing**: 300ms for search/filters
+- **Caching**: IndexedDB (idb 8.0.3) + TanStack Query
+
+### Backend
+- **Server**: Express.js 4.18.2 (ES Modules)
+- **Database**: Supabase (PostgreSQL + Real-time + RLS)
+- **AI**: OpenAI 6.2.0 (GPT-4/3.5)
+- **Security**: Helmet 8.1.0 + Rate Limiting + CORS
+- **File Upload**: Multer 2.0.2
+- **Storage**: Crypto-js 4.2.0 (encrypted)
+
+### Data Processing
+- **Excel**: ExcelJS 4.4.0 + XLSX 0.18.5
+- **CSV**: PapaParse 5.5.3
+- **Export**: Multi-format (Excel, CSV, JSON)
+- **Import**: Batch validation
+
+### Quality Assurance
+- **Unit**: Vitest 3.2.4 + Testing Library
+- **E2E**: Playwright 1.40.0 (286 tests)
+- **Monitoring**: Sentry 10.17.0
+- **Coverage Target**: 80% unit, 70% integration, critical E2E flows
+
+---
+
+## 📐 Code Standards & Architecture
+
+### TypeScript Rules (STRICT)
+
+#### Type-First Development
+```typescript
+// ✅ ALWAYS define schemas with Zod, then infer types
+import { z } from 'zod'
+
+export const CategorySchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(3).max(100),
+  codes: z.array(CodeSchema),
+  createdAt: z.date(),
+})
+
+// ✅ Infer TypeScript type from Zod schema (SINGLE SOURCE OF TRUTH)
+export type Category = z.infer<typeof CategorySchema>
+
+// ❌ NEVER duplicate types manually
+interface Category {  // DON'T DO THIS - use z.infer instead
+  id: string
+  name: string
+}
+```
+
+#### Strict Typing Rules
+```typescript
+// ✅ NO 'any' - use 'unknown' if needed
+function processData(data: unknown): CategoryData {
+  return CategorySchema.parse(data) // Validates at runtime
+}
+
+// ✅ ALWAYS type function returns explicitly
+async function fetchCategories(): Promise<Category[]> {
+  const { data } = await supabase.from('categories').select()
+  return CategorySchema.array().parse(data)
+}
+
+// ✅ Use discriminated unions for complex states
+type LoadingState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: Category[] }
+  | { status: 'error'; error: Error }
+
+// ❌ NEVER do this
+const data: any = await fetch()
+let result  // No implicit any allowed
+```
+
+---
+
+## 🎭 State Management Hierarchy (CRITICAL)
+
+### Decision Tree: Which State Manager?
+
+```
+Is this SERVER data? (API, Database)
+  └─ YES → Use TanStack Query
+  └─ NO → Is this GLOBAL client state?
+      └─ YES → Use Zustand
+      └─ NO → Is it shared across 2-3 components?
+          └─ YES → Use React Context
+          └─ NO → Use local useState
+```
+
+### 1. TanStack Query - Server State ONLY
+```typescript
+// ✅ Use for ALL server/database data
+const { data, isLoading, error } = useQuery({
+  queryKey: ['categories', userId],
+  queryFn: async () => {
+    const { data } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('user_id', userId)
+    return CategorySchema.array().parse(data)
+  },
+  staleTime: 5 * 60 * 1000,     // 5 min - data is "fresh"
+  cacheTime: 10 * 60 * 1000,    // 10 min - cache retention
+  refetchOnWindowFocus: false,
+})
+
+// ✅ Mutations with optimistic updates
+const mutation = useMutation({
+  mutationFn: createCategory,
+  onMutate: async (newCategory) => {
+    await queryClient.cancelQueries(['categories'])
+    const previous = queryClient.getQueryData(['categories'])
+    
+    queryClient.setQueryData(['categories'], (old: Category[]) => 
+      [...old, newCategory]
+    )
+    
+    return { previous }
+  },
+  onError: (err, variables, context) => {
+    queryClient.setQueryData(['categories'], context?.previous)
+  },
+  onSettled: () => {
+    queryClient.invalidateQueries(['categories'])
+  }
+})
+```
+
+### 2. Zustand - Global Client State ONLY
+```typescript
+// ✅ Use for UI state that needs to be global
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+interface AppStore {
+  // UI Preferences
+  theme: 'light' | 'dark'
+  sidebarOpen: boolean
+  
+  // User Session (NOT auth tokens - those in secure cookies)
+  currentView: 'grid' | 'list'
+  selectedIds: string[]
+  
+  // Actions
+  toggleTheme: () => void
+  toggleSidebar: () => void
+  setView: (view: 'grid' | 'list') => void
+  toggleSelection: (id: string) => void
+  clearSelection: () => void
+}
+
+export const useAppStore = create<AppStore>()(
+  persist(
+    (set) => ({
+      theme: 'light',
+      sidebarOpen: true,
+      currentView: 'grid',
+      selectedIds: [],
+      
+      toggleTheme: () => set((state) => ({ 
+        theme: state.theme === 'light' ? 'dark' : 'light' 
+      })),
+      
+      toggleSidebar: () => set((state) => ({ 
+        sidebarOpen: !state.sidebarOpen 
+      })),
+      
+      setView: (view) => set({ currentView: view }),
+      
+      toggleSelection: (id) => set((state) => ({
+        selectedIds: state.selectedIds.includes(id)
+          ? state.selectedIds.filter(x => x !== id)
+          : [...state.selectedIds, id]
+      })),
+      
+      clearSelection: () => set({ selectedIds: [] })
+    }),
+    {
+      name: 'app-storage',
+      partialize: (state) => ({ 
+        theme: state.theme,
+        currentView: state.currentView 
+      }) // Only persist these
+    }
+  )
+)
+```
+
+### 3. React Context - Localized Shared State ONLY
+```typescript
+// ✅ Use ONLY for state shared in small component subtrees (2-3 levels)
+// ⚠️ AVOID for global state - causes unnecessary re-renders!
+
+// GOOD USE CASE: Form state in multi-step wizard
+interface FormContextType {
+  step: number
+  formData: Partial<FormData>
+  updateFormData: (data: Partial<FormData>) => void
+}
+
+const FormContext = createContext<FormContextType | null>(null)
+
+function MultiStepForm({ children }: { children: ReactNode }) {
+  const [step, setStep] = useState(1)
+  const [formData, setFormData] = useState<Partial<FormData>>({})
+  
+  const updateFormData = (data: Partial<FormData>) => {
+    setFormData(prev => ({ ...prev, ...data }))
+  }
+  
+  return (
+    <FormContext.Provider value={{ step, formData, updateFormData }}>
+      {children}
+    </FormContext.Provider>
+  )
+}
+
+// ❌ BAD USE CASE: Global theme (use Zustand instead)
+// ❌ BAD USE CASE: User auth (use TanStack Query + secure cookies)
+```
+
+### 4. Local State - Component-Specific
+```typescript
+// ✅ Use for UI state that doesn't need to be shared
+function SearchBar() {
+  const [query, setQuery] = useState('')
+  const [isFocused, setIsFocused] = useState(false)
+  
+  return (
+    <input
+      value={query}
+      onChange={(e) => setQuery(e.target.value)}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
+    />
+  )
+}
+```
+
+---
+
+## 🎨 Tailwind CSS Standards
+
+### Configuration (tailwind.config.js)
+```typescript
+// ✅ ALL design tokens in config - NO magic values!
+export default {
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          50: '#f0f9ff',
+          500: '#3b82f6',
+          900: '#1e3a8a',
+        },
+        success: '#10b981',
+        error: '#ef4444',
+      },
+      spacing: {
+        '18': '4.5rem', // Custom spacing
+      },
+      fontSize: {
+        'xs': ['0.75rem', { lineHeight: '1rem' }],
+        '2xl': ['1.5rem', { lineHeight: '2rem' }],
+      }
+    }
+  }
+}
+```
+
+### Component Patterns
+```typescript
+// ✅ GOOD: Reusable component with variants (max ~15 classes inline)
+import { cn } from '@/lib/utils'
+
+interface ButtonProps {
+  variant?: 'primary' | 'secondary' | 'danger'
+  size?: 'sm' | 'md' | 'lg'
+}
+
+export function Button({ variant = 'primary', size = 'md', className, ...props }: ButtonProps) {
+  return (
+    <button
+      className={cn(
+        'rounded-lg font-medium transition-colors',
+        {
+          'bg-primary-500 text-white hover:bg-primary-600': variant === 'primary',
+          'bg-gray-100 text-gray-900 hover:bg-gray-200': variant === 'secondary',
+          'bg-red-500 text-white hover:bg-red-600': variant === 'danger',
+        },
+        {
+          'px-3 py-1.5 text-sm': size === 'sm',
+          'px-4 py-2 text-base': size === 'md',
+          'px-6 py-3 text-lg': size === 'lg',
+        },
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+// ❌ BAD: Magic values, no componentization
+<button className="bg-[#3b82f6] px-[17px] py-[9.5px] rounded-[8px] text-[14.5px] hover:bg-[#2563eb]">
+  Click me
+</button>
+
+// ❌ BAD: Too many classes inline (>20)
+<div className="flex flex-col items-center justify-between p-4 m-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-200 dark:border-gray-700 space-y-4">
+  {/* Extract to component! */}
+</div>
+```
+
+### @apply Usage (Sparingly!)
+```css
+/* ✅ ONLY use @apply for truly reusable patterns */
+@layer components {
+  .btn-base {
+    @apply px-4 py-2 rounded-lg font-medium transition-colors;
+  }
+}
+
+/* ❌ AVOID over-using @apply - prefer co-located classes in JSX */
+```
+
+### Responsive Design (Mobile-First)
+```typescript
+// ✅ Mobile-first breakpoints
+<div className="w-full md:w-1/2 lg:w-1/3">
+  {/* Mobile: full width, Tablet: 50%, Desktop: 33% */}
+</div>
+
+// ✅ Use container for consistent max-width
+<div className="container mx-auto px-4">
+  <Content />
+</div>
+```
+
+---
+
+## 🧪 Testing Strategy (CRITICAL UPDATE)
+
+### Testing Trophy Philosophy
+```
+     /\
+    /  \  E2E Tests (5-10%) - Critical user flows
+   /____\
+  /      \ Integration Tests (30%) - Component interactions
+ /________\
+/__________\ Unit Tests (60%) - Utils, hooks, business logic
+```
+
+### 1. Unit Tests - 60% Coverage Target
+```typescript
+// ✅ TEST: All utils, pure functions, custom hooks
+import { describe, it, expect } from 'vitest'
+import { categorizeAnswer } from '@/lib/ai'
+
+describe('categorizeAnswer', () => {
+  it('should return correct category for known patterns', () => {
+    const result = categorizeAnswer('Yes, I agree')
+    expect(result.category).toBe('Agreement')
+    expect(result.confidence).toBeGreaterThan(0.8)
+  })
+  
+  it('should handle edge cases', () => {
+    expect(() => categorizeAnswer('')).toThrow('Empty input')
+    expect(() => categorizeAnswer(null)).toThrow('Invalid input')
+  })
+})
+
+// ✅ TEST: Custom hooks with React Testing Library
+import { renderHook, waitFor } from '@testing-library/react'
+import { useCategories } from '@/hooks/useCategories'
+
+describe('useCategories', () => {
+  it('should fetch and cache categories', async () => {
+    const { result } = renderHook(() => useCategories())
+    
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true)
+    })
+    
+    expect(result.current.data).toHaveLength(5)
+  })
+})
+```
+
+### 2. Integration Tests - 30% Coverage Target
+```typescript
+// ✅ TEST: Component interactions, user workflows
+import { render, screen, userEvent } from '@testing-library/react'
+import { CategoryManager } from '@/components/CategoryManager'
+
+describe('CategoryManager Integration', () => {
+  it('should create, edit, and delete category', async () => {
+    const user = userEvent.setup()
+    render(<CategoryManager />)
+    
+    // Create
+    await user.click(screen.getByRole('button', { name: /create/i }))
+    await user.type(screen.getByLabelText(/name/i), 'New Category')
+    await user.click(screen.getByRole('button', { name: /save/i }))
+    
+    expect(screen.getByText('New Category')).toBeInTheDocument()
+    
+    // Edit
+    await user.click(screen.getByRole('button', { name: /edit/i }))
+    await user.clear(screen.getByLabelText(/name/i))
+    await user.type(screen.getByLabelText(/name/i), 'Updated')
+    await user.click(screen.getByRole('button', { name: /save/i }))
+    
+    expect(screen.getByText('Updated')).toBeInTheDocument()
+    
+    // Delete
+    await user.click(screen.getByRole('button', { name: /delete/i }))
+    await user.click(screen.getByRole('button', { name: /confirm/i }))
+    
+    expect(screen.queryByText('Updated')).not.toBeInTheDocument()
+  })
+})
+```
+
+### 3. E2E Tests - 10% Coverage Target (Critical Flows)
+```typescript
+// ✅ TEST: Happy paths, critical business flows
+import { test, expect } from '@playwright/test'
+
+test('complete categorization workflow', async ({ page }) => {
+  await page.goto('/categories')
+  
+  // Upload data
+  await page.setInputFiles('input[type="file"]', 'test-data.csv')
+  await expect(page.getByText('100 rows imported')).toBeVisible()
+  
+  // Apply AI categorization
+  await page.click('[data-testid="select-all"]')
+  await page.click('[data-testid="ai-categorize"]')
+  
+  await expect(page.getByText('Categorizing...')).toBeVisible()
+  await expect(page.getByText('100 categorized')).toBeVisible({ timeout: 30000 })
+  
+  // Export results
+  const downloadPromise = page.waitForEvent('download')
+  await page.click('[data-testid="export"]')
+  const download = await downloadPromise
+  
+  expect(download.suggestedFilename()).toContain('categories')
+})
+```
+
+### Test Requirements by Code Type
+| Code Type | Unit Tests | Integration Tests | E2E Tests |
+|-----------|-----------|------------------|-----------|
+| Utils/Helpers | ✅ Required | ❌ No | ❌ No |
+| Custom Hooks | ✅ Required | ✅ Recommended | ❌ No |
+| Reusable Components | ✅ Required | ✅ Required | ❌ No |
+| Feature Components | ⚠️ Optional | ✅ Required | ⚠️ Critical only |
+| API Routes | ✅ Required | ✅ Required | ⚠️ Critical only |
+| User Flows | ❌ No | ✅ Required | ✅ Required |
+
+---
+
+## 📚 Component Documentation with Storybook (CRITICAL)
+
+### Why Storybook for 100+ Components?
+With over 100 React components, maintaining UI consistency without a visual testing tool is nearly impossible. Storybook solves:
+- 🎨 **Visual Testing** - See all component states in isolation
+- 📖 **Living Documentation** - Auto-generated docs from props
+- 🔍 **Design System Enforcement** - Ensure consistent patterns
+- 🧪 **Interactive Playground** - Test edge cases without app context
+- 👥 **Team Collaboration** - Designers/PMs can review components
+- ♿ **Accessibility Testing** - Built-in a11y addon
+
+### Storybook Setup (Installation)
+```bash
+# Install Storybook
+npx storybook@latest init
+
+# Install essential addons
+pnpm add -D @storybook/addon-essentials @storybook/addon-interactions @storybook/addon-a11y @storybook/addon-links
+
+# Install testing utilities
+pnpm add -D @storybook/testing-library @storybook/jest
+
+# Configure for Vite (this project uses Vite)
+# Storybook will auto-detect and configure
+```
+
+### Storybook Configuration
+```typescript
+// .storybook/main.ts
+import type { StorybookConfig } from '@storybook/react-vite'
+
+const config: StorybookConfig = {
+  stories: ['../src/**/*.mdx', '../src/**/*.stories.@(js|jsx|ts|tsx)'],
+  addons: [
+    '@storybook/addon-links',
+    '@storybook/addon-essentials',
+    '@storybook/addon-interactions',
+    '@storybook/addon-a11y', // Accessibility testing
+  ],
+  framework: {
+    name: '@storybook/react-vite',
+    options: {},
+  },
+  docs: {
+    autodocs: 'tag', // Auto-generate docs
+  },
+}
+
+export default config
+```
+
+```typescript
+// .storybook/preview.ts
+import type { Preview } from '@storybook/react'
+import '../src/index.css' // Import Tailwind CSS
+
+const preview: Preview = {
+  parameters: {
+    actions: { argTypesRegex: '^on[A-Z].*' },
+    controls: {
+      matchers: {
+        color: /(background|color)$/i,
+        date: /Date$/,
+      },
+    },
+    backgrounds: {
+      default: 'light',
+      values: [
+        { name: 'light', value: '#ffffff' },
+        { name: 'dark', value: '#1a1a1a' },
+      ],
+    },
+  },
+}
+
+export default preview
+```
+
+### Story Writing Standards
+
+#### Basic Story (Button Example)
+```typescript
+// src/components/ui/Button.stories.tsx
+import type { Meta, StoryObj } from '@storybook/react'
+import { Button } from './Button'
+
+/**
+ * Button component with multiple variants and sizes.
+ * Used throughout the app for actions and navigation.
+ */
+const meta = {
+  title: 'UI/Button',
+  component: Button,
+  parameters: {
+    layout: 'centered',
+  },
+  tags: ['autodocs'],
+  argTypes: {
+    variant: {
+      control: 'select',
+      options: ['primary', 'secondary', 'danger'],
+      description: 'Visual style of the button',
+    },
+    size: {
+      control: 'select',
+      options: ['sm', 'md', 'lg'],
+      description: 'Size of the button',
+    },
+    disabled: {
+      control: 'boolean',
+      description: 'Disabled state',
+    },
+  },
+} satisfies Meta<typeof Button>
+
+export default meta
+type Story = StoryObj<typeof meta>
+
+// Default story
+export const Primary: Story = {
+  args: {
+    variant: 'primary',
+    children: 'Click me',
+  },
+}
+
+export const Secondary: Story = {
+  args: {
+    variant: 'secondary',
+    children: 'Click me',
+  },
+}
+
+export const Danger: Story = {
+  args: {
+    variant: 'danger',
+    children: 'Delete',
+  },
+}
+
+export const Disabled: Story = {
+  args: {
+    variant: 'primary',
+    disabled: true,
+    children: 'Disabled',
+  },
+}
+
+export const Small: Story = {
+  args: {
+    variant: 'primary',
+    size: 'sm',
+    children: 'Small Button',
+  },
+}
+
+export const Large: Story = {
+  args: {
+    variant: 'primary',
+    size: 'lg',
+    children: 'Large Button',
+  },
+}
+
+// Interactive story with play function
+export const WithClick: Story = {
+  args: {
+    variant: 'primary',
+    children: 'Click to test',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const button = canvas.getByRole('button')
+    
+    await userEvent.click(button)
+    await expect(button).toHaveAttribute('aria-pressed', 'true')
+  },
+}
+```
+
+#### Complex Component Story (DataTable Example)
+```typescript
+// src/components/DataTable.stories.tsx
+import type { Meta, StoryObj } from '@storybook/react'
+import { DataTable } from './DataTable'
+
+const meta = {
+  title: 'Components/DataTable',
+  component: DataTable,
+  parameters: {
+    layout: 'fullscreen',
+  },
+  tags: ['autodocs'],
+} satisfies Meta<typeof DataTable>
+
+export default meta
+type Story = StoryObj<typeof meta>
+
+const mockData = [
+  { id: '1', name: 'Category 1', count: 150 },
+  { id: '2', name: 'Category 2', count: 89 },
+  { id: '3', name: 'Category 3', count: 234 },
+]
+
+export const Default: Story = {
+  args: {
+    data: mockData,
+    columns: [
+      { key: 'name', label: 'Name' },
+      { key: 'count', label: 'Count' },
+    ],
+  },
+}
+
+export const WithSelection: Story = {
+  args: {
+    data: mockData,
+    columns: [
+      { key: 'name', label: 'Name' },
+      { key: 'count', label: 'Count' },
+    ],
+    selectable: true,
+    onSelectionChange: (ids) => console.log('Selected:', ids),
+  },
+}
+
+export const LargeDataset: Story = {
+  args: {
+    data: Array.from({ length: 1000 }, (_, i) => ({
+      id: String(i),
+      name: `Category ${i}`,
+      count: Math.floor(Math.random() * 1000),
+    })),
+    columns: [
+      { key: 'name', label: 'Name' },
+      { key: 'count', label: 'Count' },
+    ],
+    virtualized: true,
+  },
+}
+
+export const Loading: Story = {
+  args: {
+    data: [],
+    columns: [
+      { key: 'name', label: 'Name' },
+      { key: 'count', label: 'Count' },
+    ],
+    loading: true,
+  },
+}
+
+export const Empty: Story = {
+  args: {
+    data: [],
+    columns: [
+      { key: 'name', label: 'Name' },
+      { key: 'count', label: 'Count' },
+    ],
+  },
+}
+```
+
+#### Modal Story (with Providers)
+```typescript
+// src/components/Modal.stories.tsx
+import type { Meta, StoryObj } from '@storybook/react'
+import { Modal } from './Modal'
+import { ToastProvider } from '@/contexts/ToastContext'
+
+const meta = {
+  title: 'Components/Modal',
+  component: Modal,
+  decorators: [
+    (Story) => (
+      <ToastProvider>
+        <Story />
+      </ToastProvider>
+    ),
+  ],
+  tags: ['autodocs'],
+} satisfies Meta<typeof Modal>
+
+export default meta
+type Story = StoryObj<typeof meta>
+
+export const Basic: Story = {
+  args: {
+    isOpen: true,
+    title: 'Confirm Action',
+    children: 'Are you sure you want to proceed?',
+    onClose: () => console.log('Close'),
+  },
+}
+
+export const WithActions: Story = {
+  args: {
+    isOpen: true,
+    title: 'Delete Category',
+    children: 'This action cannot be undone.',
+    actions: [
+      { label: 'Cancel', onClick: () => console.log('Cancel') },
+      { label: 'Delete', onClick: () => console.log('Delete'), variant: 'danger' },
+    ],
+  },
+}
+```
+
+### Story Organization
+```
+src/
+├── components/
+│   ├── ui/
+│   │   ├── Button.tsx
+│   │   ├── Button.stories.tsx      ✅ Co-located with component
+│   │   ├── Input.tsx
+│   │   └── Input.stories.tsx
+│   ├── features/
+│   │   ├── CategoryList.tsx
+│   │   └── CategoryList.stories.tsx
+│   └── shared/
+│       ├── DataTable.tsx
+│       └── DataTable.stories.tsx
+└── .storybook/
+    ├── main.ts
+    └── preview.ts
+```
+
+### Storybook Naming Convention
+```
+UI Components:       UI/Button, UI/Input, UI/Modal
+Feature Components:  Features/CategoryList, Features/CodeManager
+Shared Components:   Components/DataTable, Components/Chart
+Layouts:            Layouts/DashboardLayout, Layouts/AuthLayout
+```
+
+### Required Stories for Each Component
+
+#### Minimum Required Stories
+1. **Default** - Standard use case
+2. **With Props** - Common variations
+3. **States** - Loading, error, empty, disabled
+4. **Responsive** - Mobile, tablet, desktop
+5. **Dark Mode** - If theme support exists
+
+#### For Interactive Components (Additional)
+6. **With Interactions** - User actions (click, type, hover)
+7. **Accessibility** - Keyboard navigation, screen reader
+
+### Accessibility Testing in Storybook
+```typescript
+// Stories with a11y checks
+export const AccessibilityTest: Story = {
+  args: {
+    children: 'Button',
+  },
+  parameters: {
+    a11y: {
+      config: {
+        rules: [
+          {
+            id: 'color-contrast',
+            enabled: true,
+          },
+          {
+            id: 'aria-required-attr',
+            enabled: true,
+          },
+        ],
+      },
+    },
+  },
+}
+```
+
+### Running Storybook
+```bash
+# Development
+npm run storybook
+
+# Build static site
+npm run build-storybook
+
+# Deploy to hosting (Chromatic, Netlify, Vercel)
+npx chromatic --project-token=YOUR_TOKEN
+```
+
+### Integration with CI/CD
+```yaml
+# .github/workflows/storybook.yml
+name: Storybook
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  visual-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+      
+      - name: Install dependencies
+        run: pnpm install
+      
+      - name: Build Storybook
+        run: pnpm build-storybook
+      
+      - name: Run visual tests (Chromatic)
+        run: npx chromatic --project-token=${{ secrets.CHROMATIC_TOKEN }}
+```
+
+### Storybook Best Practices
+
+#### DO:
+- ✅ Write stories for ALL reusable components
+- ✅ Include all variants and states
+- ✅ Add JSDoc descriptions
+- ✅ Use `argTypes` for prop documentation
+- ✅ Include accessibility tests
+- ✅ Test responsive designs
+- ✅ Add interactive `play` functions for complex interactions
+- ✅ Use decorators for global providers (Context, Theme)
+
+#### DON'T:
+- ❌ Skip stories for "simple" components
+- ❌ Use real API calls (mock data instead)
+- ❌ Include app-specific logic
+- ❌ Use hardcoded values (use `args` instead)
+- ❌ Ignore accessibility warnings
+
+### Story Requirements in PRs
+```markdown
+## ✅ Storybook Checklist (for new components)
+- [ ] Story file created (`Component.stories.tsx`)
+- [ ] Default story with common props
+- [ ] Stories for all variants/states
+- [ ] Dark mode tested (if applicable)
+- [ ] Responsive design verified
+- [ ] Accessibility checks pass (no a11y violations)
+- [ ] JSDoc descriptions added
+- [ ] Interactive tests added (for complex components)
+```
+
+### Benefits for Team
+- **Designers**: Review components before integration
+- **Developers**: Build components in isolation, faster iteration
+- **QA**: Visual testing, test all states/variants
+- **Product**: See UI changes in PRs, give feedback early
+- **Documentation**: Auto-generated, always up-to-date
+
+---
+
+### Installation & Lockfile
+```bash
+# ✅ Use pnpm for deterministic installs
+pnpm install
+
+# ✅ ALWAYS commit lockfile
+git add pnpm-lock.yaml
+
+# ❌ NEVER commit node_modules
+```
+
+### Adding Dependencies
+```bash
+# ⚠️ BEFORE adding ANY dependency:
+# 1. Check bundle size: https://bundlephobia.com
+# 2. Check last update: npm view <package> time
+# 3. Check vulnerabilities: pnpm audit
+# 4. Get approval from tech lead for new deps
+
+# ✅ Document WHY you're adding it
+pnpm add lodash-es  # Reason: Tree-shakeable utils for data processing
+```
+
+### Security Audits (Run Weekly)
+```bash
+# Check for vulnerabilities
+pnpm audit
+
+# Update dependencies safely
+pnpm update --interactive
+
+# Check for outdated packages
+pnpm outdated
+```
+
+### Dependency Rules
+- ✅ **Prefer**: Lightweight, well-maintained, tree-shakeable packages
+- ⚠️ **Avoid**: Large bundles (>100kb unpacked), abandoned packages, packages with known vulnerabilities
+- ❌ **NEVER**: Add dependencies without team review for non-trivial packages
+
+---
+
+## 🔐 Environment Variables & Secrets (CRITICAL)
+
+### .env File Structure
+```bash
+# ✅ ALWAYS use .env.example (committed to git)
+# .env.example
+VITE_SUPABASE_URL=your_supabase_url_here
+VITE_SUPABASE_ANON_KEY=your_anon_key_here
+VITE_OPENAI_API_KEY=your_api_key_here
+DATABASE_URL=postgresql://...
+
+# ✅ NEVER commit actual .env files
+# .env (in .gitignore)
+VITE_SUPABASE_URL=https://xxxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGc...
+VITE_OPENAI_API_KEY=sk-proj-...
+```
+
+### .gitignore (CRITICAL)
+```bash
+# ✅ MUST be in .gitignore
+.env
+.env.local
+.env.production
+.env.development
+*.key
+*.pem
+secrets/
+
+# ❌ NEVER ignore .env.example
+!.env.example
+```
+
+### Usage in Code
+```typescript
+// ✅ Validate env vars at startup (fail fast)
+import { z } from 'zod'
+
+const EnvSchema = z.object({
+  VITE_SUPABASE_URL: z.string().url(),
+  VITE_SUPABASE_ANON_KEY: z.string().min(20),
+  VITE_OPENAI_API_KEY: z.string().startsWith('sk-'),
+})
+
+export const env = EnvSchema.parse(import.meta.env)
+
+// ❌ NEVER hardcode secrets
+const apiKey = 'sk-proj-abc123' // NEVER DO THIS!
+```
+
+### Rotating Secrets
+```bash
+# If secrets leaked:
+# 1. Immediately revoke in provider (Supabase, OpenAI)
+# 2. Generate new keys
+# 3. Update .env locally and in production
+# 4. Check git history - if committed, consider repo private or rotate all secrets
+```
+
+---
+
+## 📝 Code Documentation Standards (NEW)
+
+### JSDoc for Public APIs
+```typescript
+/**
+ * Categorizes answers using OpenAI GPT-4 with batch processing.
+ * 
+ * @param answers - Array of answer strings to categorize (max 1000)
+ * @param options - Configuration options
+ * @param options.model - OpenAI model to use (default: 'gpt-4')
+ * @param options.batchSize - Number of concurrent requests (default: 10)
+ * @param options.confidenceThreshold - Minimum confidence score (0-1, default: 0.7)
+ * 
+ * @returns Promise resolving to categorized results with confidence scores
+ * 
+ * @throws {Error} If answers array is empty or exceeds 1000 items
+ * @throws {OpenAIError} If API rate limit exceeded
+ * 
+ * @example
+ * ```typescript
+ * const results = await batchCategorize(
+ *   ['Yes', 'No', 'Maybe'],
+ *   { model: 'gpt-4', batchSize: 5 }
+ * )
+ * ```
+ */
+export async function batchCategorize(
+  answers: string[],
+  options?: CategorizationOptions
+): Promise<CategorizedResult[]> {
+  // Implementation
+}
+```
+
+### Component Props Documentation
+```typescript
+/**
+ * Virtualized data table with sorting, filtering, and selection.
+ * Handles 10k+ rows efficiently using react-window.
+ * 
+ * @component
+ */
+interface DataTableProps<T> {
+  /**
+   * Array of data items to display
+   * @remarks For optimal performance, keep data memoized
+   */
+  data: T[]
+  
+  /**
+   * Column definitions with sorting/filtering config
+   */
+  columns: ColumnDef<T>[]
+  
+  /**
+   * Callback when row selection changes
+   * @param selectedIds - Array of selected row IDs
+   */
+  onSelectionChange?: (selectedIds: string[]) => void
+  
+  /**
+   * Enable virtual scrolling (required for 1000+ rows)
+   * @default true
+   */
+  virtualized?: boolean
+}
+
+export function DataTable<T>({ data, columns, onSelectionChange, virtualized = true }: DataTableProps<T>) {
+  // Implementation
+}
+```
+
+### Complex Logic Comments
+```typescript
+// ✅ GOOD: Explain WHY, not WHAT
+// We batch AI requests to avoid rate limits (100 req/min)
+// Each batch processes 10 items concurrently, then waits 6s
+for (const batch of batches) {
+  await Promise.all(batch.map(categorize))
+  await sleep(6000) // Rate limit: 10 req/6s = 100 req/min
+}
+
+// ❌ BAD: Stating the obvious
+// Loop through batches
+for (const batch of batches) {
+  // Call categorize on each item
+  await Promise.all(batch.map(categorize))
+}
+```
+
+### Documentation Requirements
+| Code Type | Documentation Required |
+|-----------|----------------------|
+| Public API functions | ✅ Full JSDoc with examples |
+| Reusable components | ✅ Props documentation |
+| Custom hooks | ✅ JSDoc with usage notes |
+| Utils/helpers | ✅ JSDoc for complex functions |
+| Types/interfaces | ✅ TSDoc comments for non-obvious fields |
+| Complex algorithms | ✅ Inline comments explaining logic |
+| Simple getters/setters | ❌ Self-explanatory, no docs needed |
+
+---
+
+## 🔄 Code Review & Pull Request Standards (CRITICAL)
+
+### Repository PR Template Setup
+```bash
+# Create PR template in repository
+mkdir -p .github
+cat > .github/pull_request_template.md << 'EOF'
+## 📝 Description
+<!-- Brief description of changes and motivation -->
+
+## 🎯 Related Ticket
+<!-- Link to Jira/Linear/GitHub Issue -->
+Fixes #[issue-number]
+Related: [TICKET-123](https://jira.com/TICKET-123)
+
+## 🔄 Type of Change
+- [ ] 🎯 Feature (new functionality)
+- [ ] 🐛 Bug fix (fixes an issue)
+- [ ] 🔧 Refactor (code improvement, no behavior change)
+- [ ] 📚 Documentation (README, JSDoc, comments)
+- [ ] 🎨 Style (formatting, no code change)
+- [ ] ⚡ Performance (optimization)
+- [ ] 🧪 Test (adding or updating tests)
+- [ ] 🔨 Chore (deps, configs, build)
+
+## 🧪 How to Test
+<!-- Step-by-step instructions -->
+1. Navigate to /categories
+2. Click "Batch Categorize"
+3. Verify AI suggestions appear within 5s
+4. Check console for errors
+
+## ✅ Pre-Merge Checklist
+### Code Quality
+- [ ] Code follows project standards (`.cursorrules`)
+- [ ] No TypeScript errors (`npm run type-check`)
+- [ ] ESLint passes (`npm run lint`)
+- [ ] All existing tests pass (`npm run test`)
+
+### Testing
+- [ ] New features have unit tests
+- [ ] Critical flows have integration tests
+- [ ] Complex logic has E2E tests
+- [ ] Manual testing completed
+
+### Documentation
+- [ ] JSDoc added for public APIs
+- [ ] README updated (if needed)
+- [ ] Storybook stories added (for new components)
+- [ ] Migration guide added (if breaking changes)
+
+### Security & Performance
+- [ ] No sensitive data in code (API keys, tokens)
+- [ ] No console.log in production code
+- [ ] Input validation added (Zod schemas)
+- [ ] Performance tested (no regressions)
+- [ ] Accessibility tested (keyboard nav, ARIA, screen reader)
+
+### Database Changes
+- [ ] Migration file created (`prisma migrate dev`)
+- [ ] Migration tested (up and down)
+- [ ] Seed data updated (if needed)
+- [ ] RLS policies updated (if needed)
+
+### Dependencies
+- [ ] New dependencies approved by tech lead
+- [ ] Bundle size impact checked (bundlephobia.com)
+- [ ] Security audit passed (`pnpm audit`)
+
+## 📸 Screenshots (if UI changes)
+<!-- Before/After screenshots or GIFs -->
+
+## 🚨 Breaking Changes
+<!-- List any breaking changes and migration steps -->
+- [ ] No breaking changes
+- [ ] Breaking changes documented below:
+
+### Migration Steps
+<!-- If breaking changes exist -->
+
+## ⚠️ Known Issues
+<!-- Any known limitations or follow-up work needed -->
+
+## 📊 Performance Impact
+<!-- If applicable: bundle size, load time, API latency -->
+
+## 🔗 Related PRs
+<!-- Link to related or dependent PRs -->
+
+## 📚 Additional Context
+<!-- Any other information reviewers should know -->
+
+---
+
+### For Reviewers
+- [ ] Code follows project patterns
+- [ ] Tests are comprehensive
+- [ ] Documentation is clear
+- [ ] No security concerns
+- [ ] Performance is acceptable
+EOF
+```
+
+### PR Naming Convention
+```
+<type>/<ticket>-<short-description>
+
+Examples:
+feat/CAT-123-add-batch-categorization
+fix/CAT-456-resolve-virtual-scroll-crash
+refactor/CAT-789-optimize-query-performance
+docs/CAT-101-update-api-documentation
+perf/CAT-999-optimize-virtual-scroll
+test/CAT-555-add-category-tests
+```
+
+### PR Template (Required)
+```markdown
+## 📝 Description
+Brief description of changes and motivation.
+
+## 🎯 Related Ticket
+Link to Jira/Linear: [CAT-123](https://jira.com/CAT-123)
+
+## 🧪 How to Test
+1. Navigate to /categories
+2. Click "Batch Categorize"
+3. Verify AI suggestions appear within 5s
+4. Check console for errors
+
+## ✅ Checklist
+- [ ] Code follows project standards (.cursorrules)
+- [ ] Tests added/updated (unit + integration)
+- [ ] Documentation updated (JSDoc, README)
+- [ ] No console.log statements
+- [ ] No sensitive data in code
+- [ ] Accessibility tested (keyboard nav, ARIA)
+- [ ] Performance verified (no regressions)
+- [ ] Browser tested (Chrome, Firefox, Safari)
+
+## 📸 Screenshots (if UI changes)
+[Before/After screenshots]
+
+## 🚨 Breaking Changes
+List any breaking changes and migration steps.
+
+## 📚 Additional Notes
+Any other context reviewers should know.
+```
+
+### Code Review Rules
+
+#### For Authors
+- ✅ **Self-review first** - Review your own PR before requesting review
+  - Check for console.logs, debugger statements
+  - Verify all tests pass locally
+  - Review diff for unintended changes
+  - Test manually in browser
+- ✅ **Keep PRs small** - Aim for <400 lines changed (excludes tests, generated files)
+  - Large PRs are hard to review thoroughly
+  - Split into multiple PRs if needed
+  - Use draft PRs for work-in-progress
+- ✅ **Write clear description** - Help reviewers understand context
+  - Explain WHAT changed
+  - Explain WHY it changed
+  - Include screenshots/GIFs for UI changes
+  - Link to design docs/specs
+- ✅ **Respond to feedback** - Address all comments, don't ignore
+  - Mark conversations as "Resolved" when addressed
+  - If disagreeing, explain reasoning politely
+  - Request re-review after changes
+- ⚠️ **No force-push after review** - Use `git merge` to preserve context
+  - Force-push removes review comments context
+  - OK for draft PRs before review
+  - If must force-push, notify reviewers
+
+#### For Reviewers
+- ✅ **Review within 24h** - Don't block teammates
+  - Prioritize review requests
+  - If busy, delegate or notify author
+  - Use GitHub "Request changes" vs "Approve"
+- ✅ **Be constructive** - Suggest improvements, don't just criticize
+  - "Consider using X instead of Y because..." ✓
+  - "This is wrong" ✗
+  - Praise good code/solutions
+  - Ask questions if unclear
+- ✅ **Test locally** - Pull code and test if complex changes
+  - Check out PR branch: `gh pr checkout 123`
+  - Run tests: `npm run test`
+  - Test manually in browser
+  - Verify database migrations work
+- ✅ **Check tests pass** - Verify CI is green
+  - Unit tests
+  - E2E tests
+  - Type checking
+  - Linting
+- ⚠️ **Nitpicks as "nit:"** - Mark non-blocking comments clearly
+  - `nit: Consider renaming this variable` - Author can ignore
+  - Without "nit:" - Author should address
+
+#### Review Focus Areas
+1. **Correctness** - Does it work? Does it solve the problem?
+2. **Testing** - Are there tests? Do they cover edge cases?
+3. **Security** - Input validation? XSS prevention? Auth checks?
+4. **Performance** - Any regressions? Optimizations needed?
+5. **Accessibility** - Keyboard nav? ARIA? Screen readers?
+6. **Maintainability** - Clear code? Good naming? Comments where needed?
+7. **Documentation** - JSDoc? README updates? Migration guide?
+
+#### Approval Requirements
+```yaml
+# Required checks (must pass before merge)
+- unit-tests: required
+- e2e-tests: required
+- eslint: required
+- typescript: required
+- build: required
+
+# Required approvals
+- min-approvals: 1 (2 for critical changes)
+- code-owner-approval: required (for core files)
+
+# Auto-merge conditions
+- All checks green
+- Required approvals received
+- No unresolved conversations
+- Up to date with base branch
+```
+
+#### Critical Changes (Require 2+ Approvals)
+- Database schema changes
+- Authentication/authorization changes
+- Security-related changes
+- Breaking API changes
+- Core business logic changes
+- Infrastructure/deployment changes
+
+### Git Commit Convention
+```bash
+# Format: <type>(<scope>): <subject>
+
+feat(categories): add batch delete functionality
+fix(api): resolve rate limiting for OpenAI requests
+refactor(ui): simplify DataTable component logic
+docs(readme): update installation instructions
+test(hooks): add tests for useCategories hook
+chore(deps): upgrade React to 19.1.1
+perf(virtual-scroll): optimize rendering for 10k rows
+```
+
+**Types:**
+- `feat`: New feature (user-facing)
+- `fix`: Bug fix (user-facing)
+- `refactor`: Code change that neither fixes a bug nor adds a feature
+- `docs`: Documentation only
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks (deps, configs)
+- `perf`: Performance improvement
+- `style`: Code style changes (formatting)
+- `ci`: CI/CD changes
+- `build`: Build system changes
+
+**Scope examples:**
+- `categories`, `codes`, `ai`, `api`, `ui`, `hooks`, `utils`, `db`, `auth`
+
+### PR Size Guidelines
+| Size | Lines Changed | Review Time | Notes |
+|------|--------------|-------------|-------|
+| XS | <50 | 5-10 min | Quick fixes, typos |
+| S | 50-200 | 15-30 min | Single feature, bug fix |
+| M | 200-400 | 30-60 min | Multiple related changes |
+| L | 400-800 | 1-2 hours | Complex feature |
+| XL | 800+ | 2+ hours | Should be split into smaller PRs |
+
+**Target:** Keep most PRs in S-M range (50-400 lines)
+
+---
+
+## 🔒 Security Requirements (ENHANCED)
+
+### XSS Prevention
+```typescript
+// ✅ ALWAYS sanitize user input before rendering
+import DOMPurify from 'isomorphic-dompurify'
+
+function renderUserContent(html: string) {
+  const clean = DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a'],
+    ALLOWED_ATTR: ['href']
+  })
+  return <div dangerouslySetInnerHTML={{ __html: clean }} />
+}
+
+// ❌ NEVER render unsanitized user input
+<div dangerouslySetInnerHTML={{ __html: userInput }} /> // DANGEROUS!
+```
+
+### API Security Checklist
+- [x] Rate limiting (express-rate-limit): 100 req/15min per IP
+- [x] Helmet security headers
+- [x] CORS whitelist (production domains only)
+- [x] Input validation (Zod schemas on all endpoints)
+- [x] Supabase RLS policies (all tables)
+- [x] Encrypted storage (crypto-js for sensitive data)
+- [x] CSRF protection (tokens for mutations)
+- [x] SQL injection prevention (Supabase client, no raw SQL)
+- [x] Authentication tokens in httpOnly cookies (not localStorage)
+
+### Supabase RLS Patterns
+```sql
+-- ✅ ALWAYS use Row Level Security
+CREATE POLICY "Users can only see their categories"
+  ON categories FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own categories"
+  ON categories FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own categories"
+  ON categories FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own categories"
+  ON categories FOR DELETE
+  USING (auth.uid() = user_id);
+```
+
+### Authentication Patterns
+```typescript
+// ✅ GOOD: Tokens in httpOnly cookies
+// Server sets: res.cookie('token', jwt, { httpOnly: true, secure: true })
+// Client automatically sends with requests
+
+// ❌ BAD: Tokens in localStorage
+localStorage.setItem('token', jwt) // Vulnerable to XSS!
+```
+
+---
+
+## ⚡ Performance Rules
+
+### React Query Configuration
+```typescript
+// ✅ Optimize cache settings
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,     // 5 min - data is "fresh"
+      cacheTime: 10 * 60 * 1000,    // 10 min - cache retention
+      refetchOnWindowFocus: false,   // Avoid unnecessary refetches
+      retry: 1,                      // Retry once on failure
+      refetchOnMount: true,          // Refetch stale data on mount
+    }
+  }
+})
+```
+
+### Debouncing Pattern
+```typescript
+// ✅ ALWAYS debounce search/filters (300ms)
+import { useDebounce } from '@/hooks/useDebounce'
+
+function SearchBar() {
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
+  
+  const { data } = useQuery({
+    queryKey: ['search', debouncedSearch],
+    queryFn: () => searchAPI(debouncedSearch),
+    enabled: debouncedSearch.length > 0, // Don't search empty string
+  })
+}
+```
+
+### Virtual Scrolling (Required for 1000+ rows)
+```typescript
+// ✅ Use react-window for large lists
+import { FixedSizeList } from 'react-window'
+import AutoSizer from 'react-virtualized-auto-sizer'
+
+function LargeDataTable({ data }: { data: Item[] }) {
+  return (
+    <AutoSizer>
+      {({ height, width }) => (
+        <FixedSizeList
+          height={height}
+          width={width}
+          itemCount={data.length}
+          itemSize={50}
+          itemData={data}
+        >
+          {({ index, style, data }) => (
+            <div style={style}>
+              <Row item={data[index]} />
+            </div>
+          )}
+        </FixedSizeList>
+      )}
+    </AutoSizer>
+  )
+}
+```
+
+### Code Splitting (Vite Configuration)
+```typescript
+// vite.config.ts
+export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'query': ['@tanstack/react-query'],
+          'supabase': ['@supabase/supabase-js'],
+          'ui': ['@headlessui/react', 'lucide-react'],
+          'charts': ['recharts'],
+          'excel': ['exceljs', 'xlsx'],
+        }
+      }
+    }
+  }
+})
+```
+
+---
+
+## 🤖 AI Integration Patterns
+
+### OpenAI API Usage
+```typescript
+// ✅ Batch processing for AI requests
+import pMap from 'p-map'
+
+async function batchCategorize(answers: string[], options?: Options) {
+  const BATCH_SIZE = 10
+  const RATE_LIMIT_DELAY = 6000 // 6s between batches = 100 req/min
+  
+  const batches = chunk(answers, BATCH_SIZE)
+  const results: CategorizedResult[] = []
+  
+  for (const batch of batches) {
+    const batchResults = await pMap(
+      batch,
+      async (answer) => {
+        const response = await openai.chat.completions.create({
+          model: options?.model ?? 'gpt-4',
+          messages: [
+            { role: 'system', content: CATEGORIZATION_PROMPT },
+            { role: 'user', content: answer }
+          ],
+          temperature: 0.3, // Low for consistent categorization
+        })
+        
+        return parseAIResponse(response)
+      },
+      { concurrency: BATCH_SIZE }
+    )
+    
+    results.push(...batchResults)
+    
+    // Rate limiting
+    if (batches.indexOf(batch) < batches.length - 1) {
+      await sleep(RATE_LIMIT_DELAY)
+    }
+  }
+  
+  return results
+}
+```
+
+### AI Response Validation
+```typescript
+// ✅ ALWAYS validate AI responses with Zod
+import { z } from 'zod'
+
+const AIResponseSchema = z.object({
+  category: z.string().min(1),
+  code: z.string().min(1),
+  confidence: z.number().min(0).max(1),
+  reasoning: z.string().optional(),
+})
+
+type AIResponse = z.infer<typeof AIResponseSchema>
+
+function parseAIResponse(response: unknown): AIResponse {
+  try {
+    return AIResponseSchema.parse(response)
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { feature: 'ai-parsing' },
+      extra: { response }
+    })
+    throw new Error('Invalid AI response format')
+  }
+}
+```
+
+### Cost Tracking
+```typescript
+// ✅ Track OpenAI costs per request
+import { calculateCost } from '@/lib/openai/pricing'
+
+async function categorizeWithTracking(text: string, userId: string) {
+  const startTime = Date.now()
+  
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4',
+    messages: [
+      { role: 'system', content: PROMPT },
+      { role: 'user', content: text }
+    ]
+  })
+  
+  const cost = calculateCost({
+    model: 'gpt-4',
+    inputTokens: response.usage?.prompt_tokens ?? 0,
+    outputTokens: response.usage?.completion_tokens ?? 0,
+  })
+  
+  await logAIUsage({
+    userId,
+    model: 'gpt-4',
+    cost,
+    latency: Date.now() - startTime,
+    timestamp: new Date(),
+  })
+  
+  return response
+}
+```
+
+---
+
+## ♿ Accessibility (WCAG 2.1 AA Compliance)
+
+### ARIA Requirements
+```typescript
+// ✅ Proper ARIA labels and roles
+<button
+  aria-label="Delete category"
+  aria-describedby="delete-warning"
+  onClick={handleDelete}
+>
+  <TrashIcon aria-hidden="true" /> {/* Icons are decorative */}
+</button>
+
+<p id="delete-warning" className="sr-only">
+  This action cannot be undone
+</p>
+
+// ✅ Live regions for dynamic content
+<div 
+  role="status" 
+  aria-live="polite" 
+  aria-atomic="true"
+>
+  {message}
+</div>
+
+// ✅ Progress indicators
+<div
+  role="progressbar"
+  aria-valuenow={progress}
+  aria-valuemin={0}
+  aria-valuemax={100}
+  aria-label="Categorization progress"
+>
+  {progress}%
+</div>
+
+// ✅ Focus management in modals
+import { FocusTrap } from 'focus-trap-react'
+
+function Modal({ children, onClose }: ModalProps) {
+  return (
+    <FocusTrap>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+      >
+        <h2 id="modal-title">Modal Title</h2>
+        {children}
+        <button onClick={onClose}>Close</button>
+      </div>
+    </FocusTrap>
+  )
+}
+```
+
+### Keyboard Navigation
+```typescript
+// ✅ Full keyboard support
+function DataGrid({ data }: { data: Item[] }) {
+  const [focusedIndex, setFocusedIndex] = useState(0)
+  
+  const handleKeyDown = (e: KeyboardEvent) => {
+    switch(e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setFocusedIndex(i => Math.min(i + 1, data.length - 1))
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setFocusedIndex(i => Math.max(i - 1, 0))
+        break
+      case 'Enter':
+      case ' ':
+        e.preventDefault()
+        selectRow(focusedIndex)
+        break
+      case 'Escape':
+        clearSelection()
+        break
+    }
+  }
+  
+  return (
+    <div
+      role="grid"
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      aria-label="Data grid"
+    >
+      {data.map((item, index) => (
+        <div
+          key={item.id}
+          role="row"
+          aria-selected={index === focusedIndex}
+          tabIndex={index === focusedIndex ? 0 : -1}
+        >
+          <Row item={item} />
+        </div>
+      ))}
+    </div>
+  )
+}
+```
+
+### Color Contrast
+```typescript
+// ✅ WCAG AA minimum contrast ratios
+// - Normal text: 4.5:1
+// - Large text (18pt+): 3:1
+// - UI components: 3:1
+
+// Use tool: https://webaim.org/resources/contrastchecker/
+
+// tailwind.config.js
+colors: {
+  primary: {
+    500: '#3b82f6', // Contrast ratio with white: 4.5:1 ✓
+  },
+  text: {
+    primary: '#1f2937',   // 16:1 with white ✓
+    secondary: '#6b7280', // 4.6:1 with white ✓
+  }
+}
+```
+
+---
+
+## 📊 Data Processing Patterns
+
+### Excel Export
+```typescript
+// ✅ Use ExcelJS for complex exports
+import ExcelJS from 'exceljs'
+
+async function exportToExcel(data: CategoryData[]) {
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet('Categories')
+  
+  // Define columns
+  worksheet.columns = [
+    { header: 'Category', key: 'category', width: 30 },
+    { header: 'Code', key: 'code', width: 15 },
+    { header: 'Count', key: 'count', width: 10 },
+    { header: 'Confidence', key: 'confidence', width: 12 },
+  ]
+  
+  // Add data
+  worksheet.addRows(data)
+  
+  // Style header row
+  worksheet.getRow(1).font = { bold: true, size: 12 }
+  worksheet.getRow(1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFE0E0E0' }
+  }
+  worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' }
+  
+  // Add borders
+  worksheet.eachRow((row) => {
+    row.eachCell((cell) => {
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      }
+    })
+  })
+  
+  // Auto-filter
+  worksheet.autoFilter = {
+    from: 'A1',
+    to: `D${data.length + 1}`
+  }
+  
+  return workbook.xlsx.writeBuffer()
+}
+```
+
+### CSV Parsing
+```typescript
+// ✅ Use PapaParse with robust configuration
+import Papa from 'papaparse'
+
+async function parseCSV(file: File): Promise<CategoryData[]> {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: true,
+      dynamicTyping: true,
+      skipEmptyLines: true,
+      delimitersToGuess: [',', '\t', '|', ';'],
+      transformHeader: (header) => header.trim(), // Strip whitespace
+      transform: (value) => typeof value === 'string' ? value.trim() : value,
+      complete: (results) => {
+        // Validate with Zod
+        try {
+          const validated = CategorySchema.array().parse(results.data)
+          resolve(validated)
+        } catch (error) {
+          reject(new Error(`Invalid CSV format: ${error.message}`))
+        }
+      },
+      error: (error) => reject(error)
+    })
+  })
+}
+```
+
+---
+
+## 🚨 Error Handling
+
+### Sentry Integration
+```typescript
+// ✅ Track errors with rich context
+import * as Sentry from '@sentry/react'
+
+try {
+  await categorizeAnswers(data)
+} catch (error) {
+  Sentry.captureException(error, {
+    tags: {
+      feature: 'ai-categorization',
+      model: 'gpt-4'
+    },
+    extra: {
+      dataLength: data.length,
+      userId: user.id,
+      timestamp: new Date().toISOString()
+    },
+    level: 'error'
+  })
+  
+  toast.error('Categorization failed. Please try again.')
+  throw error // Re-throw for error boundaries
+}
+```
+
+### Error Boundaries
+```typescript
+// ✅ Wrap features in error boundaries
+import { ErrorBoundary } from 'react-error-boundary'
+
+function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
+  return (
+    <div role="alert" className="error-container">
+      <h2>Something went wrong</h2>
+      <pre>{error.message}</pre>
+      <button onClick={resetErrorBoundary}>Try again</button>
+    </div>
+  )
+}
+
+function App() {
+  return (
+    <ErrorBoundary
+      FallbackComponent={ErrorFallback}
+      onError={(error, info) => {
+        Sentry.captureException(error, {
+          extra: { componentStack: info.componentStack }
+        })
+      }}
+      onReset={() => {
+        // Reset app state
+        queryClient.clear()
+      }}
+    >
+      <Routes />
+    </ErrorBoundary>
+  )
+}
+```
+
+---
+
+## 💬 AI Assistant Instructions
+
+### When Writing Code
+1. **Always use TypeScript** - Full typing with Zod schemas
+2. **State management hierarchy** - TanStack Query → Zustand → Context → useState
+3. **Performance first** - Virtual scrolling for 1000+ items, debouncing, memoization
+4. **Security by default** - Sanitize inputs, validate with Zod, use RLS
+5. **Accessibility required** - ARIA, keyboard nav, focus management, WCAG AA
+6. **Error handling** - Try-catch + Sentry + user feedback + error boundaries
+7. **Test coverage** - Unit tests for logic, integration for flows, E2E for critical paths
+8. **Document code** - JSDoc for public APIs, comments for complex logic
+
+### When Suggesting Solutions
+- Explain **WHY**, not just **WHAT**
+- Show **performance implications**
+- Consider **accessibility impact**
+- Mention **security trade-offs**
+- Suggest **testing strategy**
+- Provide **code examples**
+- Reference **documentation**
+
+### Common Patterns to Follow
+
+#### React Query Mutation with Optimistic Updates
+```typescript
+const mutation = useMutation({
+  mutationFn: updateCategory,
+  onMutate: async (newData) => {
+    await queryClient.cancelQueries(['categories'])
+    const previous = queryClient.getQueryData(['categories'])
+    
+    queryClient.setQueryData(['categories'], (old: Category[]) => 
+      old.map(cat => cat.id === newData.id ? newData : cat)
+    )
+    
+    return { previous }
+  },
+  onError: (err, variables, context) => {
+    queryClient.setQueryData(['categories'], context?.previous)
+    toast.error('Update failed')
+  },
+  onSuccess: () => {
+    toast.success('Category updated')
+  },
+  onSettled: () => {
+    queryClient.invalidateQueries(['categories'])
+  }
+})
+```
+
+#### Batch Operations with Progress
+```typescript
+async function batchDelete(ids: string[], onProgress?: (progress: number) => void) {
+  const batches = chunk(ids, 50) // 50 per batch
+  let completed = 0
+  
+  for (const batch of batches) {
+    await supabase
+      .from('categories')
+      .delete()
+      .in('id', batch)
+    
+    completed += batch.length
+    onProgress?.(completed / ids.length * 100)
+  }
+  
+  queryClient.invalidateQueries(['categories'])
+}
+```
+
+---
+
+## ❌ Common Pitfalls to AVOID
+
+```typescript
+// ❌ DON'T render 1000+ items without virtualization
+{data.map(item => <Row key={item.id} item={item} />)}
+
+// ✅ DO use react-window
+<FixedSizeList itemCount={data.length} itemSize={50}>
+  {({ index, style }) => (
+    <div style={style}>
+      <Row item={data[index]} />
+    </div>
+  )}
+</FixedSizeList>
+
+// ❌ DON'T call OpenAI API in parallel without limits
+await Promise.all(data.map(categorizeWithAI))
+
+// ✅ DO batch with rate limiting
+await pMap(data, categorizeWithAI, { concurrency: 10 })
+
+// ❌ DON'T trust user input
+<div dangerouslySetInnerHTML={{ __html: userContent }} />
+
+// ✅ DO sanitize with DOMPurify
+<div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(userContent) }} />
+
+// ❌ DON'T ignore accessibility
+<div onClick={handleClick}>Click me</div>
+
+// ✅ DO use semantic elements with ARIA
+<button onClick={handleClick} aria-label="Delete item">
+  Click me
+</button>
+
+// ❌ DON'T duplicate types and validation
+interface User { name: string }
+const validateUser = (data: unknown) => { /* manual validation */ }
+
+// ✅ DO use Zod for both
+const UserSchema = z.object({ name: z.string() })
+type User = z.infer<typeof UserSchema>
+
+// ❌ DON'T use magic values in Tailwind
+<div className="mt-[17px] bg-[#3b82f6]">
+
+// ✅ DO use config tokens
+<div className="mt-4 bg-primary-500">
+
+// ❌ DON'T store auth tokens in localStorage
+localStorage.setItem('token', jwt)
+
+// ✅ DO use httpOnly cookies (server-side)
+res.cookie('token', jwt, { httpOnly: true, secure: true })
+```
+
+---
+
+## 📝 Quick Commands
+
+**"Explain this"** - Deep dive into code logic  
+**"Add tests"** - Unit + Integration + E2E test cases  
+**"Optimize performance"** - Virtual scroll, debounce, memoization, code splitting  
+**"Make accessible"** - ARIA, keyboard nav, focus trap, color contrast  
+**"Add error handling"** - Try-catch + Sentry + user feedback + error boundaries  
+**"Batch this operation"** - Queue-based processing with progress  
+**"Add loading states"** - Skeletons, progress bars, optimistic UI  
+**"Document this"** - JSDoc/TSDoc with examples  
+**"Review security"** - XSS, RLS, validation, rate limiting  
+**"Check state management"** - Verify correct hierarchy (Query/Zustand/Context)
+
+---
+
+## 🎯 Current Sprint Focus
+
+### P0 - Critical
+- [ ] AI categorization optimization (reduce latency from 10s to 5s)
+- [ ] Virtual scrolling stability (10k+ rows without crashes)
+- [ ] Offline sync reliability (IndexedDB conflict resolution)
+- [ ] Unit test coverage (increase from 20+ to 80%)
+
+### P1 - High Priority
+- [ ] Batch operations UX improvements (progress indicators)
+- [ ] Advanced filters performance (debouncing + memoization)
+- [ ] Export large datasets (100k+ rows without timeout)
+- [ ] Integration tests (add 50+ tests for critical flows)
+
+### P2 - Nice to Have
+- [ ] Dark mode polish (check all components)
+- [ ] Keyboard shortcuts documentation
+- [ ] Mobile responsiveness improvements
+
+### Tech Debt
+- [ ] Migrate to React Query v6 (breaking changes)
+- [ ] Upgrade Tailwind v4 full adoption (new features)
+- [ ] Refactor legacy code in `/legacy` folder
+- [ ] Improve PR template with security checklist
+- [ ] Add JSDoc to all public APIs
+
+---
+
+## 🎓 Learning Resources
+
+- **React Query**: https://tanstack.com/query/latest
+- **Zustand**: https://zustand-demo.pmnd.rs/
+- **Tailwind CSS**: https://tailwindcss.com/docs
+- **Accessibility**: https://www.w3.org/WAI/WCAG21/quickref/
+- **Testing Library**: https://testing-library.com/docs/
+- **Playwright**: https://playwright.dev/
+- **Zod**: https://zod.dev/
+
+---
+
+**Remember**: This is a **production app** with **10k+ rows** handling, **286 E2E tests**, and **enterprise-grade requirements**. Performance, security, accessibility, and maintainability are **NON-NEGOTIABLE**. Always ask for context if unsure, follow the state management hierarchy, and document your code properly!

@@ -13,6 +13,14 @@ export interface CodeWithCategories extends Code {
 export interface Category {
   id: number;
   name: string;
+  google_name?: string;
+  description?: string;
+  template?: string;
+  preset?: string;
+  model?: string;
+  brands_sorting?: string;
+  min_length?: number;
+  max_length?: number;
   use_web_context?: boolean; // default: true - enables Google Search context for AI
   created_at?: string | null;
   updated_at?: string | null;

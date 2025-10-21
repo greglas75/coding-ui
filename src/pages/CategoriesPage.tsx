@@ -1,5 +1,6 @@
-import { Code2, FolderOpen, Home, Plus, RefreshCw, Search, Settings, Trash2, X } from 'lucide-react';
+import { Code2, FolderOpen, Home, Plus, RefreshCw, Search, Settings, Trash2, X, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { AddCategoryModal } from '../components/AddCategoryModal';
 import { CategoryDetails } from '../components/CategoryDetails';
@@ -47,7 +48,7 @@ export function CategoriesPage() {
       // Get categories
       const { data: categoriesData, error: categoriesError } = await supabase
         .from('categories')
-        .select('id, name')
+        .select('id, name, google_name, description, template, preset, model, brands_sorting, min_length, max_length, use_web_context')
         .order('name');
 
       if (categoriesError) {
@@ -435,6 +436,14 @@ export function CategoriesPage() {
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
               Reload
             </button>
+            <Link
+              to="/codeframe/builder"
+              className="px-3 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-sm rounded-md flex items-center gap-1.5 transition shadow-sm"
+              title="AI-powered codeframe generation"
+            >
+              <Sparkles size={16} />
+              AI Codeframe Builder
+            </Link>
             <button
               onClick={() => setModalOpen(true)}
               className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md flex items-center gap-1.5 transition"

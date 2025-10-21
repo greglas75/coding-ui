@@ -42,11 +42,11 @@ use: {
   // 🖥️ VIEWPORT - DUŻE OKNO (1920x1080)
   viewport: { width: 2560, height: 1440 },
 
-  // 👁️ Pokaż okno przeglądarki (nie headless)
-  headless: false,
+  // 👁️ Headless mode (no browser window)
+  headless: true,
 
-  // ⏱️ Wolniejsze wykonanie (łatwiej zobaczyć co się dzieje)
-  slowMo: 100,
+  // ⏱️ Fast execution (no slowMo in headless)
+  slowMo: 0,
 
   // Collect trace on failure and retry
   trace: 'retain-on-failure',

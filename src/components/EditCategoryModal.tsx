@@ -52,12 +52,12 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
     name: category.name || "",
     googleName: category.google_name || "",
     description: category.description || "",
-    preset: "LLM Proper Name",
-    model: "gpt-4.1-nano",
+    preset: category.preset || "LLM Proper Name",
+    model: category.model || "gpt-4.1-nano",
     template: category.template || "",
-    brandsSorting: "Alphanumerical",
-    minLength: 0,
-    maxLength: 0,
+    brandsSorting: category.brands_sorting || "Alphanumerical",
+    minLength: category.min_length || 0,
+    maxLength: category.max_length || 0,
     useWebContext: category.use_web_context ?? true, // default: true
   });
 

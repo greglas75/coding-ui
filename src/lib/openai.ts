@@ -9,20 +9,28 @@ import OpenAI from 'openai';
 import type { AiCodeSuggestion, AiSuggestions } from '../types';
 import { openaiRateLimiter, retryWithBackoff } from './rateLimit';
 
-// Initialize OpenAI client with error handling
+// ❌ SECURITY FIX: OpenAI client WYŁĄCZONY na froncie (klucz API był eksponowany!)
+// ✅ ZAMIAST TEGO: Używaj backend endpoint /api/gpt-test
 let openai: OpenAI | null = null;
 
-try {
-  const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-  if (apiKey && apiKey !== 'sk-proj-placeholder-key') {
-    openai = new OpenAI({
-      apiKey: apiKey,
-      dangerouslyAllowBrowser: true, // Required for client-side usage (consider moving to backend)
-    });
-  }
-} catch (error) {
-  console.warn('⚠️ OpenAI client initialization failed:', error);
-}
+// ❌ WYŁĄCZONE - NIE inicjalizuj OpenAI na froncie!
+// try {
+//   const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+//   if (apiKey && apiKey !== 'sk-proj-placeholder-key') {
+//     openai = new OpenAI({
+//       apiKey: apiKey,
+//       dangerouslyAllowBrowser: true, // ❌ NIEBEZPIECZNE - eksponuje klucz w przeglądarce!
+//     });
+//   }
+// } catch (error) {
+//   console.warn('⚠️ OpenAI client initialization failed:', error);
+// }
+
+// ⚠️ TODO: Zmień pliki używające tego na backend API:
+// - src/lib/batchAIProcessor.ts
+// - src/lib/modelComparison.ts
+// - src/api/categorize.ts
+// Wszystkie powinny używać fetch('/api/gpt-test') zamiast bezpośredniego wywołania OpenAI
 
 /**
  * Request structure for categorizing an answer

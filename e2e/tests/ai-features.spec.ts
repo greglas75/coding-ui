@@ -127,7 +127,7 @@ test.describe('AI Suggestions', () => {
 test.describe.skip('Auto-Confirm', () => {
   // SKIPPED: Auto-Confirm feature requires full configuration and may not be ready yet
   // Re-enable when feature is fully implemented and configured
-  
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await waitForLoadingToFinish(page);
