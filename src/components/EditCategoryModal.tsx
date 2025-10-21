@@ -11,6 +11,8 @@ interface EditCategoryModalProps {
     description?: string;
     template?: string;
     use_web_context?: boolean;
+    sentiment_enabled?: boolean;
+    sentiment_mode?: 'smart' | 'always' | 'never';
   };
   onClose: () => void;
   onSave: (data: {
@@ -24,6 +26,8 @@ interface EditCategoryModalProps {
     minLength: number;
     maxLength: number;
     useWebContext: boolean;
+    sentimentEnabled: boolean;
+    sentimentMode: 'smart' | 'always' | 'never';
   }) => Promise<void>;
 }
 
@@ -59,6 +63,8 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
     minLength: category.min_length || 0,
     maxLength: category.max_length || 0,
     useWebContext: category.use_web_context ?? true, // default: true
+    sentimentEnabled: category.sentiment_enabled ?? false,
+    sentimentMode: (category.sentiment_mode || 'smart') as 'smart' | 'always' | 'never',
   });
 
   // Auto-fill template on modal open if it's empty
@@ -299,6 +305,108 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                     </p>
                   </div>
                 </label>
+              </div>
+
+              {/* Sentiment Analysis Section */}
+              <div className="pt-4 border-t border-gray-200 dark:border-neutral-700">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                  😊 Sentiment Analysis
+                </h3>
+
+                {/* Enable Toggle */}
+                <label className="flex items-center gap-3 cursor-pointer mb-4">
+                  <input
+                    type="checkbox"
+                    checked={form.sentimentEnabled}
+                    onChange={(e) => setForm({ ...form, sentimentEnabled: e.target.checked })}
+                    className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 dark:focus:ring-purple-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Enable Sentiment Analysis
+                    </span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Analyze emotional tone (positive, negative, neutral, mixed)
+                    </p>
+                  </div>
+                </label>
+
+                {/* Mode Selector (only if enabled) */}
+                {form.sentimentEnabled && (
+                  <>
+                    <div className="mb-3">
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                        Detection Mode
+                      </label>
+                      <select
+                        value={form.sentimentMode}
+                        onChange={(e) => setForm({ ...form, sentimentMode: e.target.value as 'smart' | 'always' | 'never' })}
+                        className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                      >
+                        <option value="smart">🧠 Smart (AI decides per answer) - Recommended</option>
+                        <option value="always">✅ Always (for every answer)</option>
+                        <option value="never">❌ Never (disabled)</option>
+                      </select>
+                    </div>
+
+                    {/* Mode Explanation */}
+                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-xs mb-3">
+                      {form.sentimentMode === 'smart' && (
+                        <p className="text-blue-900 dark:text-blue-200">
+                          ✨ <strong>Smart Mode:</strong> AI automatically detects if sentiment makes sense for each answer.
+                          Skips brand names, product IDs, and factual statements. Saves ~12% on costs.
+                        </p>
+                      )}
+                      {form.sentimentMode === 'always' && (
+                        <p className="text-blue-900 dark:text-blue-200">
+                          ⚡ <strong>Always Mode:</strong> Sentiment calculated for every answer, even short ones.
+                          Adds ~20% to AI costs. Use for pure opinion surveys.
+                        </p>
+                      )}
+                      {form.sentimentMode === 'never' && (
+                        <p className="text-blue-900 dark:text-blue-200">
+                          🚫 <strong>Never Mode:</strong> Sentiment completely disabled.
+                          Only code suggestions provided. No extra cost.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Use Cases */}
+                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-xs">
+                      <p className="font-medium mb-2 text-green-900 dark:text-green-200">
+                        💡 Best used for:
+                      </p>
+                      <ul className="space-y-1 text-green-800 dark:text-green-300">
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-green-600 dark:text-green-400 mt-0.5">✅</span>
+                          <span>Customer feedback & reviews</span>
+                        </li>
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-green-600 dark:text-green-400 mt-0.5">✅</span>
+                          <span>Open-ended opinion questions</span>
+                        </li>
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-green-600 dark:text-green-400 mt-0.5">✅</span>
+                          <span>Experience descriptions</span>
+                        </li>
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-red-600 dark:text-red-400 mt-0.5">❌</span>
+                          <span>Brand identification only</span>
+                        </li>
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-red-600 dark:text-red-400 mt-0.5">❌</span>
+                          <span>Product catalogs or lists</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    {/* Cost Notice */}
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-2 text-xs text-gray-600 dark:text-gray-400 mt-3">
+                      <strong>Cost impact:</strong> Sentiment adds ~12-20% to categorization costs.
+                      Smart mode optimizes by skipping non-applicable answers.
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

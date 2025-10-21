@@ -1,8 +1,9 @@
-import { Settings } from 'lucide-react';
+import { Settings, FolderTree } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { optimisticArrayUpdate } from '../lib/optimisticUpdate';
 import { supabase } from '../lib/supabase';
 import type { Category } from '../types';
+import { CodeframeBuilderModal } from './CodeframeBuilderModal';
 
 interface CategoryDetailsProps {
   selectedCategory: Category | null;
@@ -26,6 +27,7 @@ export function CategoryDetails({
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [realCodes, setRealCodes] = useState<CodeWithAssignment[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showCodeframeBuilder, setShowCodeframeBuilder] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -218,16 +220,26 @@ export function CategoryDetails({
               {realCodes.filter(c => c.assigned).length} codes assigned
             </p>
           </div>
-          {onEditCategory && (
+          <div className="flex gap-2">
+            {onEditCategory && (
+              <button
+                onClick={() => onEditCategory(selectedCategory)}
+                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300 text-sm rounded-md flex items-center gap-1.5 transition"
+                title="Edit category settings (GPT config, validation rules, etc.)"
+              >
+                <Settings size={16} />
+                <span className="hidden sm:inline">Edit Settings</span>
+              </button>
+            )}
             <button
-              onClick={() => onEditCategory(selectedCategory)}
-              className="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300 text-sm rounded-md flex items-center gap-1.5 transition"
-              title="Edit category settings (GPT config, validation rules, etc.)"
+              onClick={() => setShowCodeframeBuilder(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md flex items-center gap-1.5 transition"
+              title="Create and manage codes for this category"
             >
-              <Settings size={16} />
-              <span className="hidden sm:inline">Edit Settings</span>
+              <FolderTree size={16} />
+              <span className="hidden sm:inline">Manage Codes</span>
             </button>
-          )}
+          </div>
         </div>
       </div>
 
@@ -311,6 +323,19 @@ export function CategoryDetails({
           )}
         </div>
       </div>
+
+      {/* Codeframe Builder Modal */}
+      {selectedCategory && (
+        <CodeframeBuilderModal
+          isOpen={showCodeframeBuilder}
+          onClose={() => setShowCodeframeBuilder(false)}
+          category={selectedCategory}
+          onCodesCreated={() => {
+            loadCodes();
+            onCodesChanged?.();
+          }}
+        />
+      )}
     </div>
   );
 }

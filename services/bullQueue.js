@@ -32,6 +32,13 @@ const codeframeQueue = new Bull('codeframe-generation', {
       return delay;
     },
   },
+  // Rate limiting to respect Claude API limits (10 calls/60s)
+  // Set to 8 jobs/60s to leave safety margin
+  limiter: {
+    max: 8,          // Maximum 8 jobs processed
+    duration: 60000, // Per 60 seconds
+    bounceBack: false, // Don't return jobs to queue if limit exceeded, just delay them
+  },
   defaultJobOptions: {
     attempts: 3,
     backoff: {

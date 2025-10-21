@@ -177,15 +177,15 @@ class CodeframeService {
     // Save to cache
     const embeddingRecords = embeddings.map((emb) => ({
       answer_id: emb.id,
-      embedding: emb.embedding,
-      embedding_model: 'all-MiniLM-L6-v2',
-      text_hash: this.hashText(
+      embedding_vector: emb.embedding, // Store as JSON array directly
+      model_name: 'all-MiniLM-L6-v2',
+      embedding_hash: this.hashText(
         answersNeedingEmbeddings.find((a) => a.id === emb.id).answer_text
       ),
     }));
 
     const { error } = await supabase.from('answer_embeddings').upsert(embeddingRecords, {
-      onConflict: 'answer_id',
+      onConflict: 'answer_id,model_name',
     });
 
     if (error) {
@@ -233,12 +233,10 @@ class CodeframeService {
       .from('codeframe_generations')
       .insert({
         category_id: categoryId,
-        answer_ids: answers.map((a) => a.id),
+        config: config,  // Renamed from algorithm_config to match schema
         n_answers: answers.length,
         n_clusters: clusterResult.n_clusters,
         status: 'processing',
-        algorithm_config: config,
-        ai_model: 'claude-sonnet-4-5-20251022',
         created_by: userId,
       })
       .select()

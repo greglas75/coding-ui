@@ -1,4 +1,4 @@
-import { Code2, FileSpreadsheet, Home, List, Settings } from 'lucide-react';
+import { Code2, DollarSign, FileSpreadsheet, Home, List, Settings } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface AppHeaderProps {
@@ -66,6 +66,18 @@ export default function AppHeader({ dark, onToggleTheme }: AppHeaderProps) {
         >
           <FileSpreadsheet size={16} />
           File Import
+        </Link>
+        <Link
+          to="/cost-dashboard"
+          className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm transition cursor-pointer ${
+            location.pathname === '/cost-dashboard'
+              ? 'bg-blue-600 text-white'
+              : 'bg-neutral-800 hover:bg-neutral-700 text-gray-200'
+          }`}
+          title="AI Cost Dashboard"
+        >
+          <DollarSign size={16} />
+          Costs
         </Link>
         <Link
           to="/settings"

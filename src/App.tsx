@@ -18,6 +18,7 @@ const CategoriesPage = lazy(() => import("./pages/CategoriesPage").then(m => ({ 
 const FileDataCodingPage = lazy(() => import("./pages/FileDataCodingPage").then(m => ({ default: m.FileDataCodingPage })));
 const SettingsPage = lazy(() => import("./pages/SettingsPage").then(m => ({ default: m.SettingsPage })));
 const CodeframeBuilderPage = lazy(() => import("./pages/CodeframeBuilderPage").then(m => ({ default: m.CodeframeBuilderPage })));
+const CostDashboardPage = lazy(() => import("./pages/CostDashboardPage"));
 
 function useDarkMode() {
   const [dark, setDark] = useState<boolean>(() => {
@@ -59,6 +60,7 @@ function AppContent() {
             <Route path="/categories" element={<CategoriesPage />} />
             <Route path="/codeframe/builder" element={<CodeframeBuilderPage />} />
             <Route path="/file-data-coding" element={<FileDataCodingPage />} />
+            <Route path="/cost-dashboard" element={<CostDashboardPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </Suspense>
