@@ -18,6 +18,7 @@ import codeframeRoutes from './routes/codeframe.js';
 import costDashboardRoutes from './routes/costDashboard.js';
 import sentimentRoutes from './routes/sentiment.js';
 import codesRoutes from './routes/codes.js';
+import testImageSearchRoutes from './routes/test-image-search.js';
 
 const app = express();
 const port = 3020;
@@ -861,6 +862,10 @@ log.info('✅ Sentiment routes mounted at /api/v1/sentiment');
 // Mount codes routes
 app.use('/api/v1/codes', codesRoutes);
 log.info('✅ Codes routes mounted at /api/v1/codes');
+
+// Mount test image search routes
+app.use('/api', testImageSearchRoutes);
+log.info('✅ Test image search routes mounted at /api/test-image-search');
 
 app.listen(port, () => {
   console.log(`🚀 API server running on http://localhost:${port}`);

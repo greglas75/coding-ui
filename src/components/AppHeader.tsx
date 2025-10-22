@@ -1,4 +1,4 @@
-import { Code2, DollarSign, FileSpreadsheet, Home, List, Settings } from 'lucide-react';
+import { Code2, DollarSign, FileSpreadsheet, Home, Image, List, Settings } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface AppHeaderProps {
@@ -78,6 +78,18 @@ export default function AppHeader({ dark, onToggleTheme }: AppHeaderProps) {
         >
           <DollarSign size={16} />
           Costs
+        </Link>
+        <Link
+          to="/image-tester"
+          className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm transition cursor-pointer ${
+            location.pathname === '/image-tester'
+              ? 'bg-blue-600 text-white'
+              : 'bg-neutral-800 hover:bg-neutral-700 text-gray-200'
+          }`}
+          title="AI Image Search Tester"
+        >
+          <Image size={16} />
+          Image Tester
         </Link>
         <Link
           to="/settings"
