@@ -65,7 +65,8 @@ export async function analyzeImagesWithGemini(
           reader.readAsDataURL(blob);
         });
       } catch (error) {
-        console.warn(`⚠️ Failed to fetch image: ${url}`, error);
+        // CORS or network error - this is expected for some external images
+        // console.info(`ℹ️ Could not fetch image (CORS or network): ${url}`);
         return null;
       }
     }
@@ -76,17 +77,19 @@ export async function analyzeImagesWithGemini(
     const validImages = base64Images.filter((img): img is { data: string; mimeType: string } => img !== null);
 
     if (validImages.length === 0) {
-      console.warn('⚠️ No images could be fetched - skipping vision analysis');
+      console.warn('⚠️ No images could be fetched (CORS/network issues) - skipping vision analysis');
       return {
         brandDetected: false,
         brandName: '',
         confidence: 0,
-        reasoning: 'Could not fetch any images',
+        reasoning: 'Could not fetch any images due to CORS restrictions',
         objectsDetected: [],
       };
     }
 
-    console.log(`✅ Successfully converted ${validImages.length}/${imageUrls.length} images`);
+    const successRate = `${validImages.length}/${imageUrls.length}`;
+    const logMethod = validImages.length >= 3 ? 'log' : 'warn';
+    console[logMethod](`✅ Successfully converted ${successRate} images for vision analysis`);
 
     // Build prompt for Gemini
     const prompt = `You are analyzing images from a Google Image search for: "${searchQuery}"
