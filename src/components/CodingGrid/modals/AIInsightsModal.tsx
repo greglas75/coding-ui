@@ -163,6 +163,29 @@ export const AIInsightsModal: FC<AIInsightsModalProps> = ({
             </div>
           </div>
 
+          {/* Warning for old cached data (no web validation) */}
+          {!webContext && !images && !searchQuery && (
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-400 dark:border-yellow-600 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">⚠️</div>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-yellow-900 dark:text-yellow-200 mb-1">
+                    Cached Data (No Web Evidence)
+                  </h4>
+                  <p className="text-sm text-yellow-800 dark:text-yellow-300 mb-3">
+                    This analysis was generated before web validation was added.
+                    To see Google Search results, related images, and confidence boost from web evidence,
+                    regenerate this suggestion.
+                  </p>
+                  <p className="text-xs text-yellow-700 dark:text-yellow-400 flex items-center gap-2">
+                    <span>💡</span>
+                    <span>Click the 🔄 icon next to the suggestion to regenerate with full web analysis</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Web Evidence (if available) */}
           {webEvidence && (
             <div>
