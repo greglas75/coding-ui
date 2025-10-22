@@ -43,6 +43,13 @@ export default function ImageTesterPage() {
     const startTime = Date.now();
 
     try {
+      // Get API keys from localStorage
+      const apiKeys = {
+        gemini: localStorage.getItem('google_gemini_api_key'),
+        openai: localStorage.getItem('openai_api_key'),
+        anthropic: localStorage.getItem('anthropic_api_key'),
+      };
+
       // Call API to search with selected model
       const response = await fetch('/api/test-image-search', {
         method: 'POST',
@@ -50,6 +57,7 @@ export default function ImageTesterPage() {
         body: JSON.stringify({
           prompt,
           model: selectedModel,
+          apiKeys, // Pass API keys from localStorage
         }),
       });
 

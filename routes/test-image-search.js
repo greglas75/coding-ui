@@ -18,7 +18,7 @@ const router = express.Router();
  */
 router.post('/test-image-search', async (req, res) => {
   try {
-    const { prompt, model } = req.body;
+    const { prompt, model, apiKeys } = req.body;
 
     if (!prompt || !model) {
       return res.status(400).json({
@@ -32,11 +32,11 @@ router.post('/test-image-search', async (req, res) => {
     let result;
 
     if (model.startsWith('gemini')) {
-      result = await searchWithGemini(prompt, model);
+      result = await searchWithGemini(prompt, model, apiKeys?.gemini);
     } else if (model.startsWith('gpt') || model.startsWith('openai')) {
-      result = await searchWithOpenAI(prompt, model);
+      result = await searchWithOpenAI(prompt, model, apiKeys?.openai);
     } else if (model.startsWith('claude')) {
-      result = await searchWithClaude(prompt, model);
+      result = await searchWithClaude(prompt, model, apiKeys?.anthropic);
     } else {
       return res.status(400).json({
         error: `Unsupported model: ${model}`,
@@ -56,13 +56,12 @@ router.post('/test-image-search', async (req, res) => {
 /**
  * Search using Gemini with Google Search grounding
  */
-async function searchWithGemini(prompt, model) {
+async function searchWithGemini(prompt, model, apiKey) {
   const { GoogleGenerativeAI } = await import('@google/generative-ai');
 
-  // Get API key from environment or config
-  const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
+  // Use API key from request (localStorage in frontend)
   if (!apiKey) {
-    throw new Error('GOOGLE_GEMINI_API_KEY not configured');
+    throw new Error('Gemini API key not configured. Please add it in Settings page.');
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
@@ -123,12 +122,11 @@ IMPORTANT:
  * Search using OpenAI (GPT-4o, GPT-4o Mini)
  * Note: OpenAI doesn't have built-in web search, so we use function calling
  */
-async function searchWithOpenAI(prompt, model) {
+async function searchWithOpenAI(prompt, model, apiKey) {
   const OpenAI = (await import('openai')).default;
 
-  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    throw new Error('OPENAI_API_KEY not configured');
+    throw new Error('OpenAI API key not configured. Please add it in Settings page.');
   }
 
   const openai = new OpenAI({ apiKey });
@@ -210,12 +208,11 @@ Queries: ["colgate toothpaste product", "colgate toothpaste packaging", "colgate
  * Search using Claude (Haiku, Sonnet, Opus)
  * Note: Claude doesn't have built-in web search, similar to OpenAI
  */
-async function searchWithClaude(prompt, model) {
+async function searchWithClaude(prompt, model, apiKey) {
   const Anthropic = (await import('@anthropic-ai/sdk')).default;
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY not configured');
+    throw new Error('Claude API key not configured. Please add it in Settings page.');
   }
 
   const anthropic = new Anthropic({ apiKey });
