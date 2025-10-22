@@ -15,6 +15,48 @@ export interface VisionAnalysisResult {
   objectsDetected: string[];
 }
 
+// CORS Domain Blacklist Management
+const BLACKLIST_KEY = 'gemini_vision_cors_blacklist';
+
+/**
+ * Get list of blacklisted domains (those that block CORS)
+ */
+function getCorsBlacklist(): Set<string> {
+  try {
+    const stored = localStorage.getItem(BLACKLIST_KEY);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Add domain to CORS blacklist
+ */
+function addToCorsBlacklist(url: string): void {
+  try {
+    const domain = new URL(url).hostname;
+    const blacklist = getCorsBlacklist();
+    blacklist.add(domain);
+    localStorage.setItem(BLACKLIST_KEY, JSON.stringify([...blacklist]));
+    console.log(`🚫 Blacklisted CORS-blocked domain: ${domain}`);
+  } catch {
+    // Invalid URL, ignore
+  }
+}
+
+/**
+ * Check if domain is blacklisted
+ */
+function isDomainBlacklisted(url: string): boolean {
+  try {
+    const domain = new URL(url).hostname;
+    return getCorsBlacklist().has(domain);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Analyze images using Gemini Vision API
  */
@@ -42,13 +84,24 @@ export async function analyzeImagesWithGemini(
     }
 
     // Prepare image URLs for analysis (max 6 images)
-    const imageUrls = images.slice(0, 6).map(img => img.link);
+    const allImageUrls = images.slice(0, 6).map(img => img.link);
+
+    // Filter out blacklisted domains
+    const imageUrls = allImageUrls.filter(url => !isDomainBlacklisted(url));
+    const skippedCount = allImageUrls.length - imageUrls.length;
+
+    if (skippedCount > 0) {
+      console.log(`⏭️ Skipped ${skippedCount} image(s) from blacklisted domains`);
+    }
 
     // Helper function to convert image URL to base64
     async function imageUrlToBase64(url: string): Promise<{ data: string; mimeType: string } | null> {
       try {
         const response = await fetch(url);
-        if (!response.ok) return null;
+        if (!response.ok) {
+          addToCorsBlacklist(url);
+          return null;
+        }
 
         const blob = await response.blob();
         const mimeType = blob.type || 'image/jpeg';
@@ -65,13 +118,24 @@ export async function analyzeImagesWithGemini(
           reader.readAsDataURL(blob);
         });
       } catch (error) {
-        // CORS or network error - this is expected for some external images
-        // console.info(`ℹ️ Could not fetch image (CORS or network): ${url}`);
+        // CORS or network error - add to blacklist
+        addToCorsBlacklist(url);
         return null;
       }
     }
 
     // Convert images to base64
+    if (imageUrls.length === 0) {
+      console.warn('⚠️ All images are from blacklisted domains - skipping vision analysis');
+      return {
+        brandDetected: false,
+        brandName: '',
+        confidence: 0,
+        reasoning: 'All images are from CORS-blocked domains',
+        objectsDetected: [],
+      };
+    }
+
     console.log(`📥 Fetching and converting ${imageUrls.length} images to base64...`);
     const base64Images = await Promise.all(imageUrls.map(url => imageUrlToBase64(url)));
     const validImages = base64Images.filter((img): img is { data: string; mimeType: string } => img !== null);
@@ -241,4 +305,30 @@ export function calculateVisionBoost(visionResult: VisionAnalysisResult): {
     boost,
     details: details.join(', '),
   };
+}
+
+/**
+ * Clear CORS blacklist (for testing or if domains start allowing CORS)
+ * Can be called from browser console: window.clearCorsBlacklist()
+ */
+export function clearCorsBlacklist(): void {
+  localStorage.removeItem(BLACKLIST_KEY);
+  console.log('✅ CORS blacklist cleared');
+}
+
+/**
+ * View current CORS blacklist
+ * Can be called from browser console: window.viewCorsBlacklist()
+ */
+export function viewCorsBlacklist(): string[] {
+  const blacklist = getCorsBlacklist();
+  const domains = [...blacklist];
+  console.log(`📋 CORS Blacklist (${domains.length} domains):`, domains);
+  return domains;
+}
+
+// Expose functions to window for debugging
+if (typeof window !== 'undefined') {
+  (window as any).clearCorsBlacklist = clearCorsBlacklist;
+  (window as any).viewCorsBlacklist = viewCorsBlacklist;
 }

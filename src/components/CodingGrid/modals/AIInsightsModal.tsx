@@ -74,6 +74,10 @@ export const AIInsightsModal: FC<AIInsightsModalProps> = ({
 
   const { aiReasoning, webEvidence } = separateReasoning(suggestion.reasoning);
 
+  // Reconstruct search query if missing (for old cached data)
+  const displaySearchQuery = searchQuery || (translation && translation !== answer ? translation : answer);
+  const isReconstructed = !searchQuery && (webContext || images);
+
   if (!isOpen) return null;
 
   return (
@@ -210,10 +214,10 @@ export const AIInsightsModal: FC<AIInsightsModalProps> = ({
               </h3>
               <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-3">
                 <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
-                  🔍 Google search phrase:
+                  🔍 Google search phrase{isReconstructed && ' (reconstructed from answer)'}:
                 </p>
                 <p className="text-sm font-mono text-amber-800 dark:text-amber-300 mt-1">
-                  &quot;{searchQuery || 'Not available (cached result)'}&quot;
+                  &quot;{displaySearchQuery}&quot;
                 </p>
               </div>
               <div className="space-y-3">
@@ -251,10 +255,10 @@ export const AIInsightsModal: FC<AIInsightsModalProps> = ({
               </h3>
               <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-3">
                 <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
-                  🔍 Google search phrase:
+                  🔍 Google search phrase{isReconstructed && ' (reconstructed from answer)'}:
                 </p>
                 <p className="text-sm font-mono text-amber-800 dark:text-amber-300 mt-1">
-                  &quot;{searchQuery || 'Not available (cached result)'}&quot;
+                  &quot;{displaySearchQuery}&quot;
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-3">
