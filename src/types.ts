@@ -60,6 +60,15 @@ export interface ImageResult {
   link: string;
   thumbnailLink?: string;
   contextLink?: string;
+  displayLink?: string; // Domain (e.g., "sensodyne.com")
+  snippet?: string; // Image description from page context
+  mime?: string; // Image MIME type (e.g., "image/jpeg")
+  fileFormat?: string; // File format (e.g., "image/jpeg")
+  width?: number; // Image width in pixels
+  height?: number; // Image height in pixels
+  byteSize?: number; // File size in bytes
+  thumbnailWidth?: number;
+  thumbnailHeight?: number;
 }
 
 /**

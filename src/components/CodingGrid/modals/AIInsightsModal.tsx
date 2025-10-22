@@ -350,10 +350,34 @@ export const AIInsightsModal: FC<AIInsightsModalProps> = ({
                       alt={image.title}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform"
                     />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center">
-                      <p className="text-white text-xs px-2 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Domain Badge (Top) */}
+                    {image.displayLink && (
+                      <div className="absolute top-2 left-2 bg-blue-500/90 text-white text-xs px-2 py-0.5 rounded-full font-medium">
+                        {image.displayLink}
+                      </div>
+                    )}
+                    {/* Dimensions Badge (Bottom Right) */}
+                    {image.width && image.height && (
+                      <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-0.5 rounded">
+                        {image.width}×{image.height}
+                      </div>
+                    )}
+                    {/* Hover Overlay with Details */}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/75 transition-colors flex flex-col items-center justify-center p-2 gap-1">
+                      <p className="text-white text-xs text-center opacity-0 group-hover:opacity-100 transition-opacity font-semibold">
                         {image.title}
                       </p>
+                      {image.snippet && (
+                        <p className="text-white/80 text-xs text-center opacity-0 group-hover:opacity-100 transition-opacity line-clamp-2">
+                          {image.snippet}
+                        </p>
+                      )}
+                      {(image.width || image.byteSize) && (
+                        <div className="text-white/60 text-xs opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                          {image.width && <span>{image.width}×{image.height}px</span>}
+                          {image.byteSize && <span>• {Math.round(image.byteSize / 1024)}KB</span>}
+                        </div>
+                      )}
                     </div>
                   </a>
                 ))}

@@ -22,6 +22,15 @@ export interface ImageSearchResult {
   link: string;
   thumbnailLink?: string;
   contextLink?: string;
+  displayLink?: string; // Domain (e.g., "sensodyne.com")
+  snippet?: string; // Image description from page context
+  mime?: string; // Image MIME type (e.g., "image/jpeg")
+  fileFormat?: string; // File format (e.g., "image/jpeg")
+  width?: number; // Image width in pixels
+  height?: number; // Image height in pixels
+  byteSize?: number; // File size in bytes
+  thumbnailWidth?: number;
+  thumbnailHeight?: number;
 }
 
 export interface WebContextOptions {
@@ -454,6 +463,15 @@ export interface ImageSearchResult {
   link: string;
   thumbnailLink?: string;
   contextLink?: string;
+  displayLink?: string; // Domain (e.g., "sensodyne.com")
+  snippet?: string; // Image description from page context
+  mime?: string; // Image MIME type (e.g., "image/jpeg")
+  fileFormat?: string; // File format (e.g., "image/jpeg")
+  width?: number; // Image width in pixels
+  height?: number; // Image height in pixels
+  byteSize?: number; // File size in bytes
+  thumbnailWidth?: number;
+  thumbnailHeight?: number;
 }
 
 /**
@@ -541,11 +559,26 @@ export async function googleImageSearch(
       link: item.link || '',
       thumbnailLink: item.image?.thumbnailLink || undefined,
       contextLink: item.image?.contextLink || undefined,
+      displayLink: item.displayLink || undefined, // Domain (e.g., "sensodyne.com")
+      snippet: item.snippet || undefined, // Image description
+      mime: item.mime || undefined, // MIME type (e.g., "image/jpeg")
+      fileFormat: item.fileFormat || undefined, // File format
+      width: item.image?.width || undefined, // Image width
+      height: item.image?.height || undefined, // Image height
+      byteSize: item.image?.byteSize || undefined, // File size
+      thumbnailWidth: item.image?.thumbnailWidth || undefined,
+      thumbnailHeight: item.image?.thumbnailHeight || undefined,
     }));
 
     logInfo(`Found ${results.length} image search results`, {
       component: 'WebContextProvider',
-      extra: { query, resultsCount: results.length },
+      extra: {
+        query,
+        resultsCount: results.length,
+        avgWidth: Math.round(results.reduce((sum, r) => sum + (r.width || 0), 0) / results.length),
+        avgHeight: Math.round(results.reduce((sum, r) => sum + (r.height || 0), 0) / results.length),
+        domains: [...new Set(results.map(r => r.displayLink).filter(Boolean))],
+      },
     });
 
     // Cache results
