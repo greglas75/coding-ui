@@ -114,9 +114,9 @@ export async function categorizeAnswer(
         let webContext: WebContext[] = [];
         let images: ImageResult[] = [];
         let visionResult: any = null; // Store vision analysis result
-        // 🌍 Build localized search query (translate category name to user's language)
-        // TODO: Re-enable after fixing translation API
-        const localizedQuery = request.answer; // Temporarily using original answer
+        // 🌍 Build localized search query with category name for better results
+        // Format: "CategoryName keyword" (e.g., "Toothpaste crest", "Brand sensodyne")
+        const localizedQuery = `${request.categoryName} ${request.answer}`.trim();
 
         try {
           console.log(`🌐 Fetching web context for: "${request.answer.substring(0, 50)}..."`);
