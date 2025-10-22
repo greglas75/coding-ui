@@ -37,7 +37,7 @@ export const Tooltip: FC<TooltipProps> = ({
       </div>
 
       {isVisible && (
-        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs">
+        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-md">
           <div className="bg-gray-900 dark:bg-gray-800 text-white text-sm rounded-lg shadow-lg p-3 border border-gray-700">
             {content}
             {/* Arrow */}

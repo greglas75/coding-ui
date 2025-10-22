@@ -3,6 +3,12 @@
  *
  * Analyzes images using Google Gemini's vision capabilities
  * to detect brands, logos, products, and places.
+ *
+ * 💰 COST OPTIMIZATION:
+ * - gemini-2.5-flash-lite: ~$0.002 per 1000 images (very cheap)
+ * - Default: 6 images per analysis ≈ $0.000012 per categorization
+ * - For 1000 categorizations: ≈ $0.012 (1.2 cents)
+ * - Reduce maxImages to lower costs further if needed
  */
 
 import type { ImageResult } from '../types';
@@ -13,6 +19,8 @@ export interface VisionAnalysisResult {
   confidence: number;
   reasoning: string;
   objectsDetected: string[];
+  costEstimate?: number; // Estimated cost in USD
+  imagesAnalyzed?: number; // Number of images actually analyzed
 }
 
 // CORS Domain Blacklist Management
@@ -59,12 +67,16 @@ function isDomainBlacklisted(url: string): boolean {
 
 /**
  * Analyze images using Gemini Vision API
+ *
+ * @param maxImages - Maximum number of images to analyze (default: 4, max: 6)
+ *                    Reducing this number lowers API costs proportionally
  */
 export async function analyzeImagesWithGemini(
   images: ImageResult[],
   searchQuery: string,
   availableBrands: string[],
-  visionModel: string = 'gemini-2.5-flash-lite'
+  visionModel: string = 'gemini-2.5-flash-lite',
+  maxImages: number = 4 // Reduced from 6 to 4 for 33% cost savings
 ): Promise<VisionAnalysisResult> {
   try {
     console.log(`🔍 Analyzing ${images.length} images with ${visionModel}...`);
@@ -80,11 +92,13 @@ export async function analyzeImagesWithGemini(
         confidence: 0,
         reasoning: 'No Gemini API key configured',
         objectsDetected: [],
+        costEstimate: 0,
+        imagesAnalyzed: 0,
       };
     }
 
-    // Prepare image URLs for analysis (max 6 images)
-    const allImageUrls = images.slice(0, 6).map(img => img.link);
+    // Prepare image URLs for analysis
+    const allImageUrls = images.slice(0, Math.min(maxImages, 6)).map(img => img.link);
 
     // Filter out blacklisted domains
     const imageUrls = allImageUrls.filter(url => !isDomainBlacklisted(url));
@@ -97,14 +111,37 @@ export async function analyzeImagesWithGemini(
     // Helper function to convert image URL to base64
     async function imageUrlToBase64(url: string): Promise<{ data: string; mimeType: string } | null> {
       try {
-        const response = await fetch(url);
+        // ✅ Use CORS proxy to bypass restrictions
+        // weserv.nl is a free image proxy that handles CORS
+        const proxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(url)}&output=webp&q=85`;
+
+        const response = await fetch(proxyUrl);
         if (!response.ok) {
-          addToCorsBlacklist(url);
-          return null;
+          // If proxy fails, try original URL as fallback
+          console.warn(`⚠️ Proxy failed for ${url}, trying original...`);
+          const directResponse = await fetch(url);
+          if (!directResponse.ok) {
+            addToCorsBlacklist(url);
+            return null;
+          }
+
+          const blob = await directResponse.blob();
+          const mimeType = blob.type || 'image/jpeg';
+
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64 = reader.result as string;
+              const base64Data = base64.split(',')[1];
+              resolve({ data: base64Data, mimeType });
+            };
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
         }
 
         const blob = await response.blob();
-        const mimeType = blob.type || 'image/jpeg';
+        const mimeType = blob.type || 'image/webp';
 
         return new Promise((resolve) => {
           const reader = new FileReader();
@@ -118,7 +155,8 @@ export async function analyzeImagesWithGemini(
           reader.readAsDataURL(blob);
         });
       } catch (error) {
-        // CORS or network error - add to blacklist
+        // Network error - add to blacklist
+        console.error(`❌ Failed to fetch image: ${url}`, error);
         addToCorsBlacklist(url);
         return null;
       }
@@ -133,6 +171,8 @@ export async function analyzeImagesWithGemini(
         confidence: 0,
         reasoning: 'All images are from CORS-blocked domains',
         objectsDetected: [],
+        costEstimate: 0,
+        imagesAnalyzed: 0,
       };
     }
 
@@ -148,6 +188,8 @@ export async function analyzeImagesWithGemini(
         confidence: 0,
         reasoning: 'Could not fetch any images due to CORS restrictions',
         objectsDetected: [],
+        costEstimate: 0,
+        imagesAnalyzed: 0,
       };
     }
 
@@ -224,28 +266,60 @@ Rules:
         confidence: 0,
         reasoning: `API error: ${response.status}`,
         objectsDetected: [],
+        costEstimate: 0,
+        imagesAnalyzed: validImages.length,
       };
     }
 
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    // Parse JSON response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.error('❌ Invalid JSON response from Gemini');
+    // Parse JSON response - try multiple strategies
+    let result;
+    try {
+      // Strategy 1: Try to extract JSON from markdown code blocks
+      const markdownMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (markdownMatch) {
+        result = JSON.parse(markdownMatch[1]);
+      } else {
+        // Strategy 2: Find first complete JSON object (non-greedy)
+        const jsonMatch = text.match(/\{(?:[^{}]|\{[^{}]*\})*\}/);
+        if (!jsonMatch) {
+          console.error('❌ Invalid JSON response from Gemini');
+          console.error('📄 Response text:', text);
+          return {
+            brandDetected: false,
+            brandName: '',
+            confidence: 0,
+            reasoning: 'Invalid response format',
+            objectsDetected: [],
+            costEstimate: 0,
+            imagesAnalyzed: validImages.length,
+          };
+        }
+        result = JSON.parse(jsonMatch[0]);
+      }
+    } catch (parseError) {
+      console.error('❌ Failed to parse Gemini JSON response:', parseError);
+      console.error('📄 Response text:', text);
       return {
         brandDetected: false,
         brandName: '',
         confidence: 0,
-        reasoning: 'Invalid response format',
+        reasoning: 'JSON parse error',
         objectsDetected: [],
+        costEstimate: 0,
+        imagesAnalyzed: validImages.length,
       };
     }
 
-    const result = JSON.parse(jsonMatch[0]);
+    // Calculate cost estimate
+    // Gemini Flash Lite pricing: ~$0.002 per 1000 images
+    const costPerImage = 0.000002; // $0.002 / 1000
+    const costEstimate = validImages.length * costPerImage;
 
     console.log('✅ Vision analysis complete:', result);
+    console.log(`💰 Cost estimate: $${costEstimate.toFixed(6)} (${validImages.length} images at ~$0.002/1k images)`);
 
     return {
       brandDetected: result.brandDetected || false,
@@ -253,6 +327,8 @@ Rules:
       confidence: (result.confidence || 0) / 100, // Convert to 0-1 scale
       reasoning: result.reasoning || '',
       objectsDetected: result.objectsDetected || [],
+      costEstimate,
+      imagesAnalyzed: validImages.length,
     };
 
   } catch (error) {
@@ -263,6 +339,8 @@ Rules:
       confidence: 0,
       reasoning: `Error: ${error.message}`,
       objectsDetected: [],
+      costEstimate: 0,
+      imagesAnalyzed: 0,
     };
   }
 }

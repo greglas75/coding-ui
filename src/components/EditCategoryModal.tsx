@@ -1,8 +1,8 @@
-import { Settings, X } from "lucide-react";
-import { useEffect, useState } from "react";
-import { getTemplate, type TemplatePreset } from "../config/DefaultTemplates";
-import { TestPromptModal } from "./TestPromptModal";
-import aiPricingCache from "../data/ai-pricing-cache.json";
+import { Settings, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { getTemplate, type TemplatePreset } from '../config/DefaultTemplates';
+import { useAIPricing } from '../hooks/useAIPricing';
+import { TestPromptModal } from './TestPromptModal';
 
 interface EditCategoryModalProps {
   category: {
@@ -48,6 +48,9 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
   const [fade, setFade] = useState(false);
   const [testModalOpen, setTestModalOpen] = useState(false);
 
+  // ✅ Use live AI pricing data instead of static cache
+  const { getPricingForProvider, isLoading: pricingLoading } = useAIPricing();
+
   useEffect(() => {
     setTimeout(() => setFade(true), 50);
     return () => setFade(false);
@@ -66,19 +69,24 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
   }, [onClose]);
 
   const [form, setForm] = useState({
-    name: category.name || "",
-    googleName: category.google_name || "",
-    description: category.description || "",
-    preset: category.llm_preset || category.preset || "LLM Proper Name", // ✅ New column first, then legacy
+    name: category.name || '',
+    googleName: category.google_name || '',
+    description: category.description || '',
+    preset: category.llm_preset || category.preset || 'LLM Proper Name', // ✅ New column first, then legacy
 
     // ✅ Unified model selection (supports all providers)
-    model: category.openai_model || category.claude_model || category.gemini_model || category.model || "gpt-4o-mini",
+    model:
+      category.openai_model ||
+      category.claude_model ||
+      category.gemini_model ||
+      category.model ||
+      'gpt-4o-mini',
 
     // ✅ Vision model for image analysis (default: cheapest Gemini)
-    visionModel: category.vision_model || "gemini-2.5-flash-lite",
+    visionModel: category.vision_model || 'gemini-2.5-flash-lite',
 
-    template: category.gpt_template || category.template || "", // ✅ New column first, then legacy
-    brandsSorting: category.brands_sorting || "Alphanumerical",
+    template: category.gpt_template || category.template || '', // ✅ New column first, then legacy
+    brandsSorting: category.brands_sorting || 'Alphanumerical',
     minLength: category.min_length || 0,
     maxLength: category.max_length || 0,
     useWebContext: category.use_web_context ?? true, // default: true
@@ -98,79 +106,81 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only once on mount
 
-  // ✅ Load ALL models from live pricing cache (auto-updated every 24h)
+  // ✅ Load ALL models from live pricing data (auto-updated every 24h)
   const allModels = [
-    ...aiPricingCache.models.openai
+    ...getPricingForProvider('openai')
       .filter((m: any) => m.available)
       .map((m: any) => ({
         id: m.id,
         name: m.name,
         provider: '🤖 OpenAI',
         description: m.description,
-        costPer1M: m.costPer1M,
+        costPer1M: m.costPer1000Responses,
       })),
-    ...aiPricingCache.models.anthropic
+    ...getPricingForProvider('anthropic')
       .filter((m: any) => m.available)
       .map((m: any) => ({
         id: m.id,
         name: m.name,
         provider: '🧠 Anthropic',
         description: m.description,
-        costPer1M: m.costPer1M,
+        costPer1M: m.costPer1000Responses,
       })),
-    ...aiPricingCache.models.google
+    ...getPricingForProvider('google')
       .filter((m: any) => m.available)
       .map((m: any) => ({
         id: m.id,
         name: m.name,
         provider: '🔮 Google',
         description: m.description,
-        costPer1M: m.costPer1M,
+        costPer1M: m.costPer1000Responses,
       })),
   ];
 
   // ✅ Vision-capable models for image analysis (cheaper options first)
   const visionModels = [
-    ...aiPricingCache.models.google
+    ...getPricingForProvider('google')
       .filter((m: any) => m.available)
       .map((m: any) => ({
         id: m.id,
         name: m.name,
         provider: '🔮 Google',
         description: m.description,
-        costPer1M: m.costPer1M,
+        costPer1M: m.costPer1000Responses,
       })),
-    ...aiPricingCache.models.openai
+    ...getPricingForProvider('openai')
       .filter((m: any) => m.available && (m.id.startsWith('gpt-4o') || m.id.startsWith('gpt-5')))
       .map((m: any) => ({
         id: m.id,
         name: m.name,
         provider: '🤖 OpenAI',
         description: m.description,
-        costPer1M: m.costPer1M,
+        costPer1M: m.costPer1000Responses,
       })),
-    ...aiPricingCache.models.anthropic
+    ...getPricingForProvider('anthropic')
       .filter((m: any) => m.available && !m.id.includes('-3'))
       .map((m: any) => ({
         id: m.id,
         name: m.name,
         provider: '🧠 Anthropic',
         description: m.description,
-        costPer1M: m.costPer1M,
+        costPer1M: m.costPer1000Responses,
       })),
   ].sort((a, b) => a.costPer1M - b.costPer1M); // Sort by price (cheapest first)
 
   const handleSave = async (closeAfter = false) => {
-    console.log("Saving:", form);
+    console.log('Saving:', form);
     await onSave(form);
     if (closeAfter) onClose();
   };
 
   return (
     <>
-      <div className={`fixed inset-0 bg-black/40 flex items-center justify-center z-50 transition-opacity duration-300 ${
-        fade ? "opacity-100" : "opacity-0"
-      }`}>
+      <div
+        className={`fixed inset-0 bg-black/40 flex items-center justify-center z-50 transition-opacity duration-300 ${
+          fade ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
         <div className="bg-white dark:bg-neutral-900 rounded-xl p-6 w-full max-w-6xl shadow-lg transform transition-all scale-100">
           {/* Header */}
           <div className="flex justify-between items-center mb-6">
@@ -197,7 +207,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                 <input
                   type="text"
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
                   className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
@@ -209,7 +219,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                 <textarea
                   rows={2}
                   value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  onChange={e => setForm({ ...form, description: e.target.value })}
                   className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
@@ -221,7 +231,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                 <textarea
                   rows={14}
                   value={form.template}
-                  onChange={(e) => setForm({ ...form, template: e.target.value })}
+                  onChange={e => setForm({ ...form, template: e.target.value })}
                   className="w-full font-mono border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   placeholder="Enter GPT system prompt template..."
                 />
@@ -229,12 +239,10 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                   💡 Available placeholders:{' '}
                   <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-blue-600 dark:text-blue-400">
                     {'{category}'}
-                  </code>
-                  {' '}
+                  </code>{' '}
                   <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-blue-600 dark:text-blue-400">
                     {'{searchTerm}'}
-                  </code>
-                  {' '}
+                  </code>{' '}
                   <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-blue-600 dark:text-blue-400">
                     {'{codes}'}
                   </code>
@@ -259,7 +267,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                 <input
                   type="text"
                   value={form.googleName}
-                  onChange={(e) => setForm({ ...form, googleName: e.target.value })}
+                  onChange={e => setForm({ ...form, googleName: e.target.value })}
                   className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
@@ -270,7 +278,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                 </label>
                 <select
                   value={form.preset}
-                  onChange={(e) => {
+                  onChange={e => {
                     const newPreset = e.target.value as TemplatePreset;
                     setForm({ ...form, preset: newPreset });
 
@@ -307,14 +315,19 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                 </label>
                 <select
                   value={form.model}
-                  onChange={(e) => setForm({ ...form, model: e.target.value })}
-                  className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  onChange={e => setForm({ ...form, model: e.target.value })}
+                  disabled={pricingLoading}
+                  className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:opacity-50"
                 >
-                  {allModels.map((model: any) => (
-                    <option key={model.id} value={model.id}>
-                      {model.provider} {model.name} - ${model.costPer1M}/1M
-                    </option>
-                  ))}
+                  {pricingLoading ? (
+                    <option>🔄 Loading models...</option>
+                  ) : (
+                    allModels.map((model: any) => (
+                      <option key={model.id} value={model.id}>
+                        {model.provider} {model.name} - ${model.costPer1M}/1M
+                      </option>
+                    ))
+                  )}
                 </select>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   💡 For categorizing user responses (text)
@@ -328,7 +341,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                 </label>
                 <select
                   value={form.visionModel}
-                  onChange={(e) => setForm({ ...form, visionModel: e.target.value })}
+                  onChange={e => setForm({ ...form, visionModel: e.target.value })}
                   className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none"
                 >
                   {visionModels.map((model: any) => (
@@ -342,7 +355,8 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                 </p>
                 <div className="mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-2">
                   <p className="text-xs text-green-800 dark:text-green-200">
-                    ⭐ <strong>Recommended:</strong> Gemini 2.5 Flash Lite (cheapest, fast, accurate for brand detection)
+                    ⭐ <strong>Recommended:</strong> Gemini 2.5 Flash Lite (cheapest, fast, accurate
+                    for brand detection)
                   </p>
                 </div>
               </div>
@@ -353,7 +367,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                 </label>
                 <select
                   value={form.brandsSorting}
-                  onChange={(e) => setForm({ ...form, brandsSorting: e.target.value })}
+                  onChange={e => setForm({ ...form, brandsSorting: e.target.value })}
                   className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 >
                   <option>Alphanumerical</option>
@@ -368,7 +382,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                 <input
                   type="number"
                   value={form.minLength}
-                  onChange={(e) => setForm({ ...form, minLength: parseInt(e.target.value) || 0 })}
+                  onChange={e => setForm({ ...form, minLength: parseInt(e.target.value) || 0 })}
                   className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   title="Shorter and longer answers would be marked as Gibberish. Set 0 or empty to skip validation."
                 />
@@ -381,7 +395,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                 <input
                   type="number"
                   value={form.maxLength}
-                  onChange={(e) => setForm({ ...form, maxLength: parseInt(e.target.value) || 0 })}
+                  onChange={e => setForm({ ...form, maxLength: parseInt(e.target.value) || 0 })}
                   className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   title="Shorter and longer answers would be marked as Gibberish. Set 0 or empty to skip validation."
                 />
@@ -393,7 +407,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                   <input
                     type="checkbox"
                     checked={form.useWebContext}
-                    onChange={(e) => setForm({ ...form, useWebContext: e.target.checked })}
+                    onChange={e => setForm({ ...form, useWebContext: e.target.checked })}
                     className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                   />
                   <div className="flex-1">
@@ -401,7 +415,8 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                       Use Google Search Context
                     </span>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      💡 Enriches AI prompts with web context (brand names, local terms, slang). Helps with regional and trending topics.
+                      💡 Enriches AI prompts with web context (brand names, local terms, slang).
+                      Helps with regional and trending topics.
                     </p>
                   </div>
                 </label>
@@ -418,7 +433,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                   <input
                     type="checkbox"
                     checked={form.sentimentEnabled}
-                    onChange={(e) => setForm({ ...form, sentimentEnabled: e.target.checked })}
+                    onChange={e => setForm({ ...form, sentimentEnabled: e.target.checked })}
                     className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 dark:focus:ring-purple-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                   />
                   <div className="flex-1">
@@ -440,10 +455,17 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                       </label>
                       <select
                         value={form.sentimentMode}
-                        onChange={(e) => setForm({ ...form, sentimentMode: e.target.value as 'smart' | 'always' | 'never' })}
+                        onChange={e =>
+                          setForm({
+                            ...form,
+                            sentimentMode: e.target.value as 'smart' | 'always' | 'never',
+                          })
+                        }
                         className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
                       >
-                        <option value="smart">🧠 Smart (AI decides per answer) - Recommended</option>
+                        <option value="smart">
+                          🧠 Smart (AI decides per answer) - Recommended
+                        </option>
                         <option value="always">✅ Always (for every answer)</option>
                         <option value="never">❌ Never (disabled)</option>
                       </select>
@@ -453,20 +475,21 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                     <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-xs mb-3">
                       {form.sentimentMode === 'smart' && (
                         <p className="text-blue-900 dark:text-blue-200">
-                          ✨ <strong>Smart Mode:</strong> AI automatically detects if sentiment makes sense for each answer.
-                          Skips brand names, product IDs, and factual statements. Saves ~12% on costs.
+                          ✨ <strong>Smart Mode:</strong> AI automatically detects if sentiment
+                          makes sense for each answer. Skips brand names, product IDs, and factual
+                          statements. Saves ~12% on costs.
                         </p>
                       )}
                       {form.sentimentMode === 'always' && (
                         <p className="text-blue-900 dark:text-blue-200">
-                          ⚡ <strong>Always Mode:</strong> Sentiment calculated for every answer, even short ones.
-                          Adds ~20% to AI costs. Use for pure opinion surveys.
+                          ⚡ <strong>Always Mode:</strong> Sentiment calculated for every answer,
+                          even short ones. Adds ~20% to AI costs. Use for pure opinion surveys.
                         </p>
                       )}
                       {form.sentimentMode === 'never' && (
                         <p className="text-blue-900 dark:text-blue-200">
-                          🚫 <strong>Never Mode:</strong> Sentiment completely disabled.
-                          Only code suggestions provided. No extra cost.
+                          🚫 <strong>Never Mode:</strong> Sentiment completely disabled. Only code
+                          suggestions provided. No extra cost.
                         </p>
                       )}
                     </div>

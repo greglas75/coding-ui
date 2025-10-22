@@ -1,4 +1,4 @@
-import { categorizeAnswer } from './openai';
+import { categorizeSingleAnswer } from '../api/categorize';
 import { getSupabaseClient } from './supabase';
 
 const supabase = getSupabaseClient();
@@ -18,8 +18,9 @@ export interface BatchProgress {
 }
 
 export interface BatchOptions {
-  rateLimitMs?: number; // Delay between requests
+  rateLimitMs?: number; // Delay between requests (deprecated with parallel processing)
   maxRetries?: number; // Max retry attempts for failed requests
+  concurrency?: number; // Number of parallel requests (default: 5)
   onProgress?: (progress: BatchProgress) => void;
   onComplete?: (progress: BatchProgress) => void;
   onError?: (error: Error) => void;
@@ -42,11 +43,13 @@ export class BatchAIProcessor {
   };
   private options: BatchOptions;
   private retryQueue: Array<{ answerId: number; retryCount: number }> = [];
+  private duplicateMap: Map<number, number[]> = new Map(); // Maps representative answer ID → duplicate IDs
 
   constructor(options: BatchOptions = {}) {
     this.options = {
-      rateLimitMs: 500, // 2 requests per second
+      rateLimitMs: 500, // Deprecated with parallel processing
       maxRetries: 3,
+      concurrency: 5, // 5 parallel requests by default
       ...options
     };
   }
@@ -62,12 +65,18 @@ export class BatchAIProcessor {
 
     console.log(`🚀 Starting batch AI processing for ${answerIds.length} answers`);
 
-    this.queue = [...answerIds];
+    // Build duplicate map: group identical answer texts
+    await this.buildDuplicateMap(answerIds);
+    const uniqueIds = Array.from(this.duplicateMap.keys());
+
+    console.log(`📊 Deduplicated: ${answerIds.length} answers → ${uniqueIds.length} unique (${answerIds.length - uniqueIds.length} duplicates)`);
+
+    this.queue = uniqueIds;
     this.status = 'running';
     this.abortController = new AbortController();
     this.progress = {
       status: 'running',
-      total: answerIds.length,
+      total: answerIds.length, // Show original total for user
       processed: 0,
       succeeded: 0,
       failed: 0,
@@ -95,85 +104,129 @@ export class BatchAIProcessor {
     }
   }
 
+  private async buildDuplicateMap(answerIds: number[]): Promise<void> {
+    this.duplicateMap.clear();
+
+    // Fetch all answers
+    const { data: answers, error } = await supabase
+      .from('answers')
+      .select('id, answer_text')
+      .in('id', answerIds);
+
+    if (error || !answers) {
+      console.error('Failed to fetch answers for deduplication:', error);
+      // Fallback: treat all as unique
+      answerIds.forEach(id => this.duplicateMap.set(id, []));
+      return;
+    }
+
+    // Group by answer_text
+    const groups = new Map<string, number[]>();
+
+    for (const answer of answers) {
+      const text = (answer.answer_text || '').trim().toLowerCase();
+      if (!groups.has(text)) {
+        groups.set(text, []);
+      }
+      groups.get(text)!.push(answer.id);
+    }
+
+    // Build duplicate map: first ID in each group = representative
+    for (const [_text, ids] of groups) {
+      const [representative, ...duplicates] = ids;
+      this.duplicateMap.set(representative, duplicates);
+    }
+  }
+
+  private async copyAISuggestionsToDuplicates(sourceId: number, duplicateIds: number[]): Promise<void> {
+    try {
+      // Fetch AI suggestions from source answer
+      const { data: sourceAnswer, error: fetchError } = await supabase
+        .from('answers')
+        .select('ai_suggestions, ai_suggested_code')
+        .eq('id', sourceId)
+        .single();
+
+      if (fetchError || !sourceAnswer?.ai_suggestions) {
+        console.error('Failed to fetch source AI suggestions:', fetchError);
+        return;
+      }
+
+      // Copy to all duplicates
+      const { error: updateError } = await supabase
+        .from('answers')
+        .update({
+          ai_suggestions: sourceAnswer.ai_suggestions,
+          ai_suggested_code: sourceAnswer.ai_suggested_code,
+        })
+        .in('id', duplicateIds);
+
+      if (updateError) {
+        console.error('Failed to copy AI suggestions to duplicates:', updateError);
+      } else {
+        console.log(`✅ Copied AI suggestions to ${duplicateIds.length} duplicate answers`);
+      }
+    } catch (error) {
+      console.error('Error copying AI suggestions:', error);
+    }
+  }
+
   private async processQueue(categoryId: number, template?: string): Promise<void> {
+    const concurrency = this.options.concurrency || 5;
+    console.log(`🚀 Processing with ${concurrency} parallel workers`);
+
+    // Process in batches with concurrency limit
+    const workers: Promise<void>[] = [];
+
+    for (let i = 0; i < concurrency; i++) {
+      workers.push(this.worker(categoryId, template));
+    }
+
+    // Wait for all workers to complete
+    await Promise.all(workers);
+
+    // Process retry queue if needed
+    if (this.retryQueue.length > 0 && this.status === 'running') {
+      console.log(`🔄 Processing ${this.retryQueue.length} retries...`);
+      this.queue = [...this.retryQueue.map(r => r.answerId)];
+      this.retryQueue = [];
+      await this.processQueue(categoryId, template);
+    }
+  }
+
+  private async worker(categoryId: number, template?: string): Promise<void> {
     while (this.queue.length > 0 && this.status === 'running') {
-      const answerId = this.queue.shift()!;
+      // Get next item from queue
+      const answerId = this.queue.shift();
+      if (!answerId) break;
+
       this.progress.currentAnswerId = answerId;
-      this.updateProgress();
 
       try {
         // Check if aborted
         if (this.abortController?.signal.aborted) {
-          console.log('🛑 Batch processing aborted');
+          console.log('🛑 Worker stopped - batch aborted');
           break;
         }
 
         console.log(`🔄 Processing answer ${this.progress.processed + 1}/${this.progress.total}: ${answerId}`);
 
-        // Fetch answer data
-        const { data: answer, error: fetchError } = await supabase
-          .from('answers')
-          .select(`
-            id,
-            answer_text,
-            translation_en,
-            category_id,
-            categories!inner(id, name)
-          `)
-          .eq('id', answerId)
-          .single();
+        // Use the new API function that handles everything
+        const suggestions = await categorizeSingleAnswer(answerId, false);
 
-        if (fetchError || !answer) {
-          throw new Error(`Failed to fetch answer: ${fetchError?.message || 'Answer not found'}`);
-        }
-
-        // Check if answer already has AI suggestions
-        const { data: existingSuggestions } = await supabase
-          .from('answers')
-          .select('ai_suggestions')
-          .eq('id', answerId)
-          .single();
-
-        if (existingSuggestions?.ai_suggestions?.suggestions?.length > 0) {
-          console.log(`⏭️  Answer ${answerId} already has AI suggestions, skipping`);
+        if (suggestions && suggestions.length > 0) {
+          console.log(`✅ Successfully processed answer ${answerId} with ${suggestions.length} suggestions`);
           this.progress.succeeded++;
-        } else {
-          // Call AI categorization
-          const suggestions = await categorizeAnswer({
-            answer: answer.answer_text,
-            answerTranslation: answer.translation_en,
-            categoryName: (answer.categories as any).name,
-            template: template || 'Default categorization template',
-            codes: [], // Will be fetched by categorizeAnswer
-            context: {
-              language: 'unknown',
-              country: 'unknown'
-            }
-          });
 
-          if (suggestions && suggestions.length > 0) {
-            // Update answer with AI suggestions
-            const { error: updateError } = await supabase
-              .from('answers')
-              .update({
-                ai_suggestions: {
-                  suggestions: suggestions,
-                  generated_at: new Date().toISOString(),
-                  model: 'gpt-4',
-                  confidence: suggestions.reduce((acc: number, s: any) => acc + s.confidence, 0) / suggestions.length
-                }
-              })
-              .eq('id', answerId);
-
-            if (updateError) {
-              throw new Error(`Failed to update answer: ${updateError.message}`);
-            }
-
-            console.log(`✅ Successfully processed answer ${answerId} with ${suggestions.length} suggestions`);
-            this.progress.succeeded++;
-          } else {
-            throw new Error('No AI suggestions generated');
+          // Copy AI suggestions to duplicate answers
+          const duplicates = this.duplicateMap.get(answerId) || [];
+          if (duplicates.length > 0) {
+            console.log(`📋 Copying AI suggestions to ${duplicates.length} duplicate answers`);
+            await this.copyAISuggestionsToDuplicates(answerId, duplicates);
+            this.progress.succeeded += duplicates.length; // Count duplicates as succeeded
           }
+        } else {
+          throw new Error('No AI suggestions generated');
         }
 
       } catch (error: any) {
@@ -192,22 +245,11 @@ export class BatchAIProcessor {
         }
       }
 
-      this.progress.processed++;
+      // Count both the answer and its duplicates as processed
+      const duplicates = this.duplicateMap.get(answerId) || [];
+      this.progress.processed += 1 + duplicates.length;
       this.updateSpeed();
       this.updateProgress();
-
-      // Rate limiting
-      if (this.options.rateLimitMs && this.options.rateLimitMs > 0) {
-        await new Promise(resolve => setTimeout(resolve, this.options.rateLimitMs));
-      }
-    }
-
-    // Process retry queue
-    if (this.retryQueue.length > 0 && this.status === 'running') {
-      console.log(`🔄 Processing ${this.retryQueue.length} retries...`);
-      this.queue = [...this.retryQueue.map(r => r.answerId)];
-      this.retryQueue = [];
-      await this.processQueue(categoryId, template);
     }
   }
 

@@ -98,16 +98,28 @@ export function useAcceptSuggestion() {
 
       console.log(`✅ AI suggestion accepted for answer ${answerId}`);
 
-      return { answerId, codeName };
+      // Auto-copy code to identical answers
+      console.log(`🔍 Checking for duplicates to copy code...`);
+      const copiedCount = await copyCodeToIdenticalAnswers(answerId, newSelectedCode);
+      console.log(`✅ Auto-copy complete, copied to ${copiedCount} duplicates`);
+
+      return { answerId, codeName, copiedCount };
     },
 
     onSuccess: (data) => {
-      // Show success toast
-      toast.success('Code applied!', {
-        description: `${data.codeName} has been assigned`,
-      });
+      // Show success toast with duplicate count
+      if (data.copiedCount > 0) {
+        toast.success(`Code applied to ${data.copiedCount + 1} answer(s)!`, {
+          description: `${data.codeName} has been assigned`,
+        });
+      } else {
+        toast.success('Code applied!', {
+          description: `${data.codeName} has been assigned`,
+        });
+      }
 
       // Invalidate queries to refresh UI
+      console.log(`♻️ Invalidating queries for ${data.copiedCount + 1} answer(s)...`);
       queryClient.invalidateQueries({ queryKey: ['answers'] });
       queryClient.invalidateQueries({ queryKey: ['answer', data.answerId] });
 
@@ -232,4 +244,71 @@ export function useAcceptSuggestionsBatch() {
       });
     },
   });
+}
+
+/**
+ * Copy code to all identical answers in the same category
+ * Returns number of duplicates copied
+ */
+async function copyCodeToIdenticalAnswers(sourceId: number, selectedCode: string): Promise<number> {
+  try {
+    console.log(`🔎 copyCodeToIdenticalAnswers called for answer ${sourceId} with code "${selectedCode}"`);
+
+    // Get source answer
+    const { data: sourceAnswer, error: fetchError } = await supabase
+      .from('answers')
+      .select('answer_text, category_id')
+      .eq('id', sourceId)
+      .single();
+
+    if (fetchError || !sourceAnswer) {
+      console.error('Failed to fetch source answer:', fetchError);
+      return 0;
+    }
+
+    console.log(`📝 Source answer: text="${sourceAnswer.answer_text}", category=${sourceAnswer.category_id}`);
+
+    // Find identical answers (same text, same category, not already coded)
+    const { data: duplicates, error: dupError } = await supabase
+      .from('answers')
+      .select('id')
+      .eq('category_id', sourceAnswer.category_id)
+      .eq('answer_text', sourceAnswer.answer_text)
+      .neq('id', sourceId)
+      .is('selected_code', null);
+
+    if (dupError) {
+      console.error('Error finding duplicates:', dupError);
+      return 0;
+    }
+
+    if (!duplicates || duplicates.length === 0) {
+      console.log(`ℹ️ No identical uncoded answers found`);
+      return 0;
+    }
+
+    console.log(`📋 Found ${duplicates.length} identical uncoded answers, copying code...`);
+
+    // Update all duplicates with the same code
+    const { error: updateError } = await supabase
+      .from('answers')
+      .update({
+        selected_code: selectedCode,
+        quick_status: 'Confirmed',
+        general_status: 'whitelist',
+        coding_date: new Date().toISOString(),
+      })
+      .in('id', duplicates.map(d => d.id));
+
+    if (updateError) {
+      console.error('Failed to copy code to duplicates:', updateError);
+      return 0;
+    }
+
+    console.log(`✅ Copied code to ${duplicates.length} identical answers`);
+    return duplicates.length;
+  } catch (error) {
+    console.error('Error copying code to duplicates:', error);
+    return 0;
+  }
 }

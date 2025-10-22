@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Answer } from '../../../types';
 import type { RowAnimations } from '../types';
 
@@ -11,6 +11,11 @@ export function useCodingGridState(answers: Answer[]) {
   const [rowAnimations, setRowAnimations] = useState<RowAnimations>({});
   const [focusedRowId, setFocusedRowId] = useState<number | null>(null);
   const [categoryName, setCategoryName] = useState<string>('');
+
+  // 🔄 Sync localAnswers with answers prop when it changes
+  useEffect(() => {
+    setLocalAnswers(answers);
+  }, [answers]);
 
   // State-related functions
   const triggerRowAnimation = useCallback((id: number, animationClass: string) => {

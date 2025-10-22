@@ -41,6 +41,7 @@ export interface AiCodeSuggestion {
   code_name: string;
   confidence: number; // 0.0 to 1.0
   reasoning: string;
+  isNew?: boolean; // True if code doesn't exist in database yet (discovered from web search)
 }
 
 /**
@@ -80,6 +81,8 @@ export interface VisionAnalysisResult {
   confidence: number; // 0.0 to 1.0
   reasoning: string;
   objectsDetected: string[];
+  costEstimate?: number; // Estimated cost in USD
+  imagesAnalyzed?: number; // Number of images actually analyzed
 }
 
 /**

@@ -53,6 +53,7 @@ import { BatchAIProcessor, type BatchProgress } from '../../lib/batchAIProcessor
 import { FilterEngine, type FilterGroup, type FilterPreset } from '../../lib/filterEngine';
 import { RealtimeService, type CodeUpdateEvent, type UserPresence } from '../../lib/realtimeService';
 import { getSupabaseClient } from '../../lib/supabase';
+import { createCode } from '../../lib/supabaseHelpers';
 
 const supabase = getSupabaseClient();
 
@@ -151,7 +152,7 @@ export function CodingGrid({
   const batchSelection = useBatchSelection();
   const [batchProcessor] = useState(() =>
     BatchAIProcessor.create({
-      rateLimitMs: 500,
+      concurrency: 8, // 8 parallel AI requests
       maxRetries: 3,
       onProgress: (progress) => setBatchProgress(progress),
       onComplete: (progress) => {
@@ -461,7 +462,7 @@ export function CodingGrid({
     }
   };
 
-  const handleAcceptSuggestionWrapper = (answerId: number, suggestion: any) => {
+  const handleAcceptSuggestionWrapper = async (answerId: number, suggestion: any) => {
     // Find current answer to save previous state for undo
     const currentAnswer = localAnswers.find(a => a.id === answerId);
     if (!currentAnswer) return;
@@ -472,6 +473,21 @@ export function CodingGrid({
       general_status: currentAnswer.general_status,
       coding_date: currentAnswer.coding_date,
     };
+
+    // ✅ Check if code needs to be created (discovered from web search)
+    if (suggestion.isNew) {
+      try {
+        toast.loading(`Creating new code: ${suggestion.code_name}...`, { id: 'create-code' });
+        await createCode(suggestion.code_name);
+        toast.success(`✅ Created new code: ${suggestion.code_name}`, { id: 'create-code' });
+        // Invalidate codes query to refresh the list
+        queryClient.invalidateQueries({ queryKey: ['codes'] });
+      } catch (error) {
+        toast.error(`❌ Failed to create code: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: 'create-code' });
+        console.error('Error creating code:', error);
+        return; // Don't proceed with applying the code if creation failed
+      }
+    }
 
     // Calculate new selected code
     const existingCodes = currentAnswer.selected_code;
@@ -493,6 +509,12 @@ export function CodingGrid({
       coding_date: new Date().toISOString(),
     };
 
+    // 🔍 Find all duplicate answers to update in local state
+    const duplicateIds = await answerActions.findDuplicateAnswers(currentAnswer, true);
+    const allIds = [answerId, ...duplicateIds];
+
+    console.log(`🎯 Accepting suggestion for answer ${answerId} + ${duplicateIds.length} duplicates (total: ${allIds.length})`);
+
     _acceptSuggestion({
       answerId,
       codeId: suggestion.code_id,
@@ -500,48 +522,72 @@ export function CodingGrid({
       confidence: suggestion.confidence,
     });
 
+    // ✅ Update ALL identical answers in local state (optimistic update)
     setLocalAnswers((prev) =>
-      prev.map((a) => (a.id === answerId ? { ...a, ...newState } : a))
+      prev.map((a) => (allIds.includes(a.id) ? { ...a, ...newState } : a))
     );
 
     // Animation disabled per user request
     // triggerRowAnimation(answerId, 'animate-flash-ok');
 
+    // ✅ Build previous state for ALL affected answers (for undo history)
+    const previousStateMap: Record<number, any> = {};
+    allIds.forEach(id => {
+      const ans = localAnswers.find(a => a.id === id);
+      if (ans) {
+        previousStateMap[id] = {
+          selected_code: ans.selected_code,
+          quick_status: ans.quick_status,
+          general_status: ans.general_status,
+          coding_date: ans.coding_date,
+        };
+      }
+    });
+
     // Add to undo history
+    const totalCount = allIds.length;
     addAction({
       id: crypto.randomUUID(),
       type: 'accept_suggestion',
       timestamp: Date.now(),
-      description: `Accepted AI suggestion: ${suggestion.code_name}`,
-      answerIds: [answerId],
-      previousState: { [answerId]: previousState },
-      newState: { [answerId]: newState },
+      description: totalCount > 1
+        ? `Accepted AI suggestion: ${suggestion.code_name} (${totalCount} answers)`
+        : `Accepted AI suggestion: ${suggestion.code_name}`,
+      answerIds: allIds,
+      previousState: previousStateMap,
+      newState: allIds.reduce((acc, id) => {
+        acc[id] = newState;
+        return acc;
+      }, {} as Record<number, any>),
       undo: async () => {
-        const { error: undoError } = await supabase
-          .from('answers')
-          .update(previousState)
-          .eq('id', answerId);
-
-        if (!undoError) {
-          setLocalAnswers((prev) =>
-            prev.map((a) => (a.id === answerId ? { ...a, ...previousState } : a))
-          );
-          // Animation disabled per user request
-          // triggerRowAnimation(answerId, 'animate-flash-ok');
+        // Revert ALL duplicates - need to update each individually due to different previous states
+        for (const [id, state] of Object.entries(previousStateMap)) {
+          await supabase
+            .from('answers')
+            .update(state)
+            .eq('id', parseInt(id));
         }
+
+        setLocalAnswers((prev) =>
+          prev.map((a) => {
+            const revert = previousStateMap[a.id];
+            return revert ? { ...a, ...revert } : a;
+          })
+        );
+        queryClient.invalidateQueries({ queryKey: ['answers'] });
       },
       redo: async () => {
+        // Re-apply to ALL duplicates
         const { error: redoError } = await supabase
           .from('answers')
           .update(newState)
-          .eq('id', answerId);
+          .in('id', allIds);
 
         if (!redoError) {
           setLocalAnswers((prev) =>
-            prev.map((a) => (a.id === answerId ? { ...a, ...newState } : a))
+            prev.map((a) => (allIds.includes(a.id) ? { ...a, ...newState } : a))
           );
-          // Animation disabled per user request
-          // triggerRowAnimation(answerId, 'animate-flash-ok');
+          queryClient.invalidateQueries({ queryKey: ['answers'] });
         }
       },
     });
@@ -554,7 +600,7 @@ export function CodingGrid({
         : modals.selectedAnswer
         ? [
             modals.selectedAnswer.id,
-            ...answerActions.findDuplicateAnswers(modals.selectedAnswer),
+            ...(await answerActions.findDuplicateAnswers(modals.selectedAnswer)),
           ]
         : [];
 
@@ -610,6 +656,12 @@ export function CodingGrid({
 
   const handleQuickRollback = async (answer: Answer) => {
     try {
+      // Find ALL duplicate answers to reset them too (not just uncoded)
+      const duplicateIds = await answerActions.findDuplicateAnswers(answer, false);
+      const allIds = [answer.id, ...duplicateIds];
+
+      console.log(`🔄 Rolling back ${allIds.length} answer(s) (including ${duplicateIds.length} duplicates)`);
+
       // Update in database
       const { error } = await supabase
         .from('answers')
@@ -620,14 +672,14 @@ export function CodingGrid({
           coding_date: null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', answer.id);
+        .in('id', allIds);
 
       if (error) throw error;
 
-      // Update local state
+      // Update local state for all affected answers
       setLocalAnswers((prev) =>
         prev.map((a) =>
-          a.id === answer.id
+          allIds.includes(a.id)
             ? {
                 ...a,
                 general_status: 'uncategorized',
@@ -646,8 +698,8 @@ export function CodingGrid({
         id: crypto.randomUUID(),
         type: 'status_change',
         timestamp: Date.now(),
-        description: `Rolled back ${answer.answer_text?.substring(0, 30)}...`,
-        answerIds: [answer.id],
+        description: `Rolled back ${allIds.length} answer(s): ${answer.answer_text?.substring(0, 30)}...`,
+        answerIds: allIds,
         previousState: {
           [answer.id]: {
             general_status: answer.general_status || undefined,
@@ -695,7 +747,11 @@ export function CodingGrid({
       // Animation disabled per user request
       // triggerRowAnimation(answer.id, 'animate-flash-ok');
 
-      toast.success('Rolled back to uncategorized');
+      if (duplicateIds.length > 0) {
+        toast.success(`Rolled back ${allIds.length} answer(s) to uncategorized`);
+      } else {
+        toast.success('Rolled back to uncategorized');
+      }
 
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['answers', currentCategoryId] });
@@ -1138,6 +1194,7 @@ export function CodingGrid({
                 general_status: modals.rollbackAnswer.general_status || '',
                 confirmed_by: modals.rollbackAnswer.confirmed_by || '',
                 coding_date: modals.rollbackAnswer.coding_date || '',
+                category_id: modals.rollbackAnswer.category_id,
               }
             : {
                 id: 0,
@@ -1146,6 +1203,7 @@ export function CodingGrid({
                 general_status: '',
                 confirmed_by: '',
                 coding_date: '',
+                category_id: 0,
               }
         }
         onRollback={async () => {

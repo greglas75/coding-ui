@@ -26,6 +26,10 @@ export const BatchSelectionToolbar: FC<BatchSelectionToolbarProps> = ({
 }) => {
   if (selectedCount === 0) return null;
 
+  // Detect macOS for showing correct modifier key
+  const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().includes('MAC');
+  const modifierKey = isMac ? '⌘' : 'Ctrl';
+
   return (
     <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 dark:bg-blue-950 border-y border-blue-200 dark:border-blue-900">
       <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
@@ -35,7 +39,7 @@ export const BatchSelectionToolbar: FC<BatchSelectionToolbarProps> = ({
       {/* Selection tips */}
       <div className="text-xs text-blue-600 dark:text-blue-400 ml-2">
         <span>
-          Tip: <kbd className="px-1 py-0.5 bg-blue-200 dark:bg-blue-800 rounded text-xs">Ctrl</kbd> to multi-select,
+          Tip: <kbd className="px-1 py-0.5 bg-blue-200 dark:bg-blue-800 rounded text-xs">{modifierKey}</kbd> to multi-select,
           <kbd className="px-1 py-0.5 bg-blue-200 dark:bg-blue-800 rounded text-xs ml-1">Shift</kbd> for range
         </span>
       </div>

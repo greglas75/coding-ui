@@ -1,4 +1,15 @@
-import { Code2, FolderOpen, Home, Plus, RefreshCw, Search, Settings, Trash2, X, Sparkles } from 'lucide-react';
+import {
+  Code2,
+  FolderOpen,
+  Home,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -38,7 +49,6 @@ export function CategoriesPage() {
     categoryName: '',
   });
 
-
   // Fetch categories with statistics
   async function fetchCategories() {
     try {
@@ -48,7 +58,9 @@ export function CategoriesPage() {
       // Get categories (including new multi-provider model columns)
       const { data: categoriesData, error: categoriesError } = await supabase
         .from('categories')
-        .select('id, name, google_name, description, template, preset, model, openai_model, claude_model, gemini_model, vision_model, llm_preset, gpt_template, brands_sorting, min_length, max_length, use_web_context, sentiment_enabled, sentiment_mode')
+        .select(
+          'id, name, google_name, description, template, preset, model, openai_model, claude_model, gemini_model, vision_model, llm_preset, gpt_template, brands_sorting, min_length, max_length, use_web_context, sentiment_enabled, sentiment_mode'
+        )
         .order('name');
 
       if (categoriesError) {
@@ -67,8 +79,7 @@ export function CategoriesPage() {
       // Note: codes_count removed as per requirements
 
       // Get statistics for all categories via RPC (single query, no N+1)
-      const { data: statsData, error: statsError } = await supabase
-        .rpc('get_category_stats');
+      const { data: statsData, error: statsError } = await supabase.rpc('get_category_stats');
 
       if (statsError) {
         console.error('Error fetching category stats via RPC:', statsError);
@@ -76,9 +87,15 @@ export function CategoriesPage() {
 
       const statsMap = new Map<number, any>((statsData || []).map((s: any) => [s.category_id, s]));
 
-      const categoriesWithStats: CategoryWithStats[] = (categoriesData || []).map((cat) => {
+      const categoriesWithStats: CategoryWithStats[] = (categoriesData || []).map(cat => {
         const s = statsMap.get(cat.id) || {};
-        const allAnswers = Number(s.whitelisted || 0) + Number(s.blacklisted || 0) + Number(s.gibberish || 0) + Number(s.categorized || 0) + Number(s.not_categorized || 0) + Number(s.global_blacklist || 0);
+        const allAnswers =
+          Number(s.whitelisted || 0) +
+          Number(s.blacklisted || 0) +
+          Number(s.gibberish || 0) +
+          Number(s.categorized || 0) +
+          Number(s.not_categorized || 0) +
+          Number(s.global_blacklist || 0);
         return {
           ...cat,
           whitelisted: Number(s.whitelisted || 0),
@@ -87,7 +104,7 @@ export function CategoriesPage() {
           categorized: Number(s.categorized || 0),
           notCategorized: Number(s.not_categorized || 0),
           global_blacklist: Number(s.global_blacklist || 0),
-          allAnswers: allAnswers
+          allAnswers: allAnswers,
         };
       });
 
@@ -99,7 +116,6 @@ export function CategoriesPage() {
       setLoading(false);
     }
   }
-
 
   // Initial load
   useEffect(() => {
@@ -128,7 +144,6 @@ export function CategoriesPage() {
     loadData();
   }, []);
 
-
   // Add new category (with optimistic updates!)
   async function addCategory(name: string) {
     // Generate temporary ID
@@ -143,7 +158,7 @@ export function CategoriesPage() {
       categorized: 0,
       notCategorized: 0,
       global_blacklist: 0,
-      allAnswers: 0
+      allAnswers: 0,
     };
 
     try {
@@ -163,7 +178,20 @@ export function CategoriesPage() {
 
           // Replace temp category with real one from server
           setCategories(cats =>
-            cats.map(cat => (cat.id === tempId ? { ...data, whitelisted: 0, blacklisted: 0, gibberish: 0, categorized: 0, notCategorized: 0, global_blacklist: 0, allAnswers: 0 } : cat))
+            cats.map(cat =>
+              cat.id === tempId
+                ? {
+                    ...data,
+                    whitelisted: 0,
+                    blacklisted: 0,
+                    gibberish: 0,
+                    categorized: 0,
+                    notCategorized: 0,
+                    global_blacklist: 0,
+                    allAnswers: 0,
+                  }
+                : cat
+            )
           );
         },
         {
@@ -185,7 +213,7 @@ export function CategoriesPage() {
 
   // Open coding view for category
   function openCategoryInCoding(categoryId: number) {
-    window.open(`/coding?categoryId=${categoryId}`, "_blank");
+    window.open(`/coding?categoryId=${categoryId}`, '_blank');
   }
 
   // Open edit modal for category
@@ -245,12 +273,12 @@ export function CategoriesPage() {
   function handleFilterClick(categoryId: number, _categoryName: string, filterType: string) {
     // Map filter type to general_status value
     const statusMap: Record<string, string> = {
-      'whitelisted': 'whitelist',
-      'blacklisted': 'blacklist',
-      'gibberish': 'gibberish',
-      'categorized': 'categorized',
-      'notCategorized': 'uncategorized',
-      'global_blacklist': 'global_blacklist'
+      whitelisted: 'whitelist',
+      blacklisted: 'blacklist',
+      gibberish: 'gibberish',
+      categorized: 'categorized',
+      notCategorized: 'uncategorized',
+      global_blacklist: 'global_blacklist',
     };
 
     const status = statusMap[filterType] || filterType;
@@ -350,30 +378,60 @@ export function CategoriesPage() {
       }
 
       console.log('📤 Saving category payload:', updatePayload);
+      console.log('🔍 Editing category ID:', editingCategory.id);
 
-      const { error } = await supabase
+      const { data: updateResult, error } = await supabase
         .from('categories')
         .update(updatePayload)
-        .eq('id', editingCategory.id);
+        .eq('id', editingCategory.id)
+        .select();
 
       if (error) {
         console.error('❌ Supabase error:', error);
+        console.error('❌ Error details:', JSON.stringify(error, null, 2));
         toast.error(`Failed to update category: ${error.message}`);
         return;
       }
 
+      console.log('✅ Update successful:', updateResult);
+
       toast.success('✅ Category settings updated successfully');
 
-      // Update local state
-      setCategories(prev => prev.map(cat =>
-        cat.id === editingCategory.id
-          ? { ...cat, name: data.name, use_web_context: data.useWebContext }
-          : cat
-      ));
+      // Update local state with all changed fields
+      setCategories(prev =>
+        prev.map(cat =>
+          cat.id === editingCategory.id
+            ? {
+                ...cat,
+                name: data.name,
+                google_name: data.googleName,
+                description: data.description,
+                template: data.template,
+                gpt_template: data.template,
+                preset: data.preset,
+                llm_preset: data.preset,
+                model: data.model,
+                openai_model:
+                  data.model?.startsWith('gpt-') || data.model?.startsWith('o1-')
+                    ? data.model
+                    : cat.openai_model,
+                claude_model: data.model?.startsWith('claude-') ? data.model : cat.claude_model,
+                gemini_model: data.model?.startsWith('gemini-') ? data.model : cat.gemini_model,
+                vision_model: data.visionModel,
+                use_web_context: data.useWebContext,
+                sentiment_enabled: data.sentimentEnabled,
+                sentiment_mode: data.sentimentMode,
+                brands_sorting: data.brandsSorting,
+                min_length: data.minLength,
+                max_length: data.maxLength,
+              }
+            : cat
+        )
+      );
 
       // Update active category if it's the one being edited
       if (activeCategory?.id === editingCategory.id) {
-        setActiveCategory(prev => prev ? { ...prev, name: data.name } : null);
+        setActiveCategory(prev => (prev ? { ...prev, name: data.name } : null));
       }
     } catch (error) {
       console.error('❌ Unexpected error saving category settings:', error);
@@ -381,27 +439,26 @@ export function CategoriesPage() {
     }
   }
 
-
   // Note: category rename handled in EditCategoryModal elsewhere; local update function removed to avoid unused warnings
 
+  if (loading)
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <p className="ml-4 text-gray-500 dark:text-gray-400">Loading categories...</p>
+        </div>
+      </MainLayout>
+    );
 
-
-  if (loading) return (
-    <MainLayout>
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        <p className="ml-4 text-gray-500 dark:text-gray-400">Loading categories...</p>
-      </div>
-    </MainLayout>
-  );
-
-  if (error) return (
-    <MainLayout>
-      <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-red-700 dark:text-red-400">
-        Error: {error}
-      </div>
-    </MainLayout>
-  );
+  if (error)
+    return (
+      <MainLayout>
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-red-700 dark:text-red-400">
+          Error: {error}
+        </div>
+      </MainLayout>
+    );
 
   const filteredCategories = categories.filter(category =>
     category.name.toLowerCase().includes(searchText.toLowerCase())
@@ -409,7 +466,7 @@ export function CategoriesPage() {
 
   // Build breadcrumbs
   const breadcrumbs: Array<{ label: string; href?: string; icon?: React.ReactNode }> = [
-    { label: 'Categories', href: '/', icon: <Home size={14} /> }
+    { label: 'Categories', href: '/', icon: <Home size={14} /> },
   ];
 
   if (activeCategory) {
@@ -426,7 +483,8 @@ export function CategoriesPage() {
       {!activeCategory && categories.length > 0 && (
         <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
           <p className="text-sm text-blue-700 dark:text-blue-300">
-            💡 <strong>Tip:</strong> Select a category from the list below to manage its codes and settings
+            💡 <strong>Tip:</strong> Select a category from the list below to manage its codes and
+            settings
           </p>
         </div>
       )}
@@ -489,12 +547,15 @@ export function CategoriesPage() {
 
       {/* Search Bar */}
       <div className="relative mb-4 max-w-md">
-        <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+        <Search
+          size={16}
+          className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+        />
         <input
           type="text"
           placeholder="Search categories..."
           value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
+          onChange={e => setSearchText(e.target.value)}
           className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-neutral-700 rounded-md bg-white dark:bg-neutral-800 focus:ring-2 focus:ring-blue-500 outline-none"
         />
       </div>
@@ -516,122 +577,124 @@ export function CategoriesPage() {
 
       {/* Main Content Area - Split View when Category Selected */}
       {!loading && categories.length > 0 && (
-        <div className={`grid gap-4 ${activeCategory ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
-            {/* Categories Table */}
-            <div className="border border-gray-200 dark:border-neutral-700 rounded-md overflow-hidden bg-white dark:bg-neutral-900">
-              {/* Table Header */}
-              <div className="grid grid-cols-12 bg-gray-100 dark:bg-neutral-800 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase px-4 py-3 border-b border-gray-200 dark:border-neutral-700">
-                <div className="col-span-2">Name</div>
-                <div className="text-center">All Answers</div>
-                <div className="text-center">Whitelisted</div>
-                <div className="text-center">Categorized</div>
-                <div className="text-center">Not Categorized</div>
-                <div className="text-center">Global BL</div>
-                <div className="text-center">Blacklisted</div>
-                <div className="text-center">Gibberish</div>
-                <div className="text-center col-span-2">Actions</div>
-              </div>
-
-              {/* Table Body */}
-              {filteredCategories.map((category) => (
-                <div
-                  key={category.id}
-                  className={`grid grid-cols-12 items-center px-4 py-3 text-sm border-b border-gray-100 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors ${
-                    activeCategory?.id === category.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                  }`}
-                >
-                  {/* Name */}
-                  <div
-                    className="col-span-2 font-medium text-gray-800 dark:text-gray-100 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
-                    onClick={() => handleSelectCategory(category)}
-                  >
-                    {category.name}
-                  </div>
-
-                  {/* All Answers */}
-                  <div
-                    onClick={() => handleAllAnswersClick(category.id, category.name)}
-                    className="text-center text-blue-600 dark:text-blue-400 cursor-pointer hover:underline font-medium"
-                    title="Click to view ALL answers in this category (no filters)"
-                  >
-                    {category.allAnswers}
-                  </div>
-
-                  {/* Whitelisted */}
-                  <div
-                    onClick={() => handleFilterClick(category.id, category.name, 'whitelisted')}
-                    className="text-center text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
-                  >
-                    {category.whitelisted}
-                  </div>
-
-                  {/* Categorized */}
-                  <div
-                    onClick={() => handleFilterClick(category.id, category.name, 'categorized')}
-                    className="text-center text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
-                  >
-                    {category.categorized}
-                  </div>
-
-                  {/* Not Categorized */}
-                  <div
-                    onClick={() => handleFilterClick(category.id, category.name, 'notCategorized')}
-                    className="text-center text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
-                  >
-                    {category.notCategorized}
-                  </div>
-
-                  {/* Global BL */}
-                  <div
-                    onClick={() => handleFilterClick(category.id, category.name, 'global_blacklist')}
-                    className="text-center text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
-                  >
-                    {category.global_blacklist}
-                  </div>
-
-                  {/* Blacklisted */}
-                  <div
-                    onClick={() => handleFilterClick(category.id, category.name, 'blacklisted')}
-                    className="text-center text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
-                  >
-                    {category.blacklisted}
-                  </div>
-
-                  {/* Gibberish */}
-                  <div
-                    onClick={() => handleFilterClick(category.id, category.name, 'gibberish')}
-                    className="text-center text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
-                  >
-                    {category.gibberish}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="col-span-2 flex justify-center gap-4">
-                    <button
-                      title="Edit category settings"
-                      onClick={() => openEditModal(category)}
-                      className="text-purple-500 hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-300 transition-colors p-1"
-                    >
-                      <Settings size={20} />
-                    </button>
-                    <button
-                      title="Open coding view"
-                      onClick={() => openCategoryInCoding(category.id)}
-                      className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 transition-colors p-1"
-                    >
-                      <Code2 size={20} />
-                    </button>
-                    <button
-                      title="Delete category"
-                      onClick={() => handleDeleteCategory(category.id)}
-                      className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors ml-2 p-1"
-                    >
-                      <Trash2 size={20} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+        <div
+          className={`grid gap-4 ${activeCategory ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}
+        >
+          {/* Categories Table */}
+          <div className="border border-gray-200 dark:border-neutral-700 rounded-md overflow-hidden bg-white dark:bg-neutral-900">
+            {/* Table Header */}
+            <div className="grid grid-cols-12 bg-gray-100 dark:bg-neutral-800 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase px-4 py-3 border-b border-gray-200 dark:border-neutral-700">
+              <div className="col-span-2">Name</div>
+              <div className="text-center">All Answers</div>
+              <div className="text-center">Whitelisted</div>
+              <div className="text-center">Categorized</div>
+              <div className="text-center">Not Categorized</div>
+              <div className="text-center">Global BL</div>
+              <div className="text-center">Blacklisted</div>
+              <div className="text-center">Gibberish</div>
+              <div className="text-center col-span-2">Actions</div>
             </div>
+
+            {/* Table Body */}
+            {filteredCategories.map(category => (
+              <div
+                key={category.id}
+                className={`grid grid-cols-12 items-center px-4 py-3 text-sm border-b border-gray-100 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors ${
+                  activeCategory?.id === category.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                }`}
+              >
+                {/* Name */}
+                <div
+                  className="col-span-2 font-medium text-gray-800 dark:text-gray-100 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                  onClick={() => handleSelectCategory(category)}
+                >
+                  {category.name}
+                </div>
+
+                {/* All Answers */}
+                <div
+                  onClick={() => handleAllAnswersClick(category.id, category.name)}
+                  className="text-center text-blue-600 dark:text-blue-400 cursor-pointer hover:underline font-medium"
+                  title="Click to view ALL answers in this category (no filters)"
+                >
+                  {category.allAnswers}
+                </div>
+
+                {/* Whitelisted */}
+                <div
+                  onClick={() => handleFilterClick(category.id, category.name, 'whitelisted')}
+                  className="text-center text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
+                >
+                  {category.whitelisted}
+                </div>
+
+                {/* Categorized */}
+                <div
+                  onClick={() => handleFilterClick(category.id, category.name, 'categorized')}
+                  className="text-center text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
+                >
+                  {category.categorized}
+                </div>
+
+                {/* Not Categorized */}
+                <div
+                  onClick={() => handleFilterClick(category.id, category.name, 'notCategorized')}
+                  className="text-center text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
+                >
+                  {category.notCategorized}
+                </div>
+
+                {/* Global BL */}
+                <div
+                  onClick={() => handleFilterClick(category.id, category.name, 'global_blacklist')}
+                  className="text-center text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
+                >
+                  {category.global_blacklist}
+                </div>
+
+                {/* Blacklisted */}
+                <div
+                  onClick={() => handleFilterClick(category.id, category.name, 'blacklisted')}
+                  className="text-center text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
+                >
+                  {category.blacklisted}
+                </div>
+
+                {/* Gibberish */}
+                <div
+                  onClick={() => handleFilterClick(category.id, category.name, 'gibberish')}
+                  className="text-center text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
+                >
+                  {category.gibberish}
+                </div>
+
+                {/* Actions */}
+                <div className="col-span-2 flex justify-center gap-4">
+                  <button
+                    title="Edit category settings"
+                    onClick={() => openEditModal(category)}
+                    className="text-purple-500 hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-300 transition-colors p-1"
+                  >
+                    <Settings size={20} />
+                  </button>
+                  <button
+                    title="Open coding view"
+                    onClick={() => openCategoryInCoding(category.id)}
+                    className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 transition-colors p-1"
+                  >
+                    <Code2 size={20} />
+                  </button>
+                  <button
+                    title="Delete category"
+                    onClick={() => handleDeleteCategory(category.id)}
+                    className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors ml-2 p-1"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
 
           {/* Category Details - Codes List */}
           {activeCategory && (
@@ -660,11 +723,7 @@ export function CategoriesPage() {
         </div>
       )}
 
-      <AddCategoryModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSave={addCategory}
-      />
+      <AddCategoryModal open={modalOpen} onClose={() => setModalOpen(false)} onSave={addCategory} />
 
       {editingCategory && (
         <EditCategoryModal
@@ -684,12 +743,14 @@ export function CategoriesPage() {
               Delete Category
             </h3>
             <p className="mb-6 text-gray-600 dark:text-gray-300">
-              Are you sure you want to delete "{deleteConfirm.categoryName}"?
-              This action cannot be undone.
+              Are you sure you want to delete "{deleteConfirm.categoryName}"? This action cannot be
+              undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
-                onClick={() => setDeleteConfirm({ show: false, categoryId: null, categoryName: '' })}
+                onClick={() =>
+                  setDeleteConfirm({ show: false, categoryId: null, categoryName: '' })
+                }
                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors"
               >
                 Cancel

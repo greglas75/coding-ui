@@ -376,6 +376,11 @@ export function SelectCodeModal({
         if (clearError) throw clearError;
       }
 
+      // Auto-copy codes to identical answers
+      if (selectedCodes.length > 0) {
+        await copyCodeToIdenticalAnswers(selectedAnswerIds, selectedCodes, _categoryId);
+      }
+
       toast.success(`Codes saved successfully for ${selectedAnswerIds.length} answer(s)!`);
       onSaved();
       onClose();
@@ -384,6 +389,98 @@ export function SelectCodeModal({
       toast.error("Error saving codes");
     }
   };
+
+  // Helper: Copy codes to all identical answers in the same category
+  async function copyCodeToIdenticalAnswers(
+    sourceIds: number[],
+    codesToCopy: string[],
+    categoryId?: number
+  ) {
+    try {
+      // Get answer texts for all source answers
+      const { data: sourceAnswers, error: fetchError } = await supabase
+        .from('answers')
+        .select('id, answer_text, category_id')
+        .in('id', sourceIds);
+
+      if (fetchError || !sourceAnswers || sourceAnswers.length === 0) {
+        return;
+      }
+
+      // Get code IDs
+      const { data: codeData } = await supabase
+        .from('codes')
+        .select('id, name')
+        .in('name', codesToCopy);
+
+      if (!codeData || codeData.length === 0) return;
+
+      const codeIds = codeData.map(c => c.id);
+      const selectedCodeString = codeData.map(c => c.name).join(', ');
+
+      // For each source answer, find and update identical answers
+      for (const source of sourceAnswers) {
+        const targetCategoryId = categoryId || source.category_id;
+
+        // Find identical answers (same text, same category, not already coded)
+        const { data: duplicates, error: dupError } = await supabase
+          .from('answers')
+          .select('id')
+          .eq('category_id', targetCategoryId)
+          .eq('answer_text', source.answer_text)
+          .not('id', 'in', `(${sourceIds.join(',')})`) // Exclude sources
+          .is('selected_code', null); // Only uncoded answers
+
+        if (dupError || !duplicates || duplicates.length === 0) {
+          continue;
+        }
+
+        const duplicateIds = duplicates.map(d => d.id);
+        console.log(`📋 Found ${duplicateIds.length} identical uncoded answers for "${source.answer_text}"`);
+
+        // Delete existing codes for duplicates
+        await supabase
+          .from('answer_codes')
+          .delete()
+          .in('answer_id', duplicateIds);
+
+        // Insert codes for duplicates
+        const inserts = duplicateIds.flatMap(answerId =>
+          codeIds.map(codeId => ({
+            answer_id: answerId,
+            code_id: codeId,
+          }))
+        );
+
+        const { error: insertError } = await supabase
+          .from('answer_codes')
+          .insert(inserts);
+
+        if (insertError) {
+          console.error('Failed to insert codes for duplicates:', insertError);
+          continue;
+        }
+
+        // Update answers table
+        const { error: updateError } = await supabase
+          .from('answers')
+          .update({
+            selected_code: selectedCodeString,
+            general_status: 'whitelist',
+            coding_date: new Date().toISOString(),
+          })
+          .in('id', duplicateIds);
+
+        if (updateError) {
+          console.error('Failed to update duplicates:', updateError);
+        } else {
+          console.log(`✅ Copied codes to ${duplicateIds.length} identical answers`);
+        }
+      }
+    } catch (error) {
+      console.error('Error copying codes to identical answers:', error);
+    }
+  }
 
   // 🔹 Confirm and go to next answer
   const handleConfirmAndNext = async () => {

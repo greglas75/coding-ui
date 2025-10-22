@@ -116,7 +116,18 @@ export async function categorizeAnswer(
         let visionResult: any = null; // Store vision analysis result
         // 🌍 Build localized search query with category name for better results
         // Format: "CategoryName keyword" (e.g., "Toothpaste crest", "Brand sensodyne")
-        const localizedQuery = `${request.categoryName} ${request.answer}`.trim();
+        // ✅ Use English translation for better Google Search results (if available)
+        const searchText = request.answerTranslation || request.answer;
+
+        // ✅ Avoid duplication if translation already includes category name
+        // e.g., "toothpaste ps" → use as-is, don't prepend "Toothpaste" again
+        const searchLower = searchText.toLowerCase().trim();
+        const categoryLower = request.categoryName.toLowerCase().trim();
+        const alreadyIncludesCategory = searchLower.startsWith(categoryLower);
+
+        const localizedQuery = alreadyIncludesCategory
+          ? searchText.trim()
+          : `${request.categoryName} ${searchText}`.trim();
 
         try {
           console.log(`🌐 Fetching web context for: "${request.answer.substring(0, 50)}..."`);
@@ -145,9 +156,10 @@ export async function categorizeAnswer(
             try {
               const { analyzeImagesWithGemini, calculateVisionBoost } = await import('../services/geminiVision');
 
+              // Pass original image URLs - geminiVision.ts will handle proxy internally
               const brandNames = request.codes.map((c: any) => c.name);
               visionResult = await analyzeImagesWithGemini(
-                images,
+                images, // Pass original URLs, geminiVision.ts handles proxy
                 request.answer,
                 brandNames,
                 request.visionModel
@@ -177,6 +189,25 @@ export async function categorizeAnswer(
         // GPT-5 and some other models don't support custom temperature
         const supportsCustomTemperature = !modelToUse.toLowerCase().startsWith('gpt-5');
 
+        // Build user message with Vision AI context and web context
+        let userMessage = `User's response: "${request.answer}"`;
+
+        if (visionResult?.brandDetected) {
+          userMessage += `\n\n🎯 VISION AI DETECTED: "${visionResult.brandName}" (${(visionResult.confidence * 100).toFixed(0)}% confidence)`;
+          userMessage += `\nVision Analysis: ${visionResult.reasoning}`;
+          if (visionResult.objectsDetected?.length > 0) {
+            userMessage += `\nObjects in images: ${visionResult.objectsDetected.join(', ')}`;
+          }
+        }
+
+        // Add web context summary for better matching
+        if (webContext.length > 0) {
+          userMessage += `\n\n🌐 WEB SEARCH CONTEXT (${webContext.length} results found):`;
+          webContext.forEach((result, idx) => {
+            userMessage += `\n${idx + 1}. ${result.title} - ${result.snippet.substring(0, 100)}...`;
+          });
+        }
+
         // Build request parameters
         const requestParams: any = {
           model: modelToUse,
@@ -187,7 +218,7 @@ export async function categorizeAnswer(
             },
             {
               role: 'user',
-              content: `User's response: "${request.answer}"`,
+              content: userMessage,
             },
           ],
           response_format: { type: 'json_object' }, // Enforce JSON output
@@ -229,9 +260,35 @@ export async function categorizeAnswer(
         console.log(`✅ OpenAI returned ${validatedSuggestions.length} suggestions`);
 
         // ═══════════════════════════════════════════════════════════
+        // Step 2.5: Vision AI Fallback - Use Vision AI if no OpenAI suggestions
+        // ═══════════════════════════════════════════════════════════
+        let suggestionsToBoost = validatedSuggestions;
+
+        if (validatedSuggestions.length === 0 && visionResult?.brandDetected && visionResult.confidence > 0.7) {
+          // Vision AI detected a brand but OpenAI didn't match it
+          // Try to find this brand in available codes (fuzzy match)
+          const detectedBrand = visionResult.brandName.toLowerCase();
+          const matchingCode = request.codes.find(code =>
+            code.name.toLowerCase() === detectedBrand ||
+            code.name.toLowerCase().includes(detectedBrand) ||
+            detectedBrand.includes(code.name.toLowerCase())
+          );
+
+          if (matchingCode) {
+            console.log(`🎯 Vision AI fallback: Using "${matchingCode.name}" from Vision AI (${(visionResult.confidence * 100).toFixed(0)}% confidence)`);
+            suggestionsToBoost = [{
+              code_id: matchingCode.id,
+              code_name: matchingCode.name,
+              confidence: Math.min(0.95, visionResult.confidence * 0.95), // High confidence for Vision AI matches
+              reasoning: `Vision AI detected "${visionResult.brandName}" in product images with ${(visionResult.confidence * 100).toFixed(0)}% confidence. ${visionResult.reasoning}`,
+            }];
+          }
+        }
+
+        // ═══════════════════════════════════════════════════════════
         // Step 3: Boost confidence with web evidence validation
         // ═══════════════════════════════════════════════════════════
-        const boostedSuggestions = validatedSuggestions.map(suggestion => {
+        const boostedSuggestions = suggestionsToBoost.map(suggestion => {
           const evidenceScore = calculateEvidenceScore(
             suggestion.code_name,
             webContext,
@@ -615,7 +672,41 @@ function buildAnswerSection(request: CategorizeRequest): string {
 - Brand names like "Nike", "Colgate", "Coca-Cola" may appear in either version
 - If brand name appears in original language, it's usually more reliable
 - Use redundancy between languages to increase confidence scores
-- Generic terms without specific brands should have lower confidence`;
+- Generic terms without specific brands should have lower confidence
+
+=== FUZZY MATCHING (CRITICAL) ===
+- **ALWAYS USE FUZZY MATCHING**: Allow for typos, misspellings, and minor variations
+- Examples: "mediplua" → "Mediplus", "sensodyne" → "Sensodyne", "collegiate" → "Colgate"
+- Ignore case differences (e.g., "NIKE" matches "nike")
+- Allow 1-2 character differences for short words, 2-3 for longer words
+- Common typos: adjacent key swaps (e.g., "colaget" → "Colgate"), missing letters, extra letters
+- Match phonetically similar spellings (e.g., "sencodyne" → "Sensodyne")
+- **If answer is 70%+ similar to a code name, consider it a match**
+- Calculate similarity: "collegiate" vs "Colgate" = 7 matching letters/positions = strong match
+- Still require high confidence (>0.8) for fuzzy matches if web evidence confirms it
+
+=== VISION AI EVIDENCE (USE THIS!) ===
+- IF Vision AI detected a brand in product images, give it VERY HIGH weight
+- Vision AI analyzes actual product packaging, logos, and brand imagery
+- If Vision AI says "Colgate" with 100% confidence, prioritize this over text analysis
+- Vision AI can correct user typos by identifying actual products in images
+- Example: User writes "collegiate", Vision AI detects "Colgate" logo → TRUST Vision AI
+
+=== WEB SEARCH CONTEXT (CRITICAL FOR TYPOS) ===
+- Use web search results to understand context and find brands mentioned in results
+- If web results mention a specific brand frequently, consider it even if user text has typos
+- Examples:
+  * User: "blank" → Web shows "BlanX toothpaste" results → Suggest "BlanX"
+  * User: "crest" → Web shows "Crest Pro-Health" → Suggest "Crest"
+- Look for brand names in:
+  * Page titles (e.g., "Shop Toothpaste - BlanX")
+  * Snippets (e.g., "BlanX whitening toothpaste...")
+  * URLs (e.g., "lifesupplies.com/.../blanx")
+- If 2+ web results mention the same brand, it's strong evidence
+- **IMPORTANT**: You can suggest codes found in web search EVEN IF they don't exist in available codes list
+  * If web search clearly identifies a brand (e.g., "BlanX") but it's not in available codes, still suggest it
+  * User will be prompted to create the new code after confirmation
+  * This allows discovering correct brand names with proper spelling from web evidence`;
 
   return section;
 }

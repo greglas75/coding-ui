@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { getSupabaseClient } from '../../../lib/supabase';
 import type { Answer } from '../../../types';
@@ -22,17 +23,40 @@ export function useAnswerActions({
   triggerRowAnimation: (id: number, animation: string) => void;
   categorizeAnswer: (answerId: number) => void;
 }) {
+  const queryClient = useQueryClient();
   const [isCategorizingRow, setIsCategorizingRow] = useState<Record<number, boolean>>({});
 
-  // Find duplicate answers
-  const findDuplicateAnswers = useCallback((targetAnswer: Answer): number[] => {
-    const duplicates = localAnswers.filter(answer =>
-      answer.category_id === targetAnswer.category_id &&
-      answer.answer_text === targetAnswer.answer_text &&
-      answer.id !== targetAnswer.id
-    );
-    return duplicates.map(a => a.id);
-  }, [localAnswers]);
+  // Find duplicate answers (from database, not just local visible answers)
+  const findDuplicateAnswers = useCallback(async (
+    targetAnswer: Answer,
+    onlyUncoded: boolean = false
+  ): Promise<number[]> => {
+    try {
+      let query = supabase
+        .from('answers')
+        .select('id')
+        .eq('category_id', targetAnswer.category_id)
+        .eq('answer_text', targetAnswer.answer_text)
+        .neq('id', targetAnswer.id);
+
+      // Only filter by selected_code if requested
+      if (onlyUncoded) {
+        query = query.is('selected_code', null);
+      }
+
+      const { data: duplicates, error } = await query;
+
+      if (error || !duplicates) {
+        console.error('Error finding duplicates:', error);
+        return [];
+      }
+
+      return duplicates.map(d => d.id);
+    } catch (error) {
+      console.error('Error finding duplicates:', error);
+      return [];
+    }
+  }, []);
 
   // Handle Quick Status Changes
   const handleQuickStatus = useCallback(async (
@@ -59,11 +83,12 @@ export function useAnswerActions({
       }
     }
 
-    const duplicateIds = findDuplicateAnswers(answer);
+    // Find ALL duplicates (not just uncoded) - we want to update status for all
+    const duplicateIds = await findDuplicateAnswers(answer, false);
     const totalCount = duplicateIds.length + 1;
     const allIds = [answer.id, ...duplicateIds];
 
-    console.log(`🔄 Updating ${totalCount} answer(s) (including duplicates)`);
+    console.log(`🔄 Updating ${totalCount} answer(s) (including ${duplicateIds.length} duplicates)`);
 
     // Capture previous state for undo
     const previousState: Record<number, any> = {};
@@ -179,6 +204,9 @@ export function useAnswerActions({
       }
 
       if (saveSuccess) {
+        // Invalidate queries to refresh UI (for duplicates on other pages/filters)
+        queryClient.invalidateQueries({ queryKey: ['answers'] });
+
         // Add to history
         addAction({
           id: `status-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -203,6 +231,8 @@ export function useAnswerActions({
                 .update(state)
                 .eq('id', parseInt(id));
             }
+
+            queryClient.invalidateQueries({ queryKey: ['answers'] });
           },
           redo: async () => {
             setLocalAnswers(prev => prev.map(a =>
@@ -213,6 +243,8 @@ export function useAnswerActions({
               .from('answers')
               .update(update)
               .in('id', allIds);
+
+            queryClient.invalidateQueries({ queryKey: ['answers'] });
           },
         });
       }

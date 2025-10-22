@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "../lib/supabase";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface RollbackConfirmationModalProps {
   open: boolean;
@@ -12,6 +13,7 @@ interface RollbackConfirmationModalProps {
     general_status: string;
     confirmed_by?: string;
     coding_date?: string;
+    category_id: number;
   };
   onRollback: () => void;
   onRollbackAndEdit?: () => void;
@@ -24,6 +26,7 @@ export function RollbackConfirmationModal({
   onRollback,
   onRollbackAndEdit,
 }: RollbackConfirmationModalProps) {
+  const queryClient = useQueryClient();
   const [rollingBack, setRollingBack] = useState(false);
   const [fade, setFade] = useState(false);
 
@@ -64,19 +67,41 @@ export function RollbackConfirmationModal({
   const handleRollback = async () => {
     setRollingBack(true);
     try {
+      // Find all identical answers (same text, same category)
+      const { data: duplicates } = await supabase
+        .from("answers")
+        .select("id")
+        .eq("category_id", record.category_id)
+        .eq("answer_text", record.answer_text)
+        .neq("id", record.id);
+
+      const allIds = [record.id, ...(duplicates?.map(d => d.id) || [])];
+      const totalCount = allIds.length;
+
+      console.log(`🔄 Rolling back ${totalCount} identical answer(s)...`);
+
       const { error } = await supabase
         .from("answers")
         .update({
           general_status: "uncategorized",
           quick_status: null,  // Reset quick status button
           selected_code: null,  // Remove code from Code column
+          coding_date: null,   // Clear coding date
           updated_at: new Date().toISOString(),
         })
-        .eq("id", record.id);
+        .in("id", allIds);
 
       if (error) throw error;
 
-      toast.success("Record rolled back successfully");
+      if (totalCount > 1) {
+        toast.success(`Rolled back ${totalCount} identical answers`);
+      } else {
+        toast.success("Record rolled back successfully");
+      }
+
+      // Invalidate queries to refresh UI
+      queryClient.invalidateQueries({ queryKey: ["answers"] });
+
       onRollback();
       onClose();
     } catch (err: any) {
@@ -91,18 +116,40 @@ export function RollbackConfirmationModal({
   const handleRollbackAndEdit = async () => {
     setRollingBack(true);
     try {
+      // Find all identical answers (same text, same category)
+      const { data: duplicates } = await supabase
+        .from("answers")
+        .select("id")
+        .eq("category_id", record.category_id)
+        .eq("answer_text", record.answer_text)
+        .neq("id", record.id);
+
+      const allIds = [record.id, ...(duplicates?.map(d => d.id) || [])];
+      const totalCount = allIds.length;
+
+      console.log(`🔄 Rolling back ${totalCount} identical answer(s) for editing...`);
+
       const { error } = await supabase
         .from("answers")
         .update({
           general_status: "uncategorized",
           quick_status: null,  // Reset quick status button
+          coding_date: null,   // Clear coding date
           updated_at: new Date().toISOString(),
         })
-        .eq("id", record.id);
+        .in("id", allIds);
 
       if (error) throw error;
 
-      toast.success("Record rolled back successfully");
+      if (totalCount > 1) {
+        toast.success(`Rolled back ${totalCount} identical answers`);
+      } else {
+        toast.success("Record rolled back successfully");
+      }
+
+      // Invalidate queries to refresh UI
+      queryClient.invalidateQueries({ queryKey: ["answers"] });
+
       onRollbackAndEdit?.();
       onClose();
     } catch (err: any) {

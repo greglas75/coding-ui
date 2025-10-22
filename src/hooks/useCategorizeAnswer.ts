@@ -33,7 +33,7 @@ export function useCategorizeAnswer() {
   const queryClient = useQueryClient();
 
   return useMutation<AiCodeSuggestion[], Error, number>({
-    mutationFn: (answerId: number) => categorizeSingleAnswer(answerId, false),
+    mutationFn: (answerId: number) => categorizeSingleAnswer(answerId, true), // Always force regenerate
 
     onMutate: (answerId) => {
       console.log(`Starting AI categorization for answer ${answerId}`);

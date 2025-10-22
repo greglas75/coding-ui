@@ -114,6 +114,9 @@ export async function categorizeSingleAnswer(answerId: number, forceRegenerate: 
       preset_used: presetName, // Store which preset was used
       webContext: result.webContext,
       images: result.images,
+      searchQuery: result.searchQuery, // ✅ Save actual search query used
+      visionResult: result.visionResult, // ✅ Save vision AI analysis
+      categoryName: result.categoryName, // ✅ Save category name
     };
 
     // 7. Save suggestions to database
@@ -131,11 +134,58 @@ export async function categorizeSingleAnswer(answerId: number, forceRegenerate: 
 
     console.log(`💾 Stored AI suggestions for answer ${answerId}`);
 
+    // 8. Copy AI suggestions to identical answers (auto-copy optimization)
+    await copyAISuggestionsToIdenticalAnswers(answerId, answer.answer_text, answer.category.id, aiSuggestions);
+
     return result.suggestions;
 
   } catch (error) {
     console.error('Categorization error:', error);
     throw error;
+  }
+}
+
+/**
+ * Copy AI suggestions to all identical answers in the same category
+ */
+async function copyAISuggestionsToIdenticalAnswers(
+  sourceId: number,
+  answerText: string,
+  categoryId: number,
+  aiSuggestions: any
+) {
+  try {
+    // Find all identical answers in the same category (excluding source)
+    const { data: duplicates, error } = await supabase
+      .from('answers')
+      .select('id')
+      .eq('category_id', categoryId)
+      .eq('answer_text', answerText)
+      .neq('id', sourceId)
+      .is('ai_suggestions', null); // Only copy to uncategorized answers
+
+    if (error || !duplicates || duplicates.length === 0) {
+      return; // No duplicates found
+    }
+
+    console.log(`📋 Found ${duplicates.length} identical answers, copying AI suggestions...`);
+
+    // Copy suggestions to all duplicates
+    const { error: updateError } = await supabase
+      .from('answers')
+      .update({
+        ai_suggestions: aiSuggestions,
+        ai_suggested_code: aiSuggestions.suggestions[0]?.code_name || null,
+      })
+      .in('id', duplicates.map((d: { id: number }) => d.id));
+
+    if (updateError) {
+      console.error('Failed to copy AI suggestions to duplicates:', updateError);
+    } else {
+      console.log(`✅ Copied AI suggestions to ${duplicates.length} identical answers`);
+    }
+  } catch (error) {
+    console.error('Error copying AI suggestions to duplicates:', error);
   }
 }
 

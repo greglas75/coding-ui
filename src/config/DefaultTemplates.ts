@@ -41,18 +41,26 @@ AVAILABLE CODES:
 
 RULES:
 1. Match to verified, **real-world brands** with web presence
-2. Correct common misspellings and normalize capitalization
-3. Handle multilingual brand names:
+2. **FUZZY MATCHING REQUIRED**: Allow for typos, misspellings, and minor variations
+   - Examples: "mediplua" → "Mediplus", "sensodyne" → "Sensodyne", "colaget" → "Colgate"
+   - Ignore case differences (e.g., "NIKE" matches "nike")
+   - Allow 1-2 character differences for short words, 2-3 for longer words
+   - Common typos: adjacent key swaps, missing letters, extra letters
+   - Match phonetically similar spellings
+   - If answer is 80%+ similar to a code name, consider it a strong match
+3. Correct common misspellings and normalize capitalization
+4. Handle multilingual brand names:
    - Arabic script (preserve original, normalize to Latin if possible)
    - Cyrillic (preserve original, normalize to Latin if possible)
    - Asian scripts (preserve original, normalize to Latin if possible)
    - Transliterations (normalize to standard spelling)
-4. Use Google Search and Image Search as evidence:
+5. Use Google Search and Image Search as evidence:
    - Logos, packaging, product images → strong evidence
    - Retail websites, official pages → confirms existence
-5. Match the user's input to one of the available codes by ID and name
-6. Return 1-3 suggestions ordered by confidence (highest first)
-7. If no good match exists, return an empty suggestions array
+   - Web evidence can confirm fuzzy matches (high confidence for typos if web shows correct brand)
+6. Match the user's input to one of the available codes by ID and name
+7. Return 1-3 suggestions ordered by confidence (highest first)
+8. If no good match exists, return an empty suggestions array
 
 IMPORTANT: You must respond with valid JSON in this exact format:
 {
@@ -84,10 +92,14 @@ Match the user's message to the most likely brand(s) from the list below:
 {codes}
 
 RULES:
+- **FUZZY MATCHING REQUIRED**: Allow for typos, misspellings, and minor variations
+  - Examples: "mediplua" → "Mediplus", "sensodyne" → "Sensodyne"
+  - If answer is 80%+ similar to a code name, consider it a strong match
 - Consider alternate spellings, transliterations, and local variants
 - Use your knowledge of international and local brands
 - If message mentions a product, slogan, or parent company, infer the underlying brand
 - Handle misspellings and phonetic variations
+- Ignore case differences
 - If no matching brand exists, propose ONE new possible code and mark as "new_suggestion"
 
 USER MESSAGE:
@@ -172,9 +184,11 @@ AVAILABLE BRANDS (FIRST LETTER MATCH):
 {codes_letter}
 
 RULES:
+- **FUZZY MATCHING**: Allow for typos and misspellings (e.g., "mediplua" → "Mediplus")
 - Focus on first-letter match and phonetic similarity
 - Ignore case, accents, and diacritics
 - Handle common misspellings and transliterations
+- Allow 1-2 character differences for typos
 - Return only the top 1-2 matches
 - If no good match, return "None"
 
