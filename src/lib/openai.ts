@@ -113,15 +113,12 @@ export async function categorizeAnswer(
         // ═══════════════════════════════════════════════════════════
         let webContext: WebContext[] = [];
         let images: ImageResult[] = [];
+        // 🌍 Build localized search query (translate category name to user's language)
+        // TODO: Re-enable after fixing translation API
+        const localizedQuery = request.answer; // Temporarily using original answer
 
         try {
           console.log(`🌐 Fetching web context for: "${request.answer.substring(0, 50)}..."`);
-
-          // 🌍 Build localized search query (translate category name to user's language)
-          // TODO: Re-enable after fixing translation API
-          const localizedQuery = request.answer; // Temporarily using original answer
-          const language = 'auto';
-
           console.log(`🔍 Search query: "${localizedQuery}"`);
 
           // Build web context section (returns formatted string)

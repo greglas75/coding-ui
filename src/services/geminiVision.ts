@@ -44,6 +44,50 @@ export async function analyzeImagesWithGemini(
     // Prepare image URLs for analysis (max 6 images)
     const imageUrls = images.slice(0, 6).map(img => img.link);
 
+    // Helper function to convert image URL to base64
+    async function imageUrlToBase64(url: string): Promise<{ data: string; mimeType: string } | null> {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) return null;
+
+        const blob = await response.blob();
+        const mimeType = blob.type || 'image/jpeg';
+
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = reader.result as string;
+            // Remove data:image/xxx;base64, prefix
+            const base64Data = base64.split(',')[1];
+            resolve({ data: base64Data, mimeType });
+          };
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        });
+      } catch (error) {
+        console.warn(`⚠️ Failed to fetch image: ${url}`, error);
+        return null;
+      }
+    }
+
+    // Convert images to base64
+    console.log(`📥 Fetching and converting ${imageUrls.length} images to base64...`);
+    const base64Images = await Promise.all(imageUrls.map(url => imageUrlToBase64(url)));
+    const validImages = base64Images.filter((img): img is { data: string; mimeType: string } => img !== null);
+
+    if (validImages.length === 0) {
+      console.warn('⚠️ No images could be fetched - skipping vision analysis');
+      return {
+        brandDetected: false,
+        brandName: '',
+        confidence: 0,
+        reasoning: 'Could not fetch any images',
+        objectsDetected: [],
+      };
+    }
+
+    console.log(`✅ Successfully converted ${validImages.length}/${imageUrls.length} images`);
+
     // Build prompt for Gemini
     const prompt = `You are analyzing images from a Google Image search for: "${searchQuery}"
 
@@ -85,10 +129,10 @@ Rules:
             {
               parts: [
                 { text: prompt },
-                ...imageUrls.map(url => ({
+                ...validImages.map(img => ({
                   inline_data: {
-                    mime_type: 'image/jpeg',
-                    data: url, // Gemini can fetch URLs directly
+                    mime_type: img.mimeType,
+                    data: img.data, // Base64 encoded image data
                   },
                 })),
               ],
