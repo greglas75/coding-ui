@@ -63,6 +63,17 @@ export interface ImageResult {
 }
 
 /**
+ * Vision analysis result from Gemini Vision API
+ */
+export interface VisionAnalysisResult {
+  brandDetected: boolean;
+  brandName: string;
+  confidence: number; // 0.0 to 1.0
+  reasoning: string;
+  objectsDetected: string[];
+}
+
+/**
  * Complete AI suggestions object stored in JSONB
  */
 export interface AiSuggestions {
@@ -73,6 +84,8 @@ export interface AiSuggestions {
   webContext?: WebContext[]; // Google Search results
   images?: ImageResult[]; // Google Images results
   searchQuery?: string; // Exact phrase used in Google search
+  visionResult?: VisionAnalysisResult; // Gemini Vision API analysis
+  categoryName?: string; // Category name (e.g., "Toothpaste", "Brand")
 }
 
 export interface Answer {

@@ -113,6 +113,7 @@ export async function categorizeAnswer(
         // ═══════════════════════════════════════════════════════════
         let webContext: WebContext[] = [];
         let images: ImageResult[] = [];
+        let visionResult: any = null; // Store vision analysis result
         // 🌍 Build localized search query (translate category name to user's language)
         // TODO: Re-enable after fixing translation API
         const localizedQuery = request.answer; // Temporarily using original answer
@@ -145,7 +146,7 @@ export async function categorizeAnswer(
               const { analyzeImagesWithGemini, calculateVisionBoost } = await import('../services/geminiVision');
 
               const brandNames = request.codes.map((c: any) => c.name);
-              const visionResult = await analyzeImagesWithGemini(
+              visionResult = await analyzeImagesWithGemini(
                 images,
                 request.answer,
                 brandNames,
@@ -153,9 +154,6 @@ export async function categorizeAnswer(
               );
 
               console.log('✅ Vision analysis result:', visionResult);
-
-              // Store vision result for later evidence boost
-              (request as any)._visionResult = visionResult;
 
             } catch (visionError) {
               console.warn('⚠️ Vision analysis failed:', visionError);
@@ -234,7 +232,6 @@ export async function categorizeAnswer(
         // Step 3: Boost confidence with web evidence validation
         // ═══════════════════════════════════════════════════════════
         const boostedSuggestions = validatedSuggestions.map(suggestion => {
-          const visionResult = (request as any)._visionResult;
           const evidenceScore = calculateEvidenceScore(
             suggestion.code_name,
             webContext,
@@ -266,6 +263,8 @@ export async function categorizeAnswer(
           webContext: webContext.length > 0 ? webContext : undefined,
           images: images.length > 0 ? images : undefined,
           searchQuery: localizedQuery, // Add search phrase used in Google
+          visionResult: visionResult || undefined, // Gemini Vision API analysis
+          categoryName: request.categoryName, // Category name (e.g., "Toothpaste", "Brand")
         };
 
         console.log('📊 Returning AI result:', {

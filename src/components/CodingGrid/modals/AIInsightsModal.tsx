@@ -1,4 +1,4 @@
-import { X, Brain, Globe, Image as ImageIcon, Calendar, Cpu } from 'lucide-react';
+import { X, Brain, Globe, Image as ImageIcon, Calendar, Cpu, Eye } from 'lucide-react';
 import type { FC } from 'react';
 
 interface AISuggestion {
@@ -21,6 +21,14 @@ interface ImageResult {
   contextLink?: string;
 }
 
+interface VisionAnalysisResult {
+  brandDetected: boolean;
+  brandName: string;
+  confidence: number;
+  reasoning: string;
+  objectsDetected: string[];
+}
+
 interface AIInsightsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -32,6 +40,8 @@ interface AIInsightsModalProps {
   answer: string;
   translation?: string;
   searchQuery?: string;
+  visionResult?: VisionAnalysisResult;
+  categoryName?: string;
 }
 
 export const AIInsightsModal: FC<AIInsightsModalProps> = ({
@@ -45,6 +55,8 @@ export const AIInsightsModal: FC<AIInsightsModalProps> = ({
   answer,
   translation,
   searchQuery,
+  visionResult,
+  categoryName,
 }) => {
   const getConfidenceColor = (confidence: number): string => {
     if (confidence >= 0.9) return 'text-green-600 dark:text-green-400';
@@ -75,7 +87,8 @@ export const AIInsightsModal: FC<AIInsightsModalProps> = ({
   const { aiReasoning, webEvidence } = separateReasoning(suggestion.reasoning);
 
   // Reconstruct search query if missing (for old cached data)
-  const displaySearchQuery = searchQuery || (translation && translation !== answer ? translation : answer);
+  const baseQuery = searchQuery || (translation && translation !== answer ? translation : answer);
+  const displaySearchQuery = categoryName ? `${categoryName} ${baseQuery}` : baseQuery;
   const isReconstructed = !searchQuery && (webContext || images);
 
   if (!isOpen) return null;
@@ -201,6 +214,68 @@ export const AIInsightsModal: FC<AIInsightsModalProps> = ({
                 <p className="text-sm text-gray-900 dark:text-gray-100 leading-relaxed whitespace-pre-wrap">
                   {webEvidence}
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* Vision AI Analysis */}
+          {visionResult && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                <Eye className="h-4 w-4" />
+                Vision AI Analysis
+              </h3>
+              <div className={`rounded-lg p-4 border ${
+                visionResult.brandDetected
+                  ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
+                  : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
+              }`}>
+                <div className="space-y-3">
+                  {/* Detection Status */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Brand Detected:</span>
+                    <span className={`text-sm font-bold ${
+                      visionResult.brandDetected
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-gray-600 dark:text-gray-400'
+                    }`}>
+                      {visionResult.brandDetected ? `✓ ${visionResult.brandName}` : '✗ No brand detected'}
+                    </span>
+                  </div>
+
+                  {/* Confidence */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Confidence:</span>
+                    <span className="text-sm font-bold text-purple-600 dark:text-purple-400">
+                      {(visionResult.confidence * 100).toFixed(0)}%
+                    </span>
+                  </div>
+
+                  {/* Objects Detected */}
+                  {visionResult.objectsDetected && visionResult.objectsDetected.length > 0 && (
+                    <div>
+                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Objects Detected:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {visionResult.objectsDetected.map((obj, idx) => (
+                          <span
+                            key={idx}
+                            className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded"
+                          >
+                            {obj}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Reasoning */}
+                  <div>
+                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Analysis:</span>
+                    <p className="text-sm text-gray-900 dark:text-gray-100 mt-1 leading-relaxed">
+                      {visionResult.reasoning}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           )}

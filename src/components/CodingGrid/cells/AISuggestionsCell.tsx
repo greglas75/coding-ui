@@ -174,6 +174,8 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
           answer={answer}
           translation={translation}
           searchQuery={aiSuggestions?.searchQuery}
+          visionResult={aiSuggestions?.visionResult}
+          categoryName={aiSuggestions?.categoryName}
         />
       )}
     </div>
