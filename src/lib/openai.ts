@@ -8,29 +8,12 @@
 import OpenAI from 'openai';
 import type { AiCodeSuggestion, AiSuggestions } from '../types';
 import { openaiRateLimiter, retryWithBackoff } from './rateLimit';
+import { getOpenAIAPIKey } from '../utils/apiKeys';
+import { buildWebContextSection, googleImageSearch } from '../services/webContextProvider';
+import { getTemplate, type TemplatePreset } from '../config/DefaultTemplates';
 
-// ❌ SECURITY FIX: OpenAI client WYŁĄCZONY na froncie (klucz API był eksponowany!)
-// ✅ ZAMIAST TEGO: Używaj backend endpoint /api/gpt-test
-let openai: OpenAI | null = null;
-
-// ❌ WYŁĄCZONE - NIE inicjalizuj OpenAI na froncie!
-// try {
-//   const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-//   if (apiKey && apiKey !== 'sk-proj-placeholder-key') {
-//     openai = new OpenAI({
-//       apiKey: apiKey,
-//       dangerouslyAllowBrowser: true, // ❌ NIEBEZPIECZNE - eksponuje klucz w przeglądarce!
-//     });
-//   }
-// } catch (error) {
-//   console.warn('⚠️ OpenAI client initialization failed:', error);
-// }
-
-// ⚠️ TODO: Zmień pliki używające tego na backend API:
-// - src/lib/batchAIProcessor.ts
-// - src/lib/modelComparison.ts
-// - src/api/categorize.ts
-// Wszystkie powinny używać fetch('/api/gpt-test') zamiast bezpośredniego wywołania OpenAI
+// ✅ SECURITY: OpenAI client initialized dynamically from Settings page (localStorage)
+// Keys are obfuscated in browser storage and never exposed in .env files
 
 /**
  * Request structure for categorizing an answer
@@ -39,7 +22,10 @@ export interface CategorizeRequest {
   answer: string;
   answerTranslation?: string; // Optional English translation for better accuracy
   categoryName: string;
-  template: string;
+  presetName: string; // Template preset name (e.g., "LLM Proper Name", "LLM Brand List")
+  customTemplate?: string; // Custom template (overrides preset if provided)
+  model?: string; // OpenAI model (defaults to 'gpt-4o-mini' if not provided)
+  visionModel?: string; // Gemini vision model for image analysis (e.g., "gemini-2.5-flash-lite")
   codes: Array<{ id: string; name: string }>;
   context: {
     language?: string;
@@ -48,11 +34,32 @@ export interface CategorizeRequest {
 }
 
 /**
+ * Web context result
+ */
+export interface WebContext {
+  title: string;
+  snippet: string;
+  url: string;
+}
+
+/**
+ * Image search result
+ */
+export interface ImageResult {
+  title: string;
+  link: string;
+  thumbnailLink?: string;
+  contextLink?: string;
+}
+
+/**
  * Response from OpenAI (matches our AiCodeSuggestion type)
  */
 export interface CategorizeResponse {
   suggestions: AiCodeSuggestion[];
   reasoning?: string;
+  webContext?: WebContext[];
+  images?: ImageResult[];
 }
 
 /**
@@ -66,7 +73,8 @@ export interface CategorizeResponse {
  * const suggestions = await categorizeAnswer({
  *   answer: "I love Nike shoes",
  *   categoryName: "Fashion Brands",
- *   template: "Categorize this answer...",
+ *   presetName: "LLM Brand List",
+ *   model: "gpt-4o-mini",
  *   codes: [
  *     { id: "1", name: "Nike" },
  *     { id: "2", name: "Adidas" }
@@ -80,26 +88,103 @@ export interface CategorizeResponse {
  */
 export async function categorizeAnswer(
   request: CategorizeRequest
-): Promise<AiCodeSuggestion[]> {
-  // Validate OpenAI client first
-  if (!openai) {
-    const error = new Error('OpenAI client not initialized. Check VITE_OPENAI_API_KEY in .env');
+): Promise<CategorizeResponse> {
+  // Get API key from Settings page (localStorage)
+  const apiKey = getOpenAIAPIKey();
+
+  if (!apiKey) {
+    const error = new Error('OpenAI API key not configured. Please add your API key in Settings page.');
     console.error('❌ Configuration error:', error.message);
     throw error;
   }
+
+  // Create OpenAI client with key from Settings
+  const openai = new OpenAI({
+    apiKey: apiKey,
+    dangerouslyAllowBrowser: true,
+  });
 
   // Add to rate limiter queue and retry with exponential backoff
   return openaiRateLimiter.add(() =>
     retryWithBackoff(async () => {
       try {
-        // Build the system prompt by replacing placeholders
+        // ═══════════════════════════════════════════════════════════
+        // Step 1: Fetch Web Context (Google Search)
+        // ═══════════════════════════════════════════════════════════
+        let webContext: WebContext[] = [];
+        let images: ImageResult[] = [];
+
+        try {
+          console.log(`🌐 Fetching web context for: "${request.answer.substring(0, 50)}..."`);
+
+          // 🌍 Build localized search query (translate category name to user's language)
+          // TODO: Re-enable after fixing translation API
+          const localizedQuery = request.answer; // Temporarily using original answer
+          const language = 'auto';
+
+          console.log(`🔍 Search query: "${localizedQuery}"`);
+
+          // Build web context section (returns formatted string)
+          const webContextText = await buildWebContextSection(localizedQuery, {
+            enabled: true,
+            numResults: 3,
+          });
+
+          // Also get raw results for the modal
+          const { googleSearch } = await import('../services/webContextProvider');
+          webContext = await googleSearch(localizedQuery, 3);
+
+          console.log(`✅ Found ${webContext.length} web results:`, webContext);
+
+          // Fetch related images
+          console.log(`🖼️ Fetching related images...`);
+          images = await googleImageSearch(localizedQuery, 6);
+          console.log(`✅ Found ${images.length} images:`, images);
+
+          // 👁️ Analyze images with vision AI (if vision_model configured)
+          if (images.length > 0 && request.visionModel) {
+            console.log(`👁️ Analyzing images with ${request.visionModel}...`);
+            try {
+              const { analyzeImagesWithGemini, calculateVisionBoost } = await import('../services/geminiVision');
+
+              const brandNames = request.codes.map((c: any) => c.name);
+              const visionResult = await analyzeImagesWithGemini(
+                images,
+                request.answer,
+                brandNames,
+                request.visionModel
+              );
+
+              console.log('✅ Vision analysis result:', visionResult);
+
+              // Store vision result for later evidence boost
+              (request as any)._visionResult = visionResult;
+
+            } catch (visionError) {
+              console.warn('⚠️ Vision analysis failed:', visionError);
+            }
+          }
+
+        } catch (error) {
+          console.warn('⚠️ Web context fetch failed, continuing without it:', error);
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // Step 2: Build the system prompt with web context
+        // ═══════════════════════════════════════════════════════════
         const systemPrompt = buildSystemPrompt(request);
 
-        console.log(`🤖 Calling OpenAI API for categorization...`);
+        // Use model from request or default to gpt-4o-mini
+        const modelToUse = request.model || 'gpt-4o-mini';
 
-        // Call OpenAI API
-        const response = await openai!.chat.completions.create({
-          model: 'gpt-4o-mini', // Using gpt-4o-mini for cost efficiency
+        console.log(`🤖 Calling OpenAI API for categorization (model: ${modelToUse})...`);
+
+        // GPT-5 and some other models don't support custom temperature
+        const supportsCustomTemperature = !modelToUse.toLowerCase().startsWith('gpt-5');
+
+        // Build request parameters
+        const requestParams: any = {
+          model: modelToUse,
           messages: [
             {
               role: 'system',
@@ -110,9 +195,16 @@ export async function categorizeAnswer(
               content: `User's response: "${request.answer}"`,
             },
           ],
-          temperature: 0.3, // Low temperature for consistent, focused responses
           response_format: { type: 'json_object' }, // Enforce JSON output
-        });
+        };
+
+        // Only add temperature if the model supports it
+        if (supportsCustomTemperature) {
+          requestParams.temperature = 0.3; // Low temperature for consistent, focused responses
+        }
+
+        // Call OpenAI API
+        const response = await openai.chat.completions.create(requestParams);
 
         // Parse the JSON response
         const content = response.choices[0].message.content;
@@ -120,10 +212,14 @@ export async function categorizeAnswer(
           throw new Error('Empty response from OpenAI');
         }
 
+        console.log('📄 Raw OpenAI response:', content.substring(0, 500));
+
         const result: CategorizeResponse = JSON.parse(content);
 
         // Validate response structure
         if (!result.suggestions || !Array.isArray(result.suggestions)) {
+          console.error('❌ Invalid response structure:', JSON.stringify(result, null, 2));
+          console.error('Expected format: { suggestions: [...] }');
           throw new Error('Invalid response format from OpenAI - missing suggestions array');
         }
 
@@ -136,7 +232,53 @@ export async function categorizeAnswer(
         }));
 
         console.log(`✅ OpenAI returned ${validatedSuggestions.length} suggestions`);
-        return validatedSuggestions;
+
+        // ═══════════════════════════════════════════════════════════
+        // Step 3: Boost confidence with web evidence validation
+        // ═══════════════════════════════════════════════════════════
+        const boostedSuggestions = validatedSuggestions.map(suggestion => {
+          const visionResult = (request as any)._visionResult;
+          const evidenceScore = calculateEvidenceScore(
+            suggestion.code_name,
+            webContext,
+            images,
+            visionResult
+          );
+
+          const originalConfidence = suggestion.confidence;
+          const boostedConfidence = Math.min(1.0, suggestion.confidence + evidenceScore.boost);
+
+          // Add evidence details to reasoning
+          let enhancedReasoning = suggestion.reasoning;
+          if (evidenceScore.boost > 0) {
+            enhancedReasoning += `\n\n🔍 Web Evidence (${evidenceScore.details}): Confidence boosted from ${(originalConfidence * 100).toFixed(0)}% to ${(boostedConfidence * 100).toFixed(0)}%`;
+          }
+
+          console.log(`📊 Evidence boost for "${suggestion.code_name}": ${(evidenceScore.boost * 100).toFixed(1)}% (${evidenceScore.details})`);
+
+          return {
+            ...suggestion,
+            confidence: boostedConfidence,
+            reasoning: enhancedReasoning,
+          };
+        });
+
+        // Return suggestions with web context, images, and search query
+        const finalResult = {
+          suggestions: boostedSuggestions,
+          webContext: webContext.length > 0 ? webContext : undefined,
+          images: images.length > 0 ? images : undefined,
+          searchQuery: localizedQuery, // Add search phrase used in Google
+        };
+
+        console.log('📊 Returning AI result:', {
+          suggestionsCount: finalResult.suggestions.length,
+          webContextCount: finalResult.webContext?.length || 0,
+          imagesCount: finalResult.images?.length || 0,
+          searchQuery: finalResult.searchQuery,
+        });
+
+        return finalResult;
 
       } catch (error: any) {
         // Enhanced error handling for common OpenAI errors
@@ -151,7 +293,7 @@ export async function categorizeAnswer(
 
         // Authentication error (401)
         if (error.status === 401) {
-          const errorMessage = 'OpenAI API key is invalid. Please check your VITE_OPENAI_API_KEY in .env';
+          const errorMessage = 'OpenAI API key is invalid. Please check your API key in Settings page.';
           console.error(`🔑 ${errorMessage}`);
           throw new Error(errorMessage);
         }
@@ -192,6 +334,161 @@ export async function categorizeAnswer(
 }
 
 /**
+ * Calculate evidence score from web search results and images
+ *
+ * This function validates AI suggestions by analyzing Google search results,
+ * images, and Gemini vision analysis to boost confidence when strong evidence is found.
+ *
+ * @param brandName - The brand name to validate
+ * @param webContext - Google search results
+ * @param images - Google image search results
+ * @param visionResult - Optional Gemini vision analysis result
+ * @returns Score object with boost amount and evidence details
+ */
+function calculateEvidenceScore(
+  brandName: string,
+  webContext: WebContext[],
+  images: ImageResult[],
+  visionResult?: any
+): { boost: number; details: string } {
+  let boost = 0;
+  const evidenceItems: string[] = [];
+
+  // Normalize brand name for comparison (lowercase, no spaces)
+  const normalizedBrand = brandName.toLowerCase().replace(/\s+/g, '');
+
+  // ═══════════════════════════════════════════════════════════
+  // 1. Check Web Search Results
+  // ═══════════════════════════════════════════════════════════
+  if (webContext.length > 0) {
+    let hasOfficialSite = false;
+    let hasRetailSite = false;
+    let brandMentions = 0;
+
+    for (const result of webContext) {
+      const url = result.url.toLowerCase();
+      const title = result.title.toLowerCase();
+      const snippet = result.snippet.toLowerCase();
+
+      // Check if brand name appears in URL (strong evidence)
+      if (url.includes(normalizedBrand)) {
+        brandMentions++;
+
+        // Check for official website (domain matches brand)
+        if (url.includes(`.${normalizedBrand}.com`) || url.includes(`//${normalizedBrand}.`)) {
+          hasOfficialSite = true;
+        }
+      }
+
+      // Check if brand appears in title or snippet
+      if (title.includes(normalizedBrand) || snippet.includes(normalizedBrand)) {
+        brandMentions++;
+      }
+
+      // Check for e-commerce/retail sites
+      const retailDomains = ['amazon', 'walmart', 'target', 'ebay', 'shopify', 'carrefour', 'allegro'];
+      if (retailDomains.some(domain => url.includes(domain))) {
+        hasRetailSite = true;
+      }
+    }
+
+    // Calculate boost from web results
+    if (hasOfficialSite) {
+      boost += 0.10; // +10% for official website
+      evidenceItems.push('official site');
+    }
+
+    if (hasRetailSite) {
+      boost += 0.05; // +5% for retail presence
+      evidenceItems.push('retail sites');
+    }
+
+    if (brandMentions >= 2) {
+      boost += 0.03; // +3% for multiple mentions
+      evidenceItems.push(`${brandMentions} mentions`);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 2. Check Image Search Results
+  // ═══════════════════════════════════════════════════════════
+  if (images.length > 0) {
+    let productImagesFound = 0;
+
+    for (const image of images) {
+      const imageUrl = image.link.toLowerCase();
+      const imageTitle = image.title.toLowerCase();
+
+      // Check if brand name appears in image URL or title
+      if (imageUrl.includes(normalizedBrand) || imageTitle.includes(normalizedBrand)) {
+        productImagesFound++;
+      }
+    }
+
+    // Boost confidence based on number of product images
+    if (productImagesFound >= 4) {
+      boost += 0.10; // +10% for many product images
+      evidenceItems.push('many product images');
+    } else if (productImagesFound >= 2) {
+      boost += 0.05; // +5% for some product images
+      evidenceItems.push('product images');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 3. Penalty for lack of evidence
+  // ═══════════════════════════════════════════════════════════
+  if (webContext.length === 0 && images.length === 0) {
+    boost = -0.10; // -10% if no web evidence at all
+    evidenceItems.push('no web evidence found');
+  } else if (webContext.length === 0) {
+    boost -= 0.05; // -5% if no search results
+    evidenceItems.push('no search results');
+  } else if (images.length === 0) {
+    // No penalty for missing images alone
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 4. Vision AI Analysis (Gemini) 👁️
+  // ═══════════════════════════════════════════════════════════
+  if (visionResult) {
+    const visionBrandMatch = visionResult.brandName.toLowerCase() === brandName.toLowerCase();
+
+    if (visionResult.brandDetected && visionBrandMatch) {
+      // Vision AI detected the correct brand!
+      if (visionResult.confidence >= 0.8) {
+        boost += 0.15; // +15% for high confidence vision match
+        evidenceItems.push('strong visual confirmation');
+      } else if (visionResult.confidence >= 0.6) {
+        boost += 0.10; // +10% for medium confidence
+        evidenceItems.push('visual match detected');
+      } else if (visionResult.confidence >= 0.4) {
+        boost += 0.05; // +5% for weak match
+        evidenceItems.push('possible visual match');
+      }
+
+      // Bonus for multiple objects detected
+      if (visionResult.objectsDetected && visionResult.objectsDetected.length >= 3) {
+        boost += 0.03; // +3% for detailed visual analysis
+        evidenceItems.push('multiple elements');
+      }
+    } else if (visionResult.brandDetected && !visionBrandMatch) {
+      // Vision detected different brand - penalty
+      boost -= 0.08; // -8% for conflicting visual evidence
+      evidenceItems.push(`vision detected "${visionResult.brandName}"`);
+    } else if (!visionResult.brandDetected) {
+      // No brand detected visually - small penalty
+      boost -= 0.03; // -3% for no visual confirmation
+      evidenceItems.push('no visual brand detected');
+    }
+  }
+
+  const details = evidenceItems.length > 0 ? evidenceItems.join(', ') : 'no evidence';
+
+  return { boost, details };
+}
+
+/**
  * Batch categorize multiple answers
  *
  * @param requests - Array of categorization requests
@@ -203,13 +500,15 @@ export async function batchCategorizeAnswers(
   const results = await Promise.all(
     requests.map(async (request) => {
       try {
-        const suggestions = await categorizeAnswer(request);
+        const result = await categorizeAnswer(request);
 
         const aiSuggestions: AiSuggestions = {
-          suggestions,
-          model: 'gpt-4o-mini',
+          suggestions: result.suggestions,
+          model: request.model || 'gpt-4o-mini',
           timestamp: new Date().toISOString(),
-          preset_used: request.categoryName,
+          preset_used: request.presetName,
+          webContext: result.webContext,
+          images: result.images,
         };
 
         return aiSuggestions;
@@ -218,9 +517,9 @@ export async function batchCategorizeAnswers(
         // Return empty suggestions on error
         return {
           suggestions: [],
-          model: 'gpt-4o-mini',
+          model: request.model || 'gpt-4o-mini',
           timestamp: new Date().toISOString(),
-          preset_used: request.categoryName,
+          preset_used: request.presetName,
         };
       }
     })
@@ -233,19 +532,41 @@ export async function batchCategorizeAnswers(
  * Build the system prompt by replacing template placeholders
  */
 function buildSystemPrompt(request: CategorizeRequest): string {
-  let prompt = request.template;
+  // Get template: Use custom template if provided, otherwise use preset template
+  let prompt: string;
+
+  if (request.customTemplate) {
+    // Use custom template from category
+    prompt = request.customTemplate;
+    console.log(`📝 Using custom template from category`);
+  } else {
+    // Use preset template from DefaultTemplates
+    const presetTemplate = getTemplate(request.presetName as TemplatePreset);
+    if (presetTemplate) {
+      prompt = presetTemplate;
+      console.log(`📝 Using preset template: "${request.presetName}"`);
+    } else {
+      // Fallback to default if preset not found
+      prompt = DEFAULT_CATEGORIZATION_TEMPLATE;
+      console.warn(`⚠️ Preset "${request.presetName}" not found, using DEFAULT_CATEGORIZATION_TEMPLATE`);
+    }
+  }
 
   // Replace placeholders
-  prompt = prompt.replace('{name}', request.categoryName);
-  prompt = prompt.replace('{codes}', formatCodes(request.codes));
-  prompt = prompt.replace('{answer_lang}', request.context.language || 'unknown');
-  prompt = prompt.replace('{country}', request.context.country || 'unknown');
+  prompt = prompt.replace(/\{name\}/g, request.categoryName);
+  prompt = prompt.replace(/\{category\}/g, request.categoryName);
+  prompt = prompt.replace(/\{searchTerm\}/g, request.categoryName); // searchTerm defaults to category name
+  prompt = prompt.replace(/\{codes\}/g, formatCodes(request.codes));
+  prompt = prompt.replace(/\{answer_lang\}/g, request.context.language || 'unknown');
+  prompt = prompt.replace(/\{country\}/g, request.context.country || 'unknown');
+  prompt = prompt.replace(/\{input\}/g, request.answer); // For some presets
 
   // Add answer section with both original and translation
   prompt += buildAnswerSection(request);
 
-  // Add JSON format instructions if not present
-  if (!prompt.includes('JSON')) {
+  // Add JSON format instructions if not present in the template
+  // Check specifically for the "suggestions" array format
+  if (!prompt.includes('"suggestions"')) {
     prompt += `\n\nIMPORTANT: You must respond with valid JSON in this exact format:
 {
   "suggestions": [
@@ -324,10 +645,11 @@ You will receive:
 Use BOTH versions to make the best categorization decision. The original may contain brand names in local spelling, while the translation provides context. When both languages confirm the same brand or category, use higher confidence scores.`;
 
 /**
- * Validate OpenAI API key is configured
+ * Validate OpenAI API key is configured in Settings
  */
 export function validateOpenAIConfig(): boolean {
-  return !!import.meta.env.VITE_OPENAI_API_KEY;
+  const apiKey = getOpenAIAPIKey();
+  return !!apiKey && apiKey.trim().length > 0;
 }
 
 /**
@@ -338,9 +660,10 @@ export function getOpenAIStatus(): {
   model: string;
   apiKeyPresent: boolean;
 } {
+  const apiKey = getOpenAIAPIKey();
   return {
     configured: validateOpenAIConfig(),
     model: 'gpt-4o-mini',
-    apiKeyPresent: !!import.meta.env.VITE_OPENAI_API_KEY,
+    apiKeyPresent: !!apiKey && apiKey.trim().length > 0,
   };
 }

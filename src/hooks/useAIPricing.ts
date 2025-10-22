@@ -21,7 +21,8 @@ export function useAIPricing(options: UseAIPricingOptions = {}) {
     queryFn: async () => {
       console.log('🔄 Fetching AI pricing data...');
 
-      const response = await fetch('http://localhost:3001/api/ai-pricing');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3020';
+      const response = await fetch(`${API_URL}/api/ai-pricing`);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -46,7 +47,8 @@ export function useAIPricing(options: UseAIPricingOptions = {}) {
     console.log('🔄 Manually refreshing pricing data...');
 
     try {
-      const response = await fetch('http://localhost:3001/api/ai-pricing/refresh', {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3020';
+      const response = await fetch(`${API_URL}/api/ai-pricing/refresh`, {
         method: 'POST',
       });
 

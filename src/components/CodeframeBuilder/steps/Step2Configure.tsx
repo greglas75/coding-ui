@@ -30,6 +30,7 @@ export function Step2Configure({
   };
 
   const estimatedCost = 0.05; // Rough estimate, can be calculated based on answers
+  const isBrandCoding = config.coding_type === 'brand';
 
   return (
     <div className="space-y-6">
@@ -39,13 +40,16 @@ export function Step2Configure({
           Configure Generation
         </h2>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Adjust algorithm settings to optimize the codebook quality.
+          {isBrandCoding
+            ? 'Configure brand detection and validation settings.'
+            : 'Adjust algorithm settings to optimize the codebook quality.'}
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Clustering Settings */}
-        <div className="space-y-4">
+        {/* Clustering Settings - Hidden for Brand Coding */}
+        {!isBrandCoding && (
+          <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <Settings className="h-5 w-5" />
             Clustering Settings
@@ -120,6 +124,7 @@ export function Step2Configure({
             </p>
           </div>
         </div>
+        )}
 
         {/* Language & Advanced */}
         <div className="space-y-4">
@@ -194,10 +199,21 @@ export function Step2Configure({
           Ready to Generate
         </h4>
         <ul className="space-y-1 text-sm text-yellow-800 dark:text-yellow-300">
-          <li>• Cluster size: {config.algorithm_config.min_cluster_size}+ answers per theme</li>
-          <li>• Hierarchy: {config.algorithm_config.hierarchy_preference}</li>
-          <li>• Target language: {config.target_language.toUpperCase()}</li>
-          <li>• Processing time: ~30-60 seconds (estimated)</li>
+          {isBrandCoding ? (
+            <>
+              <li>• Analysis type: Brand Tracking</li>
+              <li>• Brand detection: Google-verified</li>
+              <li>• Target language: {config.target_language.toUpperCase()}</li>
+              <li>• Processing time: ~20-40 seconds (estimated)</li>
+            </>
+          ) : (
+            <>
+              <li>• Cluster size: {config.algorithm_config.min_cluster_size}+ answers per theme</li>
+              <li>• Hierarchy: {config.algorithm_config.hierarchy_preference}</li>
+              <li>• Target language: {config.target_language.toUpperCase()}</li>
+              <li>• Processing time: ~30-60 seconds (estimated)</li>
+            </>
+          )}
         </ul>
       </div>
 

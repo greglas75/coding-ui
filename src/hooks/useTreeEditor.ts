@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import type { HierarchyNode, HierarchyUpdateAction, MECEIssue } from '@/types/codeframe';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3020';
 
 export function useTreeEditor(generationId: string | null) {
   const queryClient = useQueryClient();

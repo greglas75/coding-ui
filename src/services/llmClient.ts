@@ -8,6 +8,7 @@ import { cacheResult, checkWhitelist, getCachedResult } from './cacheLayer';
 import { getProvider, selectFallbackModel, selectModel, type Priority, type Provider, type TaskType } from './modelRouter';
 import { detectLanguage, translateIfNeeded } from './translationHelper';
 import { buildWebContextSection } from './webContextProvider';
+import { getAnthropicAPIKey, getGoogleGeminiAPIKey } from '../utils/apiKeys';
 
 // ───────────────────────────────────────────────────────────────
 // Types & Interfaces
@@ -414,10 +415,11 @@ async function callAnthropic(
   maxTokens: number,
   timeout: number
 ): Promise<string> {
-  const apiKey = localStorage.getItem('anthropic_api_key') || import.meta.env.VITE_ANTHROPIC_API_KEY;
+  // Get API key from Settings page (obfuscated in localStorage)
+  const apiKey = getAnthropicAPIKey();
 
   if (!apiKey) {
-    throw new Error('Anthropic API key not configured. Please add it in Settings.');
+    throw new Error('Anthropic API key not configured. Please add it in Settings page.');
   }
 
   const controller = new AbortController();
@@ -464,10 +466,11 @@ async function callGoogle(
   maxTokens: number,
   timeout: number
 ): Promise<string> {
-  const apiKey = localStorage.getItem('google_gemini_api_key') || import.meta.env.VITE_GOOGLE_GEMINI_API_KEY;
+  // Get API key from Settings page (obfuscated in localStorage)
+  const apiKey = getGoogleGeminiAPIKey();
 
   if (!apiKey) {
-    throw new Error('Google Gemini API key not configured. Please add it in Settings.');
+    throw new Error('Google Gemini API key not configured. Please add it in Settings page.');
   }
 
   const controller = new AbortController();

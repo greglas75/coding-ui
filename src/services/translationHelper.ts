@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { logError, logInfo } from '../utils/logger';
+import { getGoogleGeminiAPIKey, getOpenAIAPIKey } from '../utils/apiKeys';
 
 // ───────────────────────────────────────────────────────────────
 // Language Detection
@@ -202,10 +203,11 @@ export async function translateText(
  * Translates using Gemini-2.5-Pro (primary method).
  */
 async function translateWithGemini(text: string, targetLang: string): Promise<string> {
-  const apiKey = import.meta.env.VITE_GOOGLE_GEMINI_API_KEY;
+  // Get API key from Settings page (obfuscated in localStorage)
+  const apiKey = getGoogleGeminiAPIKey();
 
   if (!apiKey) {
-    throw new Error('Gemini API key not configured');
+    throw new Error('Gemini API key not configured. Please add it in Settings page.');
   }
 
   const prompt = `Translate the following text to ${getLanguageName(targetLang)}. Keep the exact meaning and tone. Return ONLY the translation, no explanations:
@@ -248,10 +250,11 @@ ${text}`;
  * Translates using GPT-4.5-Turbo (fallback method).
  */
 async function translateWithOpenAI(text: string, targetLang: string): Promise<string> {
-  const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+  // Get API key from Settings page (obfuscated in localStorage)
+  const apiKey = getOpenAIAPIKey();
 
   if (!apiKey) {
-    throw new Error('OpenAI API key not configured');
+    throw new Error('OpenAI API key not configured. Please add it in Settings page.');
   }
 
   logInfo(`Using GPT-4.5-Turbo fallback for translation`, {

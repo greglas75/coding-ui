@@ -29,18 +29,18 @@ export const DefaultTemplates: Record<TemplatePreset, TemplateConfig> = {
   'LLM Proper Name': {
     name: 'LLM Proper Name',
     description: 'Brand verification, normalization & validation with search evidence',
-    template: `You are a brand verification and normalization assistant.
+    template: `You are a brand verification and categorization assistant.
 
 TASK:
-Detect and normalize brand names from the user's message related to "{searchTerm}" or "{category}".
-Correct spelling, capitalization, and transliteration issues.
+Analyze the user's response and match it to the most appropriate brand code(s) from the list below.
+Handle spelling variations, transliterations, and multilingual brand names.
 
-CONTEXT:
-- Category: {category}
-- Search Reference: {searchTerm}
+CATEGORY: {category}
+AVAILABLE CODES:
+{codes}
 
 RULES:
-1. Accept only verified, **real-world brands** with web presence
+1. Match to verified, **real-world brands** with web presence
 2. Correct common misspellings and normalize capitalization
 3. Handle multilingual brand names:
    - Arabic script (preserve original, normalize to Latin if possible)
@@ -50,19 +50,28 @@ RULES:
 4. Use Google Search and Image Search as evidence:
    - Logos, packaging, product images → strong evidence
    - Retail websites, official pages → confirms existence
-5. Reject:
-   - Generic terms (product categories, not brands)
-   - Fictional or made-up names
-   - Unrelated brands (different product category)
+5. Match the user's input to one of the available codes by ID and name
+6. Return 1-3 suggestions ordered by confidence (highest first)
+7. If no good match exists, return an empty suggestions array
 
-Return JSON:
+IMPORTANT: You must respond with valid JSON in this exact format:
 {
-  "normalized": "{brand_name}",
-  "confidence": 0.92,
-  "status": "whitelist | uncertain | reject",
-  "reasoning": "{explain_evidence}"
-}`,
-    variables: ['{category}', '{searchTerm}'],
+  "suggestions": [
+    {
+      "code_id": "1",
+      "code_name": "Nike",
+      "confidence": 0.95,
+      "reasoning": "User mentioned 'nike' which matches the brand code exactly"
+    }
+  ]
+}
+
+Rules:
+- confidence must be a number between 0.0 and 1.0
+- Only suggest codes that are in the available codes list
+- Use the exact code_id and code_name from the list
+- Always provide clear reasoning for each suggestion`,
+    variables: ['{category}', '{searchTerm}', '{codes}'],
   },
 
   'LLM Brand List': {

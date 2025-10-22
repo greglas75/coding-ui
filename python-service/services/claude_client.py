@@ -82,7 +82,7 @@ class RateLimiter:
 @dataclass
 class ClaudeConfig:
     """Configuration for Claude API calls."""
-    model: str = "claude-sonnet-4-5-20251022"
+    model: str = "claude-3-5-haiku-20241022"  # Changed from Sonnet to Haiku 3.5 - 10x cheaper!
     temperature: float = 0.3
     max_tokens: int = 4096
     # Rate limiting: Max 10 API calls per minute (conservative)
@@ -222,17 +222,16 @@ class ClaudeClient:
             CircuitBreakerError: If circuit breaker is open
             Exception: If API call fails after retries
         """
-        # Check rate limit
-        if not self.rate_limiter.acquire():
+        # Check rate limit and wait if necessary (instead of failing)
+        while not self.rate_limiter.acquire():
             wait_time = self.rate_limiter.wait_time()
             logger.warning(
-                f"Rate limit exceeded! Must wait {wait_time:.1f}s before next call. "
+                f"Rate limit exceeded! Waiting {wait_time:.1f}s before next call. "
                 f"Limit: {self.config.rate_limit_calls} calls per {self.config.rate_limit_window}s"
             )
-            raise RuntimeError(
-                f"Rate limit exceeded. Please wait {wait_time:.1f} seconds. "
-                f"Limit: {self.config.rate_limit_calls} calls per {self.config.rate_limit_window}s"
-            )
+            # Wait for rate limit to reset instead of throwing error
+            # Add 0.1s buffer to avoid race conditions
+            time.sleep(wait_time + 0.1)
 
         # Call through circuit breaker
         try:
@@ -298,6 +297,16 @@ class ClaudeClient:
 
             processing_time_ms = int((time.time() - start_time) * 1000)
 
+            # DEBUG: Log full response structure
+            logger.info(f"🔍 Response type: {type(response)}")
+            logger.info(f"🔍 Response dir: {dir(response)}")
+            if hasattr(response, 'content'):
+                logger.info(f"🔍 Response.content type: {type(response.content)}")
+                logger.info(f"🔍 Response.content length: {len(response.content) if response.content else 0}")
+                if response.content and len(response.content) > 0:
+                    logger.info(f"🔍 First content block type: {type(response.content[0])}")
+                    logger.info(f"🔍 First content block: {response.content[0]}")
+
             # Calculate usage and cost FIRST (before parsing)
             usage = self._calculate_usage(response.usage)
 
@@ -313,8 +322,21 @@ class ClaudeClient:
                     f"Generation aborted for safety."
                 )
 
-            # Extract response content
-            response_text = response.content[0].text
+            # Extract response content with better error handling
+            if not response.content or len(response.content) == 0:
+                logger.error(f"Claude API returned empty content. Response: {response}")
+                raise RuntimeError("Claude API returned empty response content")
+
+            content_block = response.content[0]
+            if content_block is None:
+                logger.error(f"First content block is None. Response: {response}")
+                raise RuntimeError("Claude API content block is None")
+
+            if not hasattr(content_block, 'text') or content_block.text is None:
+                logger.error(f"Content block has no text attribute or text is None. Content block type: {type(content_block)}, Content: {content_block}")
+                raise RuntimeError(f"Claude API content block has no text (type: {type(content_block)})")
+
+            response_text = content_block.text
 
             # Parse XML response
             result = self._parse_xml_response(response_text)
@@ -441,7 +463,33 @@ Provide your analysis in the specified XML format. Remember to:
 
         except Exception as e:
             logger.error(f"Error parsing XML response: {str(e)}")
-            logger.debug(f"XML text: {xml_text[:500]}...")
+            # Log full XML for debugging
+            lines = xml_text.split('\n')
+            logger.error(f"Total XML lines: {len(lines)}")
+
+            # If it's a parse error with line number, show that line
+            error_msg = str(e)
+            if 'line' in error_msg:
+                try:
+                    # Extract line number from error message (e.g., "line 67, column 32")
+                    import re
+                    match = re.search(r'line (\d+)', error_msg)
+                    if match:
+                        line_num = int(match.group(1)) - 1  # 0-indexed
+                        if line_num < len(lines):
+                            logger.error(f"Problematic line {line_num + 1}: {repr(lines[line_num])}")
+                            # Show context (lines around the error)
+                            for i in range(max(0, line_num - 2), min(len(lines), line_num + 3)):
+                                logger.error(f"  Line {i + 1}: {repr(lines[i])}")
+                except:
+                    pass
+
+            # Save full XML to temp file for inspection
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as f:
+                f.write(xml_text)
+                logger.error(f"Full XML saved to: {f.name}")
+
             raise
 
     def _parse_codes(self, codes_elem: ET.Element) -> List[CodeItem]:
@@ -449,18 +497,25 @@ Provide your analysis in the specified XML format. Remember to:
         codes = []
 
         for code_elem in codes_elem.findall("code"):
-            name = code_elem.find("name").text
-            description = code_elem.find("description").text
-            confidence = code_elem.find("confidence").text
+            # Parse required fields with safe defaults
+            name_elem = code_elem.find("name")
+            name = name_elem.text if name_elem is not None else "Unnamed Code"
+
+            desc_elem = code_elem.find("description")
+            description = desc_elem.text if desc_elem is not None else ""
+
+            conf_elem = code_elem.find("confidence")
+            confidence = conf_elem.text if conf_elem is not None else "medium"
 
             # Parse example texts
             example_texts = []
             examples_elem = code_elem.find("example_texts")
             if examples_elem is not None:
                 for text_elem in examples_elem.findall("text"):
+                    text_content = text_elem.text if text_elem.text is not None else ""
                     example_texts.append({
                         "id": text_elem.get("id"),
-                        "text": text_elem.text
+                        "text": text_content
                     })
 
             # Parse frequency estimate if present

@@ -10,6 +10,7 @@ import { z } from 'zod';
 
 // Schema for generate codeframe request
 export const generateCodeframeSchema = z.object({
+  coding_type: z.enum(['brand', 'open-ended', 'sentiment']).optional().default('open-ended'),
   category_id: z.number().int().positive('Category ID must be positive'),
   answer_ids: z.array(z.number().int()).optional(),
   algorithm_config: z
@@ -22,6 +23,7 @@ export const generateCodeframeSchema = z.object({
     .default({}),
   target_language: z.string().length(2).optional().default('en'),
   existing_codes: z.array(z.string()).optional().default([]),
+  anthropic_api_key: z.string().optional(), // API key from Settings page
 });
 
 // Schema for update hierarchy request

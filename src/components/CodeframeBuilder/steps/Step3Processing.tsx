@@ -14,10 +14,16 @@ interface Step3ProcessingProps {
 }
 
 export function Step3Processing({ generation, onComplete, onError }: Step3ProcessingProps) {
+  // Wait for generation data to be available
+  const generationId = generation?.generation_id || null;
+  const nAnswers = generation?.n_answers || 0;
+  const estimatedTime = generation?.estimated_time_seconds || 60;
+
   const { status, progress, isComplete, isError, error } = useCodeframePolling(
-    generation?.generation_id || null,
+    generationId,
     {
       interval: 2000,
+      enabled: !!generationId, // Only poll when we have a generation ID
       onComplete: (completedStatus) => {
         if (completedStatus.status === 'completed') {
           setTimeout(onComplete, 1000); // Small delay to show 100%
@@ -53,7 +59,7 @@ export function Step3Processing({ generation, onComplete, onError }: Step3Proces
   }
 
   const currentProgress = status?.progress || progress;
-  const etaSeconds = status ? Math.ceil((generation?.estimated_time_seconds || 60) * (1 - currentProgress / 100)) : generation?.estimated_time_seconds || 60;
+  const etaSeconds = status ? Math.ceil(estimatedTime * (1 - currentProgress / 100)) : estimatedTime;
 
   return (
     <div className="text-center py-12 space-y-6">
@@ -74,7 +80,9 @@ export function Step3Processing({ generation, onComplete, onError }: Step3Proces
         <p className="text-gray-600 dark:text-gray-400">
           {isComplete
             ? 'Processing complete. Review your results.'
-            : `Using Claude AI to analyze ${generation?.n_answers || 0} responses`}
+            : nAnswers > 0
+            ? `Using Claude AI to analyze ${nAnswers} responses`
+            : 'Starting generation...'}
         </p>
       </div>
 

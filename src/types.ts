@@ -15,9 +15,14 @@ export interface Category {
   name: string;
   google_name?: string;
   description?: string;
-  template?: string;
-  preset?: string;
-  model?: string;
+  template?: string; // DEPRECATED: Use gpt_template instead
+  preset?: string; // DEPRECATED: Use llm_preset instead
+  model?: string; // DEPRECATED: Use openai_model, claude_model, or gemini_model instead
+  llm_preset?: string; // Template preset name (e.g., "LLM Proper Name", "LLM Brand List")
+  gpt_template?: string; // Custom GPT template (overrides preset)
+  openai_model?: string; // OpenAI model (e.g., "gpt-4o-mini", "gpt-5")
+  claude_model?: string; // Claude model (e.g., "claude-sonnet-4.5-20250929")
+  gemini_model?: string; // Gemini model (e.g., "gemini-2.0-pro-experimental")
   brands_sorting?: string;
   min_length?: number;
   max_length?: number;
@@ -39,6 +44,25 @@ export interface AiCodeSuggestion {
 }
 
 /**
+ * Web context from Google Search
+ */
+export interface WebContext {
+  title: string;
+  snippet: string;
+  url: string;
+}
+
+/**
+ * Image result from Google Images
+ */
+export interface ImageResult {
+  title: string;
+  link: string;
+  thumbnailLink?: string;
+  contextLink?: string;
+}
+
+/**
  * Complete AI suggestions object stored in JSONB
  */
 export interface AiSuggestions {
@@ -46,6 +70,9 @@ export interface AiSuggestions {
   model: string; // e.g., "gpt-4.1-nano", "gpt-4o"
   timestamp: string; // ISO 8601
   preset_used: string; // e.g., "LLM Brand List"
+  webContext?: WebContext[]; // Google Search results
+  images?: ImageResult[]; // Google Images results
+  searchQuery?: string; // Exact phrase used in Google search
 }
 
 export interface Answer {

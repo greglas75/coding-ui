@@ -2,6 +2,7 @@ import { Settings, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getTemplate, type TemplatePreset } from "../config/DefaultTemplates";
 import { TestPromptModal } from "./TestPromptModal";
+import aiPricingCache from "../data/ai-pricing-cache.json";
 
 interface EditCategoryModalProps {
   category: {
@@ -10,6 +11,17 @@ interface EditCategoryModalProps {
     google_name?: string;
     description?: string;
     template?: string;
+    preset?: string;
+    model?: string; // Legacy column
+    openai_model?: string; // ✅ OpenAI model
+    claude_model?: string; // ✅ Claude model
+    gemini_model?: string; // ✅ Gemini model
+    vision_model?: string; // ✅ Vision model for image analysis
+    llm_preset?: string; // ✅ New column
+    gpt_template?: string; // ✅ New column
+    brands_sorting?: string;
+    min_length?: number;
+    max_length?: number;
     use_web_context?: boolean;
     sentiment_enabled?: boolean;
     sentiment_mode?: 'smart' | 'always' | 'never';
@@ -20,7 +32,8 @@ interface EditCategoryModalProps {
     googleName: string;
     description: string;
     preset: string;
-    model: string;
+    model: string; // ✅ Unified model (supports OpenAI, Anthropic, Google)
+    visionModel: string; // ✅ Vision model for image analysis
     template: string;
     brandsSorting: string;
     minLength: number;
@@ -56,9 +69,15 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
     name: category.name || "",
     googleName: category.google_name || "",
     description: category.description || "",
-    preset: category.preset || "LLM Proper Name",
-    model: category.model || "gpt-4.1-nano",
-    template: category.template || "",
+    preset: category.llm_preset || category.preset || "LLM Proper Name", // ✅ New column first, then legacy
+
+    // ✅ Unified model selection (supports all providers)
+    model: category.openai_model || category.claude_model || category.gemini_model || category.model || "gpt-4o-mini",
+
+    // ✅ Vision model for image analysis (default: cheapest Gemini)
+    visionModel: category.vision_model || "gemini-2.5-flash-lite",
+
+    template: category.gpt_template || category.template || "", // ✅ New column first, then legacy
     brandsSorting: category.brands_sorting || "Alphanumerical",
     minLength: category.min_length || 0,
     maxLength: category.max_length || 0,
@@ -79,18 +98,67 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only once on mount
 
-  const gptModels = [
-    "gpt-4.1-nano",
-    "gpt-4.1-mini",
-    "gpt-4o-mini",
-    "gpt-4o",
-    "gpt-4.1",
-    "gpt-5",
-    "gpt-5-mini",
-    "gpt-5-nano",
-    "o3",
-    "o4-mini"
+  // ✅ Load ALL models from live pricing cache (auto-updated every 24h)
+  const allModels = [
+    ...aiPricingCache.models.openai
+      .filter((m: any) => m.available)
+      .map((m: any) => ({
+        id: m.id,
+        name: m.name,
+        provider: '🤖 OpenAI',
+        description: m.description,
+        costPer1M: m.costPer1M,
+      })),
+    ...aiPricingCache.models.anthropic
+      .filter((m: any) => m.available)
+      .map((m: any) => ({
+        id: m.id,
+        name: m.name,
+        provider: '🧠 Anthropic',
+        description: m.description,
+        costPer1M: m.costPer1M,
+      })),
+    ...aiPricingCache.models.google
+      .filter((m: any) => m.available)
+      .map((m: any) => ({
+        id: m.id,
+        name: m.name,
+        provider: '🔮 Google',
+        description: m.description,
+        costPer1M: m.costPer1M,
+      })),
   ];
+
+  // ✅ Vision-capable models for image analysis (cheaper options first)
+  const visionModels = [
+    ...aiPricingCache.models.google
+      .filter((m: any) => m.available)
+      .map((m: any) => ({
+        id: m.id,
+        name: m.name,
+        provider: '🔮 Google',
+        description: m.description,
+        costPer1M: m.costPer1M,
+      })),
+    ...aiPricingCache.models.openai
+      .filter((m: any) => m.available && (m.id.startsWith('gpt-4o') || m.id.startsWith('gpt-5')))
+      .map((m: any) => ({
+        id: m.id,
+        name: m.name,
+        provider: '🤖 OpenAI',
+        description: m.description,
+        costPer1M: m.costPer1M,
+      })),
+    ...aiPricingCache.models.anthropic
+      .filter((m: any) => m.available && !m.id.includes('-3'))
+      .map((m: any) => ({
+        id: m.id,
+        name: m.name,
+        provider: '🧠 Anthropic',
+        description: m.description,
+        costPer1M: m.costPer1M,
+      })),
+  ].sort((a, b) => a.costPer1M - b.costPer1M); // Sort by price (cheapest first)
 
   const handleSave = async (closeAfter = false) => {
     console.log("Saving:", form);
@@ -232,19 +300,51 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                 </p>
               </div>
 
+              {/* ✅ Unified AI Model Selection (All Providers) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  GPT Model
+                  🤖 AI Model (Text Analysis)
                 </label>
                 <select
                   value={form.model}
                   onChange={(e) => setForm({ ...form, model: e.target.value })}
                   className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 >
-                  {gptModels.map(model => (
-                    <option key={model} value={model}>{model}</option>
+                  {allModels.map((model: any) => (
+                    <option key={model.id} value={model.id}>
+                      {model.provider} {model.name} - ${model.costPer1M}/1M
+                    </option>
                   ))}
                 </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  💡 For categorizing user responses (text)
+                </p>
+              </div>
+
+              {/* ✅ Vision Model Selection (Image Analysis) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  👁️ Vision Model (Image Analysis)
+                </label>
+                <select
+                  value={form.visionModel}
+                  onChange={(e) => setForm({ ...form, visionModel: e.target.value })}
+                  className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                >
+                  {visionModels.map((model: any) => (
+                    <option key={model.id} value={model.id}>
+                      {model.provider} {model.name} - ${model.costPer1M}/1M
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  💡 For analyzing Google Images (logos, products, places)
+                </p>
+                <div className="mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-2">
+                  <p className="text-xs text-green-800 dark:text-green-200">
+                    ⭐ <strong>Recommended:</strong> Gemini 2.5 Flash Lite (cheapest, fast, accurate for brand detection)
+                  </p>
+                </div>
               </div>
 
               <div>

@@ -32,18 +32,19 @@ const codeframeQueue = new Bull('codeframe-generation', {
       return delay;
     },
   },
-  // Rate limiting to respect Claude API limits (10 calls/60s)
-  // Set to 8 jobs/60s to leave safety margin
+  // Rate limiting to respect Claude API limits (10 calls/60s Tier 1)
+  // Set to 6 jobs/60s to leave larger safety margin
+  // This means 1 job every 10 seconds maximum
   limiter: {
-    max: 8,          // Maximum 8 jobs processed
+    max: 6,          // Maximum 6 jobs processed
     duration: 60000, // Per 60 seconds
     bounceBack: false, // Don't return jobs to queue if limit exceeded, just delay them
   },
   defaultJobOptions: {
-    attempts: 3,
+    attempts: 1, // NO RETRIES - fail fast and inform user to take action
     backoff: {
       type: 'exponential',
-      delay: 2000,
+      delay: 5000, // Not used with attempts: 1, but kept for future reference
     },
     // Keep completed jobs for debugging (false = keep forever, or use number to keep last N)
     removeOnComplete: false, // Changed from 100 to false - keeps ALL completed jobs
@@ -54,8 +55,10 @@ const codeframeQueue = new Bull('codeframe-generation', {
 
 /**
  * Process a single cluster codeframe generation job
+ * CRITICAL: concurrency=1 ensures only 1 job processed at a time
+ * This prevents exceeding Claude API rate limits (10 calls/min)
  */
-codeframeQueue.process('generate-cluster', async (job) => {
+codeframeQueue.process('generate-cluster', 1, async (job) => {
   const { generation_id, cluster_id, cluster_texts, category_info, config } = job.data;
 
   console.log(`[Job ${job.id}] Processing cluster ${cluster_id} for generation ${generation_id}`);
@@ -75,6 +78,7 @@ codeframeQueue.process('generate-cluster', async (job) => {
         target_language: config.target_language || 'en',
         existing_codes: config.existing_codes || [],
         hierarchy_preference: config.hierarchy_preference || 'adaptive',
+        anthropic_api_key: config.anthropic_api_key, // Pass API key from Settings
       },
       {
         timeout: 120000, // 2 minutes timeout
@@ -116,6 +120,13 @@ codeframeQueue.process('generate-cluster', async (job) => {
     };
   } catch (error) {
     console.error(`[Job ${job.id}] Cluster ${cluster_id} failed:`, error.message);
+    console.error(`[Job ${job.id}] Error details:`, {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      response: error.response?.data,
+      status: error.response?.status,
+    });
 
     // Log failure to database
     await logClusterFailure(generation_id, cluster_id, error);
@@ -254,7 +265,6 @@ async function updateGenerationProgress(generation_id) {
       n_themes: themes.length,
       n_codes: codes.length,
       status: all_clusters_complete ? 'completed' : 'processing',
-      updated_at: new Date().toISOString(),
     })
     .eq('id', generation_id);
 

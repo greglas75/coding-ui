@@ -20,8 +20,8 @@ from services.mece_validator import MECEValidator
 from supabase import create_client, Client
 import numpy as np
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from parent directory
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 # Configure logging
 logging.basicConfig(
@@ -110,6 +110,7 @@ class CodeframeRequest(BaseModel):
     existing_codes: Optional[List[str]] = None
     hierarchy_preference: str = "adaptive"
     algorithm_config: Optional[AlgorithmConfig] = None
+    anthropic_api_key: Optional[str] = None  # API key from Settings page
 
 
 class CodeExample(BaseModel):
@@ -186,7 +187,7 @@ async def lifespan(app: FastAPI):
     # Initialize Claude client
     try:
         claude_config = ClaudeConfig(
-            model=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-5-20251022"),
+            model=os.getenv("CLAUDE_MODEL", "claude-3-5-haiku-20241022"),  # Changed to Haiku 3.5 - 10x cheaper!
             temperature=0.3,
             max_tokens=4096
         )
@@ -467,10 +468,10 @@ async def generate_codeframe(request: CodeframeRequest):
                 detail="cluster_texts cannot be empty"
             )
 
-        if len(request.cluster_texts) < 3:
+        if len(request.cluster_texts) < 2:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Need at least 3 texts to generate codeframe"
+                detail="Need at least 2 texts to generate codeframe"
             )
 
         # Convert Pydantic models to dicts for service layer
@@ -481,7 +482,16 @@ async def generate_codeframe(request: CodeframeRequest):
 
         # Step 1: Generate codeframe with Claude
         logger.info("Calling Claude API...")
-        claude_result = claude_client.generate_codeframe(
+
+        # Use API key from request if provided, otherwise use global client
+        if request.anthropic_api_key:
+            logger.info("Using API key from request (Settings page)")
+            client_to_use = ClaudeClient(api_key=request.anthropic_api_key, config=claude_config)
+        else:
+            logger.info("Using API key from .env")
+            client_to_use = claude_client
+
+        claude_result = client_to_use.generate_codeframe(
             cluster_texts=cluster_texts_dict,
             category_name=request.category_name,
             category_description=request.category_description,

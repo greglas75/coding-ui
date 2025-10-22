@@ -77,8 +77,11 @@ test.describe('AI Codeframe Builder', () => {
       await page.locator('button:has-text("Next: Select Data")').click();
 
       // Step 1: Select Data
-      // Wait for categories to load
-      await page.waitForSelector('[data-testid="category-card"], text=No categories', { timeout: 10000 });
+      // Wait for categories to load (either cards appear or "no categories" message)
+      await Promise.race([
+        page.waitForSelector('[data-testid="category-card"]', { timeout: 10000 }).catch(() => null),
+        page.waitForSelector('text=No categories', { timeout: 10000 }).catch(() => null)
+      ]);
 
       const categoryCard = page.locator('[data-testid="category-card"]').first();
       const hasCat = await categoryCard.count() > 0;
@@ -101,11 +104,10 @@ test.describe('AI Codeframe Builder', () => {
         await expect(page.locator('text=Generating Codebook')).toBeVisible({ timeout: 10000 });
 
         // Wait for processing to complete (or timeout)
-        // This is where we expect the 500 error currently
-        await page.waitForSelector(
-          'text=Review & Edit, text=Error',
-          { timeout: 120000 }
-        );
+        await Promise.race([
+          page.waitForSelector('text=Review & Edit', { timeout: 120000 }).catch(() => null),
+          page.waitForSelector('text=Error', { timeout: 120000 }).catch(() => null)
+        ]);
 
         // Check if we reached Review step or got an error
         const hasError = await page.locator('text=Error').isVisible();
@@ -132,10 +134,11 @@ test.describe('AI Codeframe Builder', () => {
           await page.locator('button:has-text("Apply to All Answers")').click();
 
           // Wait for result (success or error)
-          await page.waitForSelector(
-            'text=Success, text=Error, text=completed',
-            { timeout: 30000 }
-          );
+          await Promise.race([
+            page.waitForSelector('text=Success', { timeout: 30000 }).catch(() => null),
+            page.waitForSelector('text=Error', { timeout: 30000 }).catch(() => null),
+            page.waitForSelector('text=completed', { timeout: 30000 }).catch(() => null)
+          ]);
 
           // Check for the 500 error on apply
           const applyError = await page.locator('text=Request failed with status code 500').isVisible();

@@ -114,6 +114,7 @@ export function Step0SelectType({
             <button
               key={option.type}
               type="button"
+              data-testid={`type-${option.type}`}
               onClick={() => handleSelectType(option.type)}
               className={`p-6 border-2 rounded-lg text-left transition-all hover:shadow-lg ${
                 isSelected

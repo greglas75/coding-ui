@@ -27,7 +27,7 @@ interface PerformanceMonitorProps {
 export const PerformanceMonitor = memo<PerformanceMonitorProps>(({
   position = 'bottom-right',
   updateInterval = 1000,
-  autoHide = false,
+  autoHide = true, // Start collapsed to avoid blocking E2E tests
 }) => {
   const [isOpen, setIsOpen] = useState(!autoHide);
   const [activeTab, setActiveTab] = useState<'api' | 'renders' | 'errors' | 'memory'>('api');

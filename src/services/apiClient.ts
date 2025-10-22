@@ -49,7 +49,7 @@ export interface RequestOptions {
 // ───────────────────────────────────────────────────────────────
 
 const DEFAULT_CONFIG: ApiClientConfig = {
-  baseUrl: 'http://localhost:3001',
+  baseUrl: import.meta.env.VITE_API_URL || 'http://localhost:3020',
   timeout: 10000, // 10 seconds
   retries: 2,
   retryDelay: 1000, // 1 second base delay

@@ -142,6 +142,8 @@ export const DesktopRow: FC<DesktopRowProps> = ({
           isAccepting={isAccepting}
           onAccept={onAcceptSuggestion}
           onRegenerate={onRegenerateSuggestions}
+          answer={answer.answer_text || ''}
+          translation={answer.translation_en || undefined}
         />
       </td>
 

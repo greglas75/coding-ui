@@ -63,15 +63,18 @@ export async function categorizeSingleAnswer(answerId: number, forceRegenerate: 
 
     type SimpleCode = { id: number; name: string };
 
-    // 4. Get category's custom template (if exists) or use default
+    // 4. Get category's preset, custom template, model, and vision model
     const { data: categoryData } = await supabase
       .from('categories')
-      .select('gpt_template, llm_preset')
+      .select('llm_preset, gpt_template, openai_model, vision_model, use_web_context')
       .eq('id', answer.category.id)
       .single();
 
-    const template = categoryData?.gpt_template || DEFAULT_CATEGORIZATION_TEMPLATE;
-    const presetName = categoryData?.llm_preset || answer.category.name;
+    const presetName = categoryData?.llm_preset || 'LLM Proper Name'; // Default preset
+    const customTemplate = categoryData?.gpt_template; // Custom template (overrides preset)
+    const openaiModel = categoryData?.openai_model || 'gpt-4o-mini'; // Default model
+    const visionModel = categoryData?.vision_model || 'gemini-2.5-flash-lite'; // Vision model for image analysis
+    const useWebContext = categoryData?.use_web_context ?? true; // Enable web context by default
 
     // 5. Call OpenAI API
     console.log(`🤖 Categorizing answer ${answerId} for category "${answer.category.name}"`);
@@ -80,11 +83,14 @@ export async function categorizeSingleAnswer(answerId: number, forceRegenerate: 
       console.log(`   Translation (en): "${answer.translation_en?.substring(0, 50)}..."`);
     }
 
-    const suggestions = await categorizeAnswer({
+    const result = await categorizeAnswer({
       answer: answer.answer_text,
       answerTranslation: answer.translation_en, // ✅ Add English translation for better accuracy
       categoryName: answer.category.name,
-      template: template,
+      presetName: presetName, // Template preset (e.g., "LLM Proper Name")
+      customTemplate: customTemplate, // Custom template (overrides preset if provided)
+      model: openaiModel, // OpenAI model from category
+      visionModel: useWebContext ? visionModel : undefined, // Vision model for image analysis (only if web context enabled)
       codes: codes.map((c: SimpleCode) => ({ id: String(c.id), name: c.name })),
       context: {
         language: answer.language || undefined,
@@ -92,14 +98,22 @@ export async function categorizeSingleAnswer(answerId: number, forceRegenerate: 
       },
     });
 
-    console.log(`✅ Got ${suggestions.length} suggestions for answer ${answerId}`);
+    console.log(`✅ Got ${result.suggestions.length} suggestions for answer ${answerId}`);
+    if (result.webContext && result.webContext.length > 0) {
+      console.log(`🌐 Got ${result.webContext.length} web results`);
+    }
+    if (result.images && result.images.length > 0) {
+      console.log(`🖼️ Got ${result.images.length} images`);
+    }
 
     // 6. Build AiSuggestions object
     const aiSuggestions: AiSuggestions = {
-      suggestions,
-      model: 'gpt-4o-mini',
+      suggestions: result.suggestions,
+      model: openaiModel, // Use model from category
       timestamp: new Date().toISOString(),
-      preset_used: presetName,
+      preset_used: presetName, // Store which preset was used
+      webContext: result.webContext,
+      images: result.images,
     };
 
     // 7. Save suggestions to database
@@ -107,7 +121,7 @@ export async function categorizeSingleAnswer(answerId: number, forceRegenerate: 
       .from('answers')
       .update({
         ai_suggestions: aiSuggestions,
-        ai_suggested_code: suggestions[0]?.code_name || null,
+        ai_suggested_code: result.suggestions[0]?.code_name || null,
       })
       .eq('id', answerId);
 
@@ -117,7 +131,7 @@ export async function categorizeSingleAnswer(answerId: number, forceRegenerate: 
 
     console.log(`💾 Stored AI suggestions for answer ${answerId}`);
 
-    return suggestions;
+    return result.suggestions;
 
   } catch (error) {
     console.error('Categorization error:', error);

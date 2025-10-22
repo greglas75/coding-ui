@@ -1,6 +1,8 @@
-import { RotateCw } from 'lucide-react';
+import { RotateCw, Info } from 'lucide-react';
 import type { FC } from 'react';
+import { useState } from 'react';
 import { Tooltip } from '../../shared/Tooltip';
+import { AIInsightsModal } from '../modals/AIInsightsModal';
 
 interface AISuggestion {
   code_id: string;
@@ -9,10 +11,26 @@ interface AISuggestion {
   reasoning: string;
 }
 
+interface WebContext {
+  title: string;
+  snippet: string;
+  url: string;
+}
+
+interface ImageResult {
+  title: string;
+  link: string;
+  thumbnailLink?: string;
+  contextLink?: string;
+}
+
 interface AISuggestionsData {
   suggestions: AISuggestion[];
   timestamp?: string;
   model?: string;
+  webContext?: WebContext[];
+  images?: ImageResult[];
+  searchQuery?: string;
 }
 
 interface AISuggestionsCellProps {
@@ -22,6 +40,8 @@ interface AISuggestionsCellProps {
   isAccepting: boolean;
   onAccept: (suggestion: AISuggestion) => void;
   onRegenerate: () => void;
+  answer: string;
+  translation?: string;
 }
 
 export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
@@ -30,8 +50,18 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
   isCategorizing,
   isAccepting,
   onAccept,
-  onRegenerate
+  onRegenerate,
+  answer,
+  translation
 }) => {
+  const [selectedSuggestion, setSelectedSuggestion] = useState<AISuggestion | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleShowInsights = (suggestion: AISuggestion) => {
+    setSelectedSuggestion(suggestion);
+    setIsModalOpen(true);
+  };
+
   // Helper functions
   const getConfidenceColor = (confidence: number): string => {
     if (confidence >= 0.9) {
@@ -87,14 +117,26 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
                       </div>
                     }
                   >
-                    <div
-                      onClick={() => !isAccepting && onAccept(suggestion)}
-                      className={`group relative px-2 py-1 text-xs rounded border flex items-center gap-1 cursor-pointer transition-opacity h-[24px] whitespace-nowrap ${getConfidenceColor(suggestion.confidence)} ${isAccepting ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
-                    >
+                    <div className="flex items-center gap-1">
+                      <div
+                        onClick={() => !isAccepting && onAccept(suggestion)}
+                        className={`group relative px-2 py-1 text-xs rounded border flex items-center gap-1 cursor-pointer transition-opacity h-[24px] whitespace-nowrap ${getConfidenceColor(suggestion.confidence)} ${isAccepting ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
+                      >
                         <span className="text-xs font-semibold leading-none">{suggestion.code_name}</span>
                         <span className="text-xs text-gray-500 font-medium leading-none">
                           ({(suggestion.confidence * 100).toFixed(0)}%)
                         </span>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleShowInsights(suggestion);
+                        }}
+                        className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        title="View AI insights"
+                      >
+                        <Info className="h-3 w-3" />
+                      </button>
                     </div>
                   </Tooltip>
                 ))}
@@ -114,6 +156,25 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
         </div>
       ) : (
         <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
+      )}
+
+      {/* AI Insights Modal */}
+      {selectedSuggestion && (
+        <AIInsightsModal
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedSuggestion(null);
+          }}
+          suggestion={selectedSuggestion}
+          webContext={aiSuggestions?.webContext}
+          images={aiSuggestions?.images}
+          timestamp={aiSuggestions?.timestamp}
+          model={aiSuggestions?.model}
+          answer={answer}
+          translation={translation}
+          searchQuery={aiSuggestions?.searchQuery}
+        />
       )}
     </div>
   );

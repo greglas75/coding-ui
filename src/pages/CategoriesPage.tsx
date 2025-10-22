@@ -45,10 +45,10 @@ export function CategoriesPage() {
       console.log('Fetching categories with statistics...');
       setLoading(true);
 
-      // Get categories
+      // Get categories (including new multi-provider model columns)
       const { data: categoriesData, error: categoriesError } = await supabase
         .from('categories')
-        .select('id, name, google_name, description, template, preset, model, brands_sorting, min_length, max_length, use_web_context')
+        .select('id, name, google_name, description, template, preset, model, openai_model, claude_model, gemini_model, vision_model, llm_preset, gpt_template, brands_sorting, min_length, max_length, use_web_context, sentiment_enabled, sentiment_mode')
         .order('name');
 
       if (categoriesError) {
@@ -289,15 +289,38 @@ export function CategoriesPage() {
         updatePayload.template = data.template;
       }
 
-      // Preset - ensure it has a value
+      // Preset - ensure it has a value (save to both old 'preset' and new 'llm_preset')
       if (data.preset) {
-        updatePayload.preset = data.preset;
+        updatePayload.preset = data.preset; // Legacy column
+        updatePayload.llm_preset = data.preset; // ✅ New column
       } else {
         updatePayload.preset = 'LLM Proper Name'; // Default
+        updatePayload.llm_preset = 'LLM Proper Name'; // ✅ Default
       }
 
+      // ✅ Unified model - auto-detect provider and save to correct column
       if (data.model) {
-        updatePayload.model = data.model;
+        const modelId = data.model;
+        updatePayload.model = modelId; // Legacy column (for backward compat)
+
+        // Detect provider from model ID prefix and save to appropriate column
+        if (modelId.startsWith('gpt-') || modelId.startsWith('o1-')) {
+          updatePayload.openai_model = modelId;
+        } else if (modelId.startsWith('claude-')) {
+          updatePayload.claude_model = modelId;
+        } else if (modelId.startsWith('gemini-')) {
+          updatePayload.gemini_model = modelId;
+        }
+      }
+
+      // ✅ Vision model for image analysis
+      if (data.visionModel) {
+        updatePayload.vision_model = data.visionModel;
+      }
+
+      // Template - save to both old 'template' and new 'gpt_template'
+      if (data.template && data.template.trim()) {
+        updatePayload.gpt_template = data.template; // ✅ New column (already set above as 'template')
       }
 
       if (data.brandsSorting) {
@@ -315,6 +338,15 @@ export function CategoriesPage() {
       // Web context setting
       if (data.useWebContext !== undefined) {
         updatePayload.use_web_context = data.useWebContext;
+      }
+
+      // Sentiment analysis settings
+      if (data.sentimentEnabled !== undefined) {
+        updatePayload.sentiment_enabled = data.sentimentEnabled;
+      }
+
+      if (data.sentimentMode) {
+        updatePayload.sentiment_mode = data.sentimentMode;
       }
 
       console.log('📤 Saving category payload:', updatePayload);

@@ -6,7 +6,7 @@ import { useMutation } from '@tanstack/react-query';
 import axios from 'axios';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3020';
 
 interface Step5ApplyProps {
   generation: { generation_id: string } | null;

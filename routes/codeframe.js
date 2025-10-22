@@ -86,7 +86,7 @@ router.post(
   '/generate',
   checkFeatureEnabled,
   generationRateLimiter,
-  checkPythonService,
+  // Skip Python health check - generation is async and will fail gracefully if Python is down
   async (req, res) => {
     try {
       // Validate request body
@@ -96,14 +96,20 @@ router.post(
       const userId = req.user?.email || req.session?.user?.email || 'system';
 
       console.log(
-        `[Codeframe] User ${userId} requesting generation for category ${validatedData.category_id}`
+        `[Codeframe] User ${userId} requesting generation for category ${validatedData.category_id}, type: ${validatedData.coding_type}`
       );
 
-      // Start generation
+      // Start generation - pass full config (includes coding_type)
       const result = await codeframeService.startGeneration(
         validatedData.category_id,
         validatedData.answer_ids,
-        validatedData.algorithm_config,
+        {
+          ...validatedData.algorithm_config,
+          coding_type: validatedData.coding_type,
+          target_language: validatedData.target_language,
+          existing_codes: validatedData.existing_codes,
+          anthropic_api_key: validatedData.anthropic_api_key, // Pass API key from Settings
+        },
         userId
       );
 

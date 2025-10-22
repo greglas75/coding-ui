@@ -22,12 +22,13 @@ class CodeframeService {
    * Start codeframe generation process
    * @param {number} categoryId - Category ID
    * @param {number[]} answerIds - Optional array of answer IDs (default: all uncategorized)
-   * @param {object} config - Algorithm configuration
+   * @param {object} config - Algorithm configuration (includes coding_type)
    * @param {string} userId - User email
    * @returns {Promise<object>} Generation info
    */
   async startGeneration(categoryId, answerIds, config, userId) {
-    console.log(`Starting codeframe generation for category ${categoryId}`);
+    const codingType = config.coding_type || 'open-ended';
+    console.log(`Starting codeframe generation for category ${categoryId} (type: ${codingType})`);
 
     // 1. Fetch category info
     const { data: category, error: categoryError } = await supabase
@@ -51,17 +52,39 @@ class CodeframeService {
 
     console.log(`Fetched ${answers.length} answers`);
 
-    // 3. Generate embeddings (or use cached)
-    console.log('Generating/fetching embeddings...');
-    await this.ensureEmbeddings(answers);
+    // 3. For Brand coding, skip clustering entirely
+    let clusterResult;
+    if (codingType === 'brand') {
+      console.log('Brand coding detected - skipping clustering, using direct brand detection');
+      // Create a single "cluster" with all answers for brand detection
+      clusterResult = {
+        n_clusters: 1,
+        noise_count: 0,
+        clusters: {
+          '0': {
+            texts: answers.map((a, idx) => ({
+              id: a.id,
+              text: a.answer_text,
+              language: 'en', // TODO: detect language
+            })),
+            size: answers.length,
+            confidence: 1.0,
+          },
+        },
+      };
+    } else {
+      // 3a. Generate embeddings (or use cached)
+      console.log('Generating/fetching embeddings...');
+      await this.ensureEmbeddings(answers);
 
-    // 4. Call Python service to cluster answers
-    console.log('Clustering answers...');
-    const clusterResult = await this.clusterAnswers(answers, config);
+      // 3b. Call Python service to cluster answers
+      console.log('Clustering answers...');
+      clusterResult = await this.clusterAnswers(answers, config);
 
-    console.log(
-      `Clustering complete: ${clusterResult.n_clusters} clusters, ${clusterResult.noise_count} noise points`
-    );
+      console.log(
+        `Clustering complete: ${clusterResult.n_clusters} clusters, ${clusterResult.noise_count} noise points`
+      );
+    }
 
     // 5. Create generation record in database
     const generation = await this.createGenerationRecord(
@@ -269,6 +292,7 @@ class CodeframeService {
           target_language: config.target_language || 'en',
           existing_codes: config.existing_codes || [],
           hierarchy_preference: config.hierarchy_preference || 'adaptive',
+          anthropic_api_key: config.anthropic_api_key, // Pass API key from Settings
         },
       });
 
@@ -305,7 +329,8 @@ class CodeframeService {
 
     // Calculate progress
     const totalClusters = generation.n_clusters || 0;
-    const themes = generation.codeframe_hierarchy.filter((n) => n.node_type === 'theme');
+    const hierarchy = generation.codeframe_hierarchy || [];
+    const themes = hierarchy.filter((n) => n.node_type === 'theme');
     const completedClusters = themes.length;
     const progress = totalClusters > 0 ? Math.round((completedClusters / totalClusters) * 100) : 0;
 
@@ -528,13 +553,21 @@ class CodeframeService {
     // Get generation
     const { data: generation } = await supabase
       .from('codeframe_generations')
-      .select('answer_ids, category_id')
+      .select('category_id, n_answers')
       .eq('id', generationId)
       .single();
 
     if (!generation) {
       throw new Error('Generation not found');
     }
+
+    // Get all answers for this category
+    const { data: answers } = await supabase
+      .from('answers')
+      .select('id')
+      .eq('category_id', generation.category_id);
+
+    const answerIds = answers.map(a => a.id);
 
     // Get hierarchy (codes only)
     const { data: codeNodes } = await supabase
@@ -546,20 +579,42 @@ class CodeframeService {
     // Get answers with embeddings
     const { data: answerEmbeddings } = await supabase
       .from('answer_embeddings')
-      .select('answer_id, embedding')
-      .in('answer_id', generation.answer_ids);
+      .select('answer_id, embedding_vector')
+      .in('answer_id', answerIds);
 
     // For each answer, find best matching code
     const assignments = [];
-    for (const ansEmb of answerEmbeddings) {
+    for (const ansEmb of answerEmbeddings || []) {
       let bestMatch = null;
       let bestScore = -1;
 
-      for (const codeNode of codeNodes) {
+      // Parse embedding_vector from database
+      let embedding;
+      try {
+        if (typeof ansEmb.embedding_vector === 'string') {
+          // Remove \x prefix if present and decode from hex
+          if (ansEmb.embedding_vector.startsWith('\\x')) {
+            const hex_str = ansEmb.embedding_vector.substring(2);
+            const json_bytes = Buffer.from(hex_str, 'hex');
+            embedding = JSON.parse(json_bytes.toString('utf-8'));
+          } else {
+            embedding = JSON.parse(ansEmb.embedding_vector);
+          }
+        } else if (Buffer.isBuffer(ansEmb.embedding_vector)) {
+          embedding = JSON.parse(ansEmb.embedding_vector.toString('utf-8'));
+        } else {
+          embedding = ansEmb.embedding_vector;
+        }
+      } catch (e) {
+        console.error(`Failed to parse embedding for answer ${ansEmb.answer_id}:`, e);
+        continue;
+      }
+
+      for (const codeNode of codeNodes || []) {
         if (!codeNode.embedding) continue;
 
         // Calculate cosine similarity
-        const similarity = this.cosineSimilarity(ansEmb.embedding, codeNode.embedding);
+        const similarity = this.cosineSimilarity(embedding, codeNode.embedding);
 
         if (similarity > bestScore) {
           bestScore = similarity;
@@ -587,9 +642,9 @@ class CodeframeService {
 
     return {
       success: true,
-      total_answers: generation.answer_ids.length,
+      total_answers: answerIds.length,
       assigned: assignments.length,
-      pending: generation.answer_ids.length - assignments.length,
+      pending: answerIds.length - assignments.length,
     };
   }
 

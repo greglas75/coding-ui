@@ -5,6 +5,7 @@
 
 import { logError, logInfo, logWarn } from '../utils/logger';
 import { sanitizeForAPI } from '../utils/pii';
+import { getGoogleCSEAPIKey, getGoogleCSECXID } from '../utils/apiKeys';
 
 // ───────────────────────────────────────────────────────────────
 // Types & Interfaces
@@ -206,12 +207,12 @@ export async function googleSearch(
     return cached.slice(0, numResults);
   }
 
-  // Get API credentials from localStorage or env
-  const apiKey = localStorage.getItem('google_cse_api_key') || import.meta.env.VITE_GOOGLE_CSE_API_KEY;
-  const cxId = localStorage.getItem('google_cse_cx_id') || import.meta.env.VITE_GOOGLE_CSE_CX_ID;
+  // Get API credentials from Settings page (obfuscated in localStorage)
+  const apiKey = getGoogleCSEAPIKey();
+  const cxId = getGoogleCSECXID();
 
   if (!apiKey || !cxId) {
-    logError('Google Custom Search API not configured', {
+    logError('Google Custom Search API not configured. Please add API key and CX ID in Settings page.', {
       component: 'WebContextProvider',
       extra: {
         hasApiKey: !!apiKey,
@@ -472,12 +473,12 @@ export async function googleImageSearch(
     return [];
   }
 
-  // Get API credentials from localStorage or env
-  const apiKey = localStorage.getItem('google_cse_api_key') || import.meta.env.VITE_GOOGLE_CSE_API_KEY;
-  const cxId = localStorage.getItem('google_cse_cx_id') || import.meta.env.VITE_GOOGLE_CSE_CX_ID;
+  // Get API credentials from Settings page (obfuscated in localStorage)
+  const apiKey = getGoogleCSEAPIKey();
+  const cxId = getGoogleCSECXID();
 
   if (!apiKey || !cxId) {
-    logError('Google Custom Search API not configured for image search', {
+    logError('Google Custom Search API not configured for image search. Please add API key and CX ID in Settings page.', {
       component: 'WebContextProvider',
     });
     return [];

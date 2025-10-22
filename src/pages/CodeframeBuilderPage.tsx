@@ -96,8 +96,11 @@ export function CodeframeBuilderPage() {
 
   const handleGenerate = async () => {
     try {
+      // Move to processing step immediately to show progress
+      setCurrentStep(3);
+
       await generate(config);
-      setCurrentStep(4);
+      // Step3Processing component will handle the transition to step 4
       toast.success('Codeframe generation started successfully');
     } catch (err) {
       console.error('Generation failed:', err);
@@ -109,7 +112,7 @@ export function CodeframeBuilderPage() {
       });
 
       // Reset to configure step so user can try again
-      setCurrentStep(3);
+      setCurrentStep(2);
     }
   };
 

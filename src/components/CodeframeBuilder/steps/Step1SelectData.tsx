@@ -107,6 +107,7 @@ export function Step1SelectData({
                 key={category.id}
                 type="button"
                 onClick={() => handleSelectCategory(category.id)}
+                data-testid="category-card"
                 className={`w-full p-4 border-2 rounded-lg text-left transition-all ${
                   selectedCategoryId === category.id
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-400'

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import type { DetailedCosts } from '@/types/cost-dashboard';
 
-const API_BASE_URL = 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3020';
 
 interface DetailedParams {
   feature_type?: string;
