@@ -337,7 +337,12 @@ export const AIInsightsModal: FC<AIInsightsModalProps> = ({
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-3">
-                {images.map((image, idx) => (
+                {images.map((image, idx) => {
+                  // Resize images to 400px for better performance and quality
+                  // Using weserv.nl image proxy (free CDN)
+                  const resizedImageUrl = `https://images.weserv.nl/?url=${encodeURIComponent(image.link)}&w=400&h=400&fit=cover&output=webp`;
+
+                  return (
                   <a
                     key={idx}
                     href={image.link}
@@ -346,10 +351,14 @@ export const AIInsightsModal: FC<AIInsightsModalProps> = ({
                     className="group relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 transition-colors"
                   >
                     <img
-                      src={image.link}
+                      src={resizedImageUrl}
                       alt={image.title}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform"
                       loading="lazy"
+                      onError={(e) => {
+                        // Fallback to original if proxy fails
+                        (e.target as HTMLImageElement).src = image.link;
+                      }}
                     />
                     {/* Domain Badge (Top) */}
                     {image.displayLink && (
@@ -381,7 +390,8 @@ export const AIInsightsModal: FC<AIInsightsModalProps> = ({
                       )}
                     </div>
                   </a>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
