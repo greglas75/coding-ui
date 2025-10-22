@@ -185,11 +185,14 @@ export const AIInsightsModal: FC<AIInsightsModalProps> = ({
                 <Globe className="h-4 w-4" />
                 Web Context ({webContext.length} results)
               </h3>
-              {searchQuery && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 italic">
-                  Google search phrase: &quot;{searchQuery}&quot;
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-3">
+                <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                  🔍 Google search phrase:
                 </p>
-              )}
+                <p className="text-sm font-mono text-amber-800 dark:text-amber-300 mt-1">
+                  &quot;{searchQuery || 'Not available (cached result)'}&quot;
+                </p>
+              </div>
               <div className="space-y-3">
                 {webContext.map((context, idx) => (
                   <div
@@ -223,11 +226,14 @@ export const AIInsightsModal: FC<AIInsightsModalProps> = ({
                 <ImageIcon className="h-4 w-4" />
                 Related Images ({images.length})
               </h3>
-              {searchQuery && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 italic">
-                  Google search phrase: &quot;{searchQuery}&quot;
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-3">
+                <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                  🔍 Google search phrase:
                 </p>
-              )}
+                <p className="text-sm font-mono text-amber-800 dark:text-amber-300 mt-1">
+                  &quot;{searchQuery || 'Not available (cached result)'}&quot;
+                </p>
+              </div>
               <div className="grid grid-cols-3 gap-3">
                 {images.map((image, idx) => (
                   <a
