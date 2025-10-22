@@ -346,9 +346,10 @@ export const AIInsightsModal: FC<AIInsightsModalProps> = ({
                     className="group relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 transition-colors"
                   >
                     <img
-                      src={image.thumbnailLink || image.link}
+                      src={image.link}
                       alt={image.title}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                      loading="lazy"
                     />
                     {/* Domain Badge (Top) */}
                     {image.displayLink && (
