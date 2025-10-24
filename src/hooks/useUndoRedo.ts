@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
+import { simpleLogger } from '../utils/logger';
 
 export interface AnswerState {
   general_status?: string | null;
@@ -56,7 +57,7 @@ export function useUndoRedo(options: UseUndoRedoOptions = {}) {
       return newIndex >= maxHistorySize ? maxHistorySize - 1 : newIndex;
     });
 
-    console.log(`📚 Added action to history: ${action.description} (${action.answerIds.length} answers)`);
+    simpleLogger.info(`📚 Added action to history: ${action.description} (${action.answerIds.length} answers)`);
   }, [currentIndex, maxHistorySize]);
 
   /**
@@ -71,12 +72,12 @@ export function useUndoRedo(options: UseUndoRedoOptions = {}) {
     const action = history[currentIndex];
 
     try {
-      console.log(`⏪ Undoing: ${action.description}`);
+      simpleLogger.info(`⏪ Undoing: ${action.description}`);
       await action.undo();
       setCurrentIndex(prev => prev - 1);
       toast.success(`Undone: ${action.description}`);
     } catch (error) {
-      console.error('Undo error:', error);
+      simpleLogger.error('Undo error:', error);
       toast.error('Failed to undo action');
     }
   }, [history, currentIndex]);
@@ -93,12 +94,12 @@ export function useUndoRedo(options: UseUndoRedoOptions = {}) {
     const action = history[currentIndex + 1];
 
     try {
-      console.log(`⏩ Redoing: ${action.description}`);
+      simpleLogger.info(`⏩ Redoing: ${action.description}`);
       await action.redo();
       setCurrentIndex(prev => prev + 1);
       toast.success(`Redone: ${action.description}`);
     } catch (error) {
-      console.error('Redo error:', error);
+      simpleLogger.error('Redo error:', error);
       toast.error('Failed to redo action');
     }
   }, [history, currentIndex]);
@@ -110,7 +111,7 @@ export function useUndoRedo(options: UseUndoRedoOptions = {}) {
     setHistory([]);
     setCurrentIndex(-1);
     toast.success('History cleared');
-    console.log('🗑️ History cleared');
+    simpleLogger.info('🗑️ History cleared');
   }, []);
 
   /**

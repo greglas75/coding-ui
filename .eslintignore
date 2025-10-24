@@ -1,18 +1,27 @@
-# Build outputs
+# ESLint ignore patterns
+# Note: This file is deprecated in ESLint v9, but keeping for compatibility
+
+# Backups (old code, not actively used)
+backups/
+backup/
+*.backup
+
+# Build output
 dist/
 build/
-coverage/
+.vite/
 
-# Test files that don't need strict linting
-e2e/
-
-# Config files
-*.config.js
-*.config.ts
-vite.config.ts.timestamp*
-
-# Node modules
+# Dependencies
 node_modules/
 
-# Coverage report files
-coverage/lcov-report/
+# Generated files
+*.generated.*
+coverage/
+
+# Playwright
+playwright-report/
+test-results/
+
+# Environment
+.env
+.env.local

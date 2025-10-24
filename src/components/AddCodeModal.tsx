@@ -19,9 +19,6 @@ export function AddCodeModal({ open, onClose, categories, onSave }: AddCodeModal
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
 
-  // Debug: log categories when modal opens
-  console.log('AddCodeModal - categories:', categories);
-
   // Filter categories based on search term
   useEffect(() => {
     if (!searchTerm.trim()) {
@@ -82,9 +79,7 @@ export function AddCodeModal({ open, onClose, categories, onSave }: AddCodeModal
 
   function toggleCategory(categoryId: number) {
     setCategoryIds(prev =>
-      prev.includes(categoryId)
-        ? prev.filter(id => id !== categoryId)
-        : [...prev, categoryId]
+      prev.includes(categoryId) ? prev.filter(id => id !== categoryId) : [...prev, categoryId]
     );
   }
 
@@ -93,7 +88,9 @@ export function AddCodeModal({ open, onClose, categories, onSave }: AddCodeModal
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md p-6 relative">
-        <h2 className="text-xl font-semibold mb-4 text-zinc-900 dark:text-zinc-100">Add New Code</h2>
+        <h2 className="text-xl font-semibold mb-4 text-zinc-900 dark:text-zinc-100">
+          Add New Code
+        </h2>
         <button
           onClick={handleClose}
           className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 cursor-pointer"
@@ -115,7 +112,7 @@ export function AddCodeModal({ open, onClose, categories, onSave }: AddCodeModal
           <input
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={e => setName(e.target.value)}
             placeholder="Enter code name..."
             className="w-full px-3 py-2 border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-400"
           />
@@ -132,7 +129,7 @@ export function AddCodeModal({ open, onClose, categories, onSave }: AddCodeModal
             type="text"
             placeholder="Search categories..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={e => setSearchTerm(e.target.value)}
             className="w-full px-3 py-2 border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-400 mb-2"
           />
 
@@ -142,12 +139,13 @@ export function AddCodeModal({ open, onClose, categories, onSave }: AddCodeModal
                 No categories available — please add a category first.
               </p>
             ) : filteredCategories.length === 0 ? (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                No matching categories
-              </p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">No matching categories</p>
             ) : (
               filteredCategories.map(category => (
-                <label key={category.id} className="flex items-center gap-2 text-sm mb-1 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800 p-1 rounded transition-colors">
+                <label
+                  key={category.id}
+                  className="flex items-center gap-2 text-sm mb-1 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800 p-1 rounded transition-colors"
+                >
                   <input
                     type="checkbox"
                     checked={categoryIds.includes(category.id)}
@@ -160,7 +158,6 @@ export function AddCodeModal({ open, onClose, categories, onSave }: AddCodeModal
             )}
           </div>
         </div>
-
 
         {/* Actions */}
         <div className="flex gap-3">

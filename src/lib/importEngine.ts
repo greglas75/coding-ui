@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { getSupabaseClient } from './supabase';
+import { simpleLogger } from '../utils/logger';
 
 const supabase = getSupabaseClient();
 
@@ -26,7 +27,7 @@ export class ImportEngine {
     };
 
     try {
-      console.log(`📥 Starting import with strategy: ${strategy}`);
+      simpleLogger.info(`📥 Starting import with strategy: ${strategy}`);
 
       // Read file
       const buffer = await file.arrayBuffer();
@@ -36,7 +37,7 @@ export class ImportEngine {
       let sheet = workbook.Sheets['Codes'] || workbook.Sheets[workbook.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(sheet);
 
-      console.log(`📄 Read ${data.length} rows from file`);
+      simpleLogger.info(`📄 Read ${data.length} rows from file`);
 
       if (data.length === 0) {
         result.errors.push({ row: 0, error: 'File is empty or has no data' });
@@ -45,7 +46,7 @@ export class ImportEngine {
 
       // If replace strategy, delete existing codes for category
       if (strategy === 'replace' && categoryId) {
-        console.log(`🗑️  Deleting existing codes for category ${categoryId}`);
+        simpleLogger.info(`🗑️  Deleting existing codes for category ${categoryId}`);
 
         // Get code IDs from codes_categories
         const { data: codeCategories } = await supabase
@@ -78,7 +79,7 @@ export class ImportEngine {
             }
           }
 
-          console.log(`✅ Deleted ${codeIds.length} codes`);
+          simpleLogger.info(`✅ Deleted ${codeIds.length} codes`);
         }
       }
 
@@ -121,7 +122,7 @@ export class ImportEngine {
                 .single();
 
               if (existingLink) {
-                console.log(`⏭️  Skipping existing code: ${codeName}`);
+                simpleLogger.info(`⏭️  Skipping existing code: ${codeName}`);
                 result.skipped++;
                 continue; // Skip existing
               } else {
@@ -133,7 +134,7 @@ export class ImportEngine {
                     category_id: categoryId
                   });
 
-                console.log(`🔗 Linked existing code to category: ${codeName}`);
+                simpleLogger.info(`🔗 Linked existing code to category: ${codeName}`);
                 result.imported++;
                 continue;
               }
@@ -166,10 +167,10 @@ export class ImportEngine {
             if (linkError) throw linkError;
           }
 
-          console.log(`✅ Imported code: ${codeName}`);
+          simpleLogger.info(`✅ Imported code: ${codeName}`);
           result.imported++;
         } catch (error: any) {
-          console.error(`❌ Error importing row ${i + 2}:`, error);
+          simpleLogger.error(`❌ Error importing row ${i + 2}:`, error);
           result.errors.push({
             row: i + 2,
             error: error.message || 'Unknown error'
@@ -179,11 +180,11 @@ export class ImportEngine {
       }
 
       result.success = result.imported > 0;
-      console.log(`📊 Import complete: ${result.imported} imported, ${result.failed} failed, ${result.skipped} skipped`);
+      simpleLogger.info(`📊 Import complete: ${result.imported} imported, ${result.failed} failed, ${result.skipped} skipped`);
 
       return result;
     } catch (error: any) {
-      console.error('❌ Import failed:', error);
+      simpleLogger.error('❌ Import failed:', error);
       return {
         ...result,
         success: false,

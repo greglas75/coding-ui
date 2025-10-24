@@ -6,6 +6,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ModelPricing, PricingResponse } from '../types/pricing';
+import { simpleLogger } from '../utils/logger';
 
 interface UseAIPricingOptions {
   enabled?: boolean;
@@ -19,7 +20,7 @@ export function useAIPricing(options: UseAIPricingOptions = {}) {
   const query = useQuery<PricingResponse>({
     queryKey: ['ai-pricing'],
     queryFn: async () => {
-      console.log('🔄 Fetching AI pricing data...');
+      simpleLogger.info('🔄 Fetching AI pricing data...');
 
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3020';
       const response = await fetch(`${API_URL}/api/ai-pricing`);
@@ -29,7 +30,7 @@ export function useAIPricing(options: UseAIPricingOptions = {}) {
       }
 
       const data = await response.json();
-      console.log('✅ AI pricing data loaded:', data.dataSource);
+      simpleLogger.info('✅ AI pricing data loaded:', data.dataSource);
 
       return data;
     },
@@ -44,7 +45,7 @@ export function useAIPricing(options: UseAIPricingOptions = {}) {
    * Force refresh pricing data
    */
   const refresh = async () => {
-    console.log('🔄 Manually refreshing pricing data...');
+    simpleLogger.info('🔄 Manually refreshing pricing data...');
 
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3020';
@@ -61,7 +62,7 @@ export function useAIPricing(options: UseAIPricingOptions = {}) {
 
       return true;
     } catch (error) {
-      console.error('❌ Error refreshing pricing:', error);
+      simpleLogger.error('❌ Error refreshing pricing:', error);
       return false;
     }
   };

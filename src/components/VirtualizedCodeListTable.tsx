@@ -6,6 +6,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { FixedSizeList as List } from 'react-window';
 import type { Category, CodeWithCategories } from '../types';
+import { simpleLogger } from '../utils/logger';
 
 interface VirtualizedCodeListTableProps {
   codes: CodeWithCategories[];
@@ -270,7 +271,7 @@ export const VirtualizedCodeListTable = memo<VirtualizedCodeListTableProps>(({
         });
       }, 1000);
     } catch (error) {
-      console.error('Error saving code name:', error);
+      simpleLogger.error('Error saving code name:', error);
     } finally {
       setSavingName(false);
     }

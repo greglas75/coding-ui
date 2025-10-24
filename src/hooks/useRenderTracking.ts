@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useEffect, useRef } from 'react';
+import { simpleLogger } from '../utils/logger';
 import { trackRender } from '../lib/performanceMonitor';
 
 export interface RenderTrackingOptions {
@@ -38,7 +39,7 @@ export function useRenderTracking(
 
     // Log slow renders
     if (logSlowRenders && renderDuration > slowThreshold) {
-      console.warn(
+      simpleLogger.warn(
         `🐌 Slow render #${renderCountRef.current}: ${componentName} took ${renderDuration.toFixed(2)}ms`
       );
     }

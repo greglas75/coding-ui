@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { simpleLogger } from '../utils/logger';
 
 // ═══════════════════════════════════════════════════════════════
 // 🎯 TYPES & INTERFACES
@@ -35,7 +36,7 @@ export interface UseFiltersProps {
  * ```tsx
  * const { filters, setFilter, resetFilters, applyFilters } = useFilters({
  *   initialValues: { search: '', types: [] },
- *   onChange: (filters) => console.log('Filters changed:', filters),
+ *   onChange: (filters) => simpleLogger.info('Filters changed:', filters),
  *   debounceMs: 500
  * });
  *
@@ -233,7 +234,7 @@ export function useFilters({
  * function CodingView() {
  *   const { filters, setFilter, resetFilters } = useFilters({
  *     onChange: (filters) => {
- *       console.log('Filters changed:', filters);
+ *       simpleLogger.info('Filters changed:', filters);
  *       // Fetch data with new filters
  *       fetchData(filters);
  *     }

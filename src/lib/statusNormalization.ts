@@ -1,3 +1,5 @@
+import { simpleLogger } from '../utils/logger';
+
 export const CANONICAL_STATUS = {
   UNCATEGORIZED: 'uncategorized',
   WHITELIST: 'whitelist',
@@ -42,7 +44,7 @@ export function normalizeStatus(status: string | null | undefined): CanonicalSta
   if (Object.values(CANONICAL_STATUS).includes(status as CanonicalStatus)) {
     return status as CanonicalStatus;
   }
-  console.warn(`Unknown status for normalization: ${status}`);
+  simpleLogger.warn(`Unknown status for normalization: ${status}`);
   return CANONICAL_STATUS.OTHER;
 }
 

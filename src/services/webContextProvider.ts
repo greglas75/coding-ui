@@ -6,6 +6,7 @@
 import { logError, logInfo, logWarn } from '../utils/logger';
 import { sanitizeForAPI } from '../utils/pii';
 import { getGoogleCSEAPIKey, getGoogleCSECXID } from '../utils/apiKeys';
+// Note: This file uses logInfo/logError/logWarn from logger.ts which already handles DEV/PROD
 
 // ───────────────────────────────────────────────────────────────
 // Types & Interfaces

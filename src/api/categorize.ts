@@ -4,9 +4,10 @@
  * Server-side functions for categorizing answers with OpenAI
  */
 
-import { categorizeAnswer, DEFAULT_CATEGORIZATION_TEMPLATE } from '../lib/openai';
+import { categorizeAnswer } from '../lib/openai';
 import { supabase } from '../lib/supabase';
 import type { AiSuggestions } from '../types';
+import { simpleLogger } from '../utils/logger';
 
 /**
  * Categorize a single answer using AI and store results in database
@@ -22,13 +23,15 @@ export async function categorizeSingleAnswer(answerId: number, forceRegenerate: 
     // 1. Fetch answer with category info and codes
     const { data: answer, error: answerError } = await supabase
       .from('answers')
-      .select(`
+      .select(
+        `
         *,
         category:categories!inner(
           id,
           name
         )
-      `)
+      `
+      )
       .eq('id', answerId)
       .single();
 
@@ -44,10 +47,14 @@ export async function categorizeSingleAnswer(answerId: number, forceRegenerate: 
       const cacheAge = Date.now() - new Date(cachedSuggestions.timestamp).getTime();
 
       if (cacheAge < CACHE_DURATION) {
-        console.log(`♻️ Using cached AI suggestions for answer ${answerId} (age: ${Math.floor(cacheAge / 60000)}m)`);
+        simpleLogger.info(
+          `♻️ Using cached AI suggestions for answer ${answerId} (age: ${Math.floor(cacheAge / 60000)}m)`
+        );
         return cachedSuggestions.suggestions;
       } else {
-        console.log(`⏰ Cache expired for answer ${answerId} (age: ${Math.floor(cacheAge / 86400000)}d), regenerating...`);
+        simpleLogger.info(
+          `⏰ Cache expired for answer ${answerId} (age: ${Math.floor(cacheAge / 86400000)}d), regenerating...`
+        );
       }
     }
 
@@ -66,21 +73,34 @@ export async function categorizeSingleAnswer(answerId: number, forceRegenerate: 
     // 4. Get category's preset, custom template, model, and vision model
     const { data: categoryData } = await supabase
       .from('categories')
-      .select('llm_preset, gpt_template, openai_model, vision_model, use_web_context')
+      .select(
+        'llm_preset, gpt_template, openai_model, claude_model, gemini_model, model, vision_model, use_web_context'
+      )
       .eq('id', answer.category.id)
       .single();
 
     const presetName = categoryData?.llm_preset || 'LLM Proper Name'; // Default preset
     const customTemplate = categoryData?.gpt_template; // Custom template (overrides preset)
-    const openaiModel = categoryData?.openai_model || 'gpt-4o-mini'; // Default model
-    const visionModel = categoryData?.vision_model || 'gemini-2.5-flash-lite'; // Vision model for image analysis
+
+    // ✅ Unified model selection (supports all providers)
+    // Priority: claude_model > openai_model > gemini_model > model > default
+    const selectedModel =
+      categoryData?.claude_model ||
+      categoryData?.openai_model ||
+      categoryData?.gemini_model ||
+      categoryData?.model ||
+      'gpt-4o-mini';
+
+    const visionModel = categoryData?.vision_model || 'gemini-2.0-pro-exp'; // Vision model for image analysis
     const useWebContext = categoryData?.use_web_context ?? true; // Enable web context by default
 
     // 5. Call OpenAI API
-    console.log(`🤖 Categorizing answer ${answerId} for category "${answer.category.name}"`);
-    console.log(`   Original (${answer.language || 'unknown'}): "${answer.answer_text?.substring(0, 50)}..."`);
+    simpleLogger.info(`🤖 Categorizing answer ${answerId} for category "${answer.category.name}"`);
+    simpleLogger.info(
+      `   Original (${answer.language || 'unknown'}): "${answer.answer_text?.substring(0, 50)}..."`
+    );
     if (answer.translation_en) {
-      console.log(`   Translation (en): "${answer.translation_en?.substring(0, 50)}..."`);
+      simpleLogger.info(`   Translation (en): "${answer.translation_en?.substring(0, 50)}..."`);
     }
 
     const result = await categorizeAnswer({
@@ -89,7 +109,7 @@ export async function categorizeSingleAnswer(answerId: number, forceRegenerate: 
       categoryName: answer.category.name,
       presetName: presetName, // Template preset (e.g., "LLM Proper Name")
       customTemplate: customTemplate, // Custom template (overrides preset if provided)
-      model: openaiModel, // OpenAI model from category
+      model: selectedModel, // ✅ Use unified model selection (supports all providers)
       visionModel: useWebContext ? visionModel : undefined, // Vision model for image analysis (only if web context enabled)
       codes: codes.map((c: SimpleCode) => ({ id: String(c.id), name: c.name })),
       context: {
@@ -98,18 +118,18 @@ export async function categorizeSingleAnswer(answerId: number, forceRegenerate: 
       },
     });
 
-    console.log(`✅ Got ${result.suggestions.length} suggestions for answer ${answerId}`);
+    simpleLogger.info(`✅ Got ${result.suggestions.length} suggestions for answer ${answerId}`);
     if (result.webContext && result.webContext.length > 0) {
-      console.log(`🌐 Got ${result.webContext.length} web results`);
+      simpleLogger.info(`🌐 Got ${result.webContext.length} web results`);
     }
     if (result.images && result.images.length > 0) {
-      console.log(`🖼️ Got ${result.images.length} images`);
+      simpleLogger.info(`🖼️ Got ${result.images.length} images`);
     }
 
     // 6. Build AiSuggestions object
     const aiSuggestions: AiSuggestions = {
       suggestions: result.suggestions,
-      model: openaiModel, // Use model from category
+      model: selectedModel, // ✅ Use unified model selection (supports all providers)
       timestamp: new Date().toISOString(),
       preset_used: presetName, // Store which preset was used
       webContext: result.webContext,
@@ -132,15 +152,19 @@ export async function categorizeSingleAnswer(answerId: number, forceRegenerate: 
       throw new Error(`Failed to update answer: ${updateError.message}`);
     }
 
-    console.log(`💾 Stored AI suggestions for answer ${answerId}`);
+    simpleLogger.info(`💾 Stored AI suggestions for answer ${answerId}`);
 
     // 8. Copy AI suggestions to identical answers (auto-copy optimization)
-    await copyAISuggestionsToIdenticalAnswers(answerId, answer.answer_text, answer.category.id, aiSuggestions);
+    await copyAISuggestionsToIdenticalAnswers(
+      answerId,
+      answer.answer_text,
+      answer.category.id,
+      aiSuggestions
+    );
 
     return result.suggestions;
-
   } catch (error) {
-    console.error('Categorization error:', error);
+    simpleLogger.error('Categorization error:', error);
     throw error;
   }
 }
@@ -168,7 +192,7 @@ async function copyAISuggestionsToIdenticalAnswers(
       return; // No duplicates found
     }
 
-    console.log(`📋 Found ${duplicates.length} identical answers, copying AI suggestions...`);
+    simpleLogger.info(`📋 Found ${duplicates.length} identical answers, copying AI suggestions...`);
 
     // Copy suggestions to all duplicates
     const { error: updateError } = await supabase
@@ -177,15 +201,18 @@ async function copyAISuggestionsToIdenticalAnswers(
         ai_suggestions: aiSuggestions,
         ai_suggested_code: aiSuggestions.suggestions[0]?.code_name || null,
       })
-      .in('id', duplicates.map((d: { id: number }) => d.id));
+      .in(
+        'id',
+        duplicates.map((d: { id: number }) => d.id)
+      );
 
     if (updateError) {
-      console.error('Failed to copy AI suggestions to duplicates:', updateError);
+      simpleLogger.error('Failed to copy AI suggestions to duplicates:', updateError);
     } else {
-      console.log(`✅ Copied AI suggestions to ${duplicates.length} identical answers`);
+      simpleLogger.info(`✅ Copied AI suggestions to ${duplicates.length} identical answers`);
     }
   } catch (error) {
-    console.error('Error copying AI suggestions to duplicates:', error);
+    simpleLogger.error('Error copying AI suggestions to duplicates:', error);
   }
 }
 
@@ -196,7 +223,7 @@ async function copyAISuggestionsToIdenticalAnswers(
  * @returns Object with success and error counts
  */
 export async function categorizeBatchAnswers(answerIds: number[]) {
-  console.log(`🤖 Starting batch categorization for ${answerIds.length} answers`);
+  simpleLogger.info(`🤖 Starting batch categorization for ${answerIds.length} answers`);
 
   const results = {
     processed: 0,
@@ -214,11 +241,11 @@ export async function categorizeBatchAnswers(answerIds: number[]) {
         answerId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
-      console.error(`Failed to categorize answer ${answerId}:`, error);
+      simpleLogger.error(`Failed to categorize answer ${answerId}:`, error);
     }
   }
 
-  console.log(`✅ Batch complete: ${results.processed} processed, ${results.errors} errors`);
+  simpleLogger.info(`✅ Batch complete: ${results.processed} processed, ${results.errors} errors`);
 
   return results;
 }
@@ -230,10 +257,7 @@ export async function categorizeBatchAnswers(answerIds: number[]) {
  * @param limit - Maximum number of answers to process (default: 100)
  * @returns Object with success and error counts
  */
-export async function categorizeCategoryAnswers(
-  categoryId: number,
-  limit: number = 100
-) {
+export async function categorizeCategoryAnswers(categoryId: number, limit: number = 100) {
   // Get uncoded answers for this category
   const { data: answers, error } = await supabase
     .from('answers')
@@ -271,12 +295,11 @@ export async function autoConfirmHighConfidence(
   confidenceThreshold: number = 0.95
 ) {
   // Get high-confidence suggestions using database function
-  const { data: suggestions, error } = await supabase
-    .rpc('get_high_confidence_suggestions', {
-      p_category_id: categoryId,
-      p_min_confidence: confidenceThreshold,
-      p_limit: 1000,
-    });
+  const { data: suggestions, error } = await supabase.rpc('get_high_confidence_suggestions', {
+    p_category_id: categoryId,
+    p_min_confidence: confidenceThreshold,
+    p_limit: 1000,
+  });
 
   if (error) {
     throw new Error(`Failed to get suggestions: ${error.message}`);
@@ -289,7 +312,7 @@ export async function autoConfirmHighConfidence(
     };
   }
 
-  console.log(`🚀 Auto-confirming ${suggestions.length} high-confidence suggestions...`);
+  simpleLogger.info(`🚀 Auto-confirming ${suggestions.length} high-confidence suggestions...`);
 
   let confirmed = 0;
 
@@ -308,38 +331,36 @@ export async function autoConfirmHighConfidence(
         .eq('id', suggestion.answer_id);
 
       if (updateError) {
-        console.error(`Failed to update answer ${suggestion.answer_id}:`, updateError);
+        simpleLogger.error(`Failed to update answer ${suggestion.answer_id}:`, updateError);
         continue;
       }
 
       // Log to audit trail
-      const { error: auditError } = await supabase
-        .from('ai_audit_log')
-        .insert({
-          answer_id: suggestion.answer_id,
-          category_id: categoryId,
-          answer_text: suggestion.answer_text,
-          selected_code: suggestion.suggested_code,
-          probability: suggestion.confidence,
-          ai_model: suggestion.model,
-          action: 'auto_confirm',
-          metadata: {
-            confidence_threshold: confidenceThreshold,
-            reasoning: suggestion.reasoning,
-          },
-        });
+      const { error: auditError } = await supabase.from('ai_audit_log').insert({
+        answer_id: suggestion.answer_id,
+        category_id: categoryId,
+        answer_text: suggestion.answer_text,
+        selected_code: suggestion.suggested_code,
+        probability: suggestion.confidence,
+        ai_model: suggestion.model,
+        action: 'auto_confirm',
+        metadata: {
+          confidence_threshold: confidenceThreshold,
+          reasoning: suggestion.reasoning,
+        },
+      });
 
       if (auditError) {
-        console.error(`Failed to log audit for answer ${suggestion.answer_id}:`, auditError);
+        simpleLogger.error(`Failed to log audit for answer ${suggestion.answer_id}:`, auditError);
       }
 
       confirmed++;
     } catch (error) {
-      console.error(`Error confirming answer ${suggestion.answer_id}:`, error);
+      simpleLogger.error(`Error confirming answer ${suggestion.answer_id}:`, error);
     }
   }
 
-  console.log(`✅ Auto-confirmed ${confirmed} out of ${suggestions.length} answers`);
+  simpleLogger.info(`✅ Auto-confirmed ${confirmed} out of ${suggestions.length} answers`);
 
   return {
     confirmed,

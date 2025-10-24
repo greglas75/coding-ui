@@ -7,6 +7,7 @@ import { devtools, persist } from 'zustand/middleware';
 import type { Answer } from '../schemas/answerSchema';
 import type { Category } from '../schemas/categorySchema';
 import type { Code } from '../schemas/codeSchema';
+import { simpleLogger } from '../utils/logger';
 
 // ───────────────────────────────────────────────────────────────
 // Types
@@ -142,7 +143,7 @@ export const useCodingStore = create<CodingState>()(
               error: errorMessage,
               isLoadingAnswers: false
             }, false, 'coding/fetchAnswers/error');
-            console.error('❌ Failed to fetch answers:', error);
+            simpleLogger.error('❌ Failed to fetch answers:', error);
           }
         },
 
@@ -169,7 +170,7 @@ export const useCodingStore = create<CodingState>()(
               error: errorMessage,
               isLoadingCodes: false
             }, false, 'coding/fetchCodes/error');
-            console.error('❌ Failed to fetch codes:', error);
+            simpleLogger.error('❌ Failed to fetch codes:', error);
           }
         },
 
@@ -195,7 +196,7 @@ export const useCodingStore = create<CodingState>()(
               error: errorMessage,
               isLoadingCategories: false
             }, false, 'coding/fetchCategories/error');
-            console.error('❌ Failed to fetch categories:', error);
+            simpleLogger.error('❌ Failed to fetch categories:', error);
           }
         },
 
@@ -231,7 +232,7 @@ export const useCodingStore = create<CodingState>()(
               isSaving: false
             }), false, 'coding/assignCode/success');
 
-            console.log('✅ Code assigned:', { answerId, codeId });
+            simpleLogger.info('✅ Code assigned:', { answerId, codeId });
             get().refreshStats();
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to assign code';
@@ -239,7 +240,7 @@ export const useCodingStore = create<CodingState>()(
               error: errorMessage,
               isSaving: false
             }, false, 'coding/assignCode/error');
-            console.error('❌ Failed to assign code:', error);
+            simpleLogger.error('❌ Failed to assign code:', error);
           }
         },
 
@@ -265,7 +266,7 @@ export const useCodingStore = create<CodingState>()(
               isSaving: false
             }), false, 'coding/assignCodes/success');
 
-            console.log('✅ Codes assigned:', { answerId, codeIds });
+            simpleLogger.info('✅ Codes assigned:', { answerId, codeIds });
             get().refreshStats();
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to assign codes';
@@ -273,7 +274,7 @@ export const useCodingStore = create<CodingState>()(
               error: errorMessage,
               isSaving: false
             }, false, 'coding/assignCodes/error');
-            console.error('❌ Failed to assign codes:', error);
+            simpleLogger.error('❌ Failed to assign codes:', error);
           }
         },
 
@@ -294,7 +295,7 @@ export const useCodingStore = create<CodingState>()(
               isSaving: false
             }), false, 'coding/updateAnswerStatus/success');
 
-            console.log('✅ Status updated:', { answerId, status });
+            simpleLogger.info('✅ Status updated:', { answerId, status });
             get().refreshStats();
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to update status';
@@ -302,7 +303,7 @@ export const useCodingStore = create<CodingState>()(
               error: errorMessage,
               isSaving: false
             }, false, 'coding/updateAnswerStatus/error');
-            console.error('❌ Failed to update status:', error);
+            simpleLogger.error('❌ Failed to update status:', error);
           }
         },
 
@@ -314,7 +315,7 @@ export const useCodingStore = create<CodingState>()(
             // TODO: Replace with actual API call
             // const response = await apiClient.post<Answer>(`/api/answers/${answerId}/categorize`);
 
-            console.log('✅ Answer categorized:', answerId);
+            simpleLogger.info('✅ Answer categorized:', answerId);
 
             set({ isCategorizing: false }, false, 'coding/categorizeAnswer/success');
           } catch (error) {
@@ -323,7 +324,7 @@ export const useCodingStore = create<CodingState>()(
               error: errorMessage,
               isCategorizing: false
             }, false, 'coding/categorizeAnswer/error');
-            console.error('❌ Failed to categorize answer:', error);
+            simpleLogger.error('❌ Failed to categorize answer:', error);
           }
         },
 
@@ -346,7 +347,7 @@ export const useCodingStore = create<CodingState>()(
               isSaving: false
             }), false, 'coding/batchAssignCode/success');
 
-            console.log('✅ Batch code assigned:', { answerIds, codeId });
+            simpleLogger.info('✅ Batch code assigned:', { answerIds, codeId });
             get().refreshStats();
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to batch assign code';
@@ -354,7 +355,7 @@ export const useCodingStore = create<CodingState>()(
               error: errorMessage,
               isSaving: false
             }, false, 'coding/batchAssignCode/error');
-            console.error('❌ Failed to batch assign code:', error);
+            simpleLogger.error('❌ Failed to batch assign code:', error);
           }
         },
 
@@ -375,7 +376,7 @@ export const useCodingStore = create<CodingState>()(
               isSaving: false
             }), false, 'coding/batchUpdateStatus/success');
 
-            console.log('✅ Batch status updated:', { answerIds, status });
+            simpleLogger.info('✅ Batch status updated:', { answerIds, status });
             get().refreshStats();
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to batch update status';
@@ -383,7 +384,7 @@ export const useCodingStore = create<CodingState>()(
               error: errorMessage,
               isSaving: false
             }, false, 'coding/batchUpdateStatus/error');
-            console.error('❌ Failed to batch update status:', error);
+            simpleLogger.error('❌ Failed to batch update status:', error);
           }
         },
 

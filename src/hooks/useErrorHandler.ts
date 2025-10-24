@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/react';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { errorLogger } from '../lib/errorLogger';
-import { logError as loggerError } from '../utils/logger';
+import { logError as loggerError, simpleLogger } from '../utils/logger';
 
 interface ErrorHandlerOptions {
   showToast?: boolean;
@@ -37,7 +37,7 @@ export function useErrorHandler(options: ErrorHandlerOptions = {}) {
 
     // Log error
     if (shouldLogError) {
-      console.error(`❌ Error in ${finalContext}:`, err);
+      simpleLogger.error(`❌ Error in ${finalContext}:`, err);
       errorLogger.log(err, undefined, { context: finalContext });
 
       // Log to centralized logger
@@ -66,9 +66,9 @@ export function useErrorHandler(options: ErrorHandlerOptions = {}) {
             },
           },
         });
-        console.log('📤 Error reported to Sentry:', eventId);
+        simpleLogger.info('📤 Error reported to Sentry:', eventId);
       } catch (sentryError) {
-        console.error('Failed to report error to Sentry:', sentryError);
+        simpleLogger.error('Failed to report error to Sentry:', sentryError);
       }
     }
 
@@ -78,7 +78,7 @@ export function useErrorHandler(options: ErrorHandlerOptions = {}) {
         description: import.meta.env.DEV ? `Context: ${finalContext}` : undefined,
         action: import.meta.env.DEV ? {
           label: 'Details',
-          onClick: () => console.log('Error details:', err),
+          onClick: () => simpleLogger.info('Error details:', err),
         } : undefined,
       });
     }

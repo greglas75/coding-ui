@@ -1,6 +1,7 @@
 import { List, Upload, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Category } from "../types";
+import { simpleLogger } from '../utils/logger';
 
 // ═══════════════════════════════════════════════════════════════
 // 🎯 TYPES
@@ -74,7 +75,7 @@ export function UploadListModal({
       await onUpload(codes, selectedCategories);
       onClose();
     } catch (error) {
-      console.error("Upload failed:", error);
+      simpleLogger.error("Upload failed:", error);
     } finally {
       setIsUploading(false);
     }

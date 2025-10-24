@@ -6,6 +6,7 @@
 
 import { memo } from 'react';
 import type { Category, CodeWithCategories } from '../types';
+import { simpleLogger } from '../utils/logger';
 import { CodeListTable } from './CodeListTable';
 import { VirtualizedCodeListTable } from './VirtualizedCodeListTable';
 
@@ -36,7 +37,7 @@ export const OptimizedCodeListTable = memo<OptimizedCodeListTableProps>(({
 }) => {
   const shouldVirtualize = forceVirtualization || codes.length > virtualizationThreshold;
 
-  console.log(`📊 CodeListTable: ${codes.length} codes, virtualized: ${shouldVirtualize}`);
+  simpleLogger.info(`📊 CodeListTable: ${codes.length} codes, virtualized: ${shouldVirtualize}`);
 
   if (shouldVirtualize) {
     return (

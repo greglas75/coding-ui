@@ -5,13 +5,14 @@
  * to detect brands, logos, products, and places.
  *
  * 💰 COST OPTIMIZATION:
- * - gemini-2.5-flash-lite: ~$0.002 per 1000 images (very cheap)
+ * - gemini-2.0-pro-exp: ~$0.05 per 1000 images (high quality)
  * - Default: 6 images per analysis ≈ $0.000012 per categorization
  * - For 1000 categorizations: ≈ $0.012 (1.2 cents)
  * - Reduce maxImages to lower costs further if needed
  */
 
 import type { ImageResult } from '../types';
+import { simpleLogger } from '../utils/logger';
 
 export interface VisionAnalysisResult {
   brandDetected: boolean;
@@ -47,7 +48,7 @@ function addToCorsBlacklist(url: string): void {
     const blacklist = getCorsBlacklist();
     blacklist.add(domain);
     localStorage.setItem(BLACKLIST_KEY, JSON.stringify([...blacklist]));
-    console.log(`🚫 Blacklisted CORS-blocked domain: ${domain}`);
+    simpleLogger.info(`🚫 Blacklisted CORS-blocked domain: ${domain}`);
   } catch {
     // Invalid URL, ignore
   }
@@ -75,17 +76,17 @@ export async function analyzeImagesWithGemini(
   images: ImageResult[],
   searchQuery: string,
   availableBrands: string[],
-  visionModel: string = 'gemini-2.5-flash-lite',
+  visionModel: string = 'gemini-2.0-pro-exp',
   maxImages: number = 4 // Reduced from 6 to 4 for 33% cost savings
 ): Promise<VisionAnalysisResult> {
   try {
-    console.log(`🔍 Analyzing ${images.length} images with ${visionModel}...`);
+    simpleLogger.info(`🔍 Analyzing ${images.length} images with ${visionModel}...`);
 
     // Get Gemini API key from localStorage
     const apiKey = localStorage.getItem('google_gemini_api_key');
 
     if (!apiKey) {
-      console.warn('⚠️ No Gemini API key found - skipping vision analysis');
+      simpleLogger.warn('⚠️ No Gemini API key found - skipping vision analysis');
       return {
         brandDetected: false,
         brandName: '',
@@ -105,20 +106,22 @@ export async function analyzeImagesWithGemini(
     const skippedCount = allImageUrls.length - imageUrls.length;
 
     if (skippedCount > 0) {
-      console.log(`⏭️ Skipped ${skippedCount} image(s) from blacklisted domains`);
+      simpleLogger.info(`⏭️ Skipped ${skippedCount} image(s) from blacklisted domains`);
     }
 
     // Helper function to convert image URL to base64
-    async function imageUrlToBase64(url: string): Promise<{ data: string; mimeType: string } | null> {
+    async function imageUrlToBase64(
+      url: string
+    ): Promise<{ data: string; mimeType: string } | null> {
       try {
         // ✅ Use CORS proxy to bypass restrictions
         // weserv.nl is a free image proxy that handles CORS
-        const proxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(url)}&output=webp&q=85`;
+        const proxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(url)}&output=webp&q=85&w=400&h=400&fit=cover`;
 
         const response = await fetch(proxyUrl);
         if (!response.ok) {
           // If proxy fails, try original URL as fallback
-          console.warn(`⚠️ Proxy failed for ${url}, trying original...`);
+          simpleLogger.warn(`⚠️ Proxy failed for ${url}, trying original...`);
           const directResponse = await fetch(url);
           if (!directResponse.ok) {
             addToCorsBlacklist(url);
@@ -128,7 +131,7 @@ export async function analyzeImagesWithGemini(
           const blob = await directResponse.blob();
           const mimeType = blob.type || 'image/jpeg';
 
-          return new Promise((resolve) => {
+          return new Promise(resolve => {
             const reader = new FileReader();
             reader.onloadend = () => {
               const base64 = reader.result as string;
@@ -143,7 +146,7 @@ export async function analyzeImagesWithGemini(
         const blob = await response.blob();
         const mimeType = blob.type || 'image/webp';
 
-        return new Promise((resolve) => {
+        return new Promise(resolve => {
           const reader = new FileReader();
           reader.onloadend = () => {
             const base64 = reader.result as string;
@@ -156,7 +159,7 @@ export async function analyzeImagesWithGemini(
         });
       } catch (error) {
         // Network error - add to blacklist
-        console.error(`❌ Failed to fetch image: ${url}`, error);
+        simpleLogger.error(`❌ Failed to fetch image: ${url}`, error);
         addToCorsBlacklist(url);
         return null;
       }
@@ -164,7 +167,7 @@ export async function analyzeImagesWithGemini(
 
     // Convert images to base64
     if (imageUrls.length === 0) {
-      console.warn('⚠️ All images are from blacklisted domains - skipping vision analysis');
+      simpleLogger.warn('⚠️ All images are from blacklisted domains - skipping vision analysis');
       return {
         brandDetected: false,
         brandName: '',
@@ -176,12 +179,16 @@ export async function analyzeImagesWithGemini(
       };
     }
 
-    console.log(`📥 Fetching and converting ${imageUrls.length} images to base64...`);
+    simpleLogger.info(`📥 Fetching and converting ${imageUrls.length} images to base64...`);
     const base64Images = await Promise.all(imageUrls.map(url => imageUrlToBase64(url)));
-    const validImages = base64Images.filter((img): img is { data: string; mimeType: string } => img !== null);
+    const validImages = base64Images.filter(
+      (img): img is { data: string; mimeType: string } => img !== null
+    );
 
     if (validImages.length === 0) {
-      console.warn('⚠️ No images could be fetched (CORS/network issues) - skipping vision analysis');
+      simpleLogger.warn(
+        '⚠️ No images could be fetched (CORS/network issues) - skipping vision analysis'
+      );
       return {
         brandDetected: false,
         brandName: '',
@@ -194,8 +201,11 @@ export async function analyzeImagesWithGemini(
     }
 
     const successRate = `${validImages.length}/${imageUrls.length}`;
-    const logMethod = validImages.length >= 3 ? 'log' : 'warn';
-    console[logMethod](`✅ Successfully converted ${successRate} images for vision analysis`);
+    if (validImages.length >= 3) {
+      simpleLogger.info(`✅ Successfully converted ${successRate} images for vision analysis`);
+    } else {
+      simpleLogger.warn(`⚠️ Only converted ${successRate} images for vision analysis`);
+    }
 
     // Build prompt for Gemini
     const prompt = `You are analyzing images from a Google Image search for: "${searchQuery}"
@@ -259,7 +269,7 @@ Rules:
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Gemini API error:', response.status, errorText);
+      simpleLogger.error('❌ Gemini API error:', response.status, errorText);
       return {
         brandDetected: false,
         brandName: '',
@@ -285,8 +295,8 @@ Rules:
         // Strategy 2: Find first complete JSON object (non-greedy)
         const jsonMatch = text.match(/\{(?:[^{}]|\{[^{}]*\})*\}/);
         if (!jsonMatch) {
-          console.error('❌ Invalid JSON response from Gemini');
-          console.error('📄 Response text:', text);
+          simpleLogger.error('❌ Invalid JSON response from Gemini');
+          simpleLogger.error('📄 Response text:', text);
           return {
             brandDetected: false,
             brandName: '',
@@ -300,8 +310,8 @@ Rules:
         result = JSON.parse(jsonMatch[0]);
       }
     } catch (parseError) {
-      console.error('❌ Failed to parse Gemini JSON response:', parseError);
-      console.error('📄 Response text:', text);
+      simpleLogger.error('❌ Failed to parse Gemini JSON response:', parseError);
+      simpleLogger.error('📄 Response text:', text);
       return {
         brandDetected: false,
         brandName: '',
@@ -318,8 +328,10 @@ Rules:
     const costPerImage = 0.000002; // $0.002 / 1000
     const costEstimate = validImages.length * costPerImage;
 
-    console.log('✅ Vision analysis complete:', result);
-    console.log(`💰 Cost estimate: $${costEstimate.toFixed(6)} (${validImages.length} images at ~$0.002/1k images)`);
+    simpleLogger.info('✅ Vision analysis complete:', result);
+    simpleLogger.info(
+      `💰 Cost estimate: $${costEstimate.toFixed(6)} (${validImages.length} images at ~$0.002/1k images)`
+    );
 
     return {
       brandDetected: result.brandDetected || false,
@@ -330,9 +342,8 @@ Rules:
       costEstimate,
       imagesAnalyzed: validImages.length,
     };
-
   } catch (error) {
-    console.error('❌ Error in Gemini vision analysis:', error);
+    simpleLogger.error('❌ Error in Gemini vision analysis:', error);
     return {
       brandDetected: false,
       brandName: '',
@@ -361,7 +372,7 @@ export function calculateVisionBoost(visionResult: VisionAnalysisResult): {
       boost += 0.15; // +15% for high confidence
       details.push('strong visual match');
     } else if (visionResult.confidence >= 0.6) {
-      boost += 0.10; // +10% for medium confidence
+      boost += 0.1; // +10% for medium confidence
       details.push('visual match detected');
     } else {
       boost += 0.05; // +5% for weak match
@@ -391,7 +402,7 @@ export function calculateVisionBoost(visionResult: VisionAnalysisResult): {
  */
 export function clearCorsBlacklist(): void {
   localStorage.removeItem(BLACKLIST_KEY);
-  console.log('✅ CORS blacklist cleared');
+  simpleLogger.info('✅ CORS blacklist cleared');
 }
 
 /**
@@ -401,7 +412,7 @@ export function clearCorsBlacklist(): void {
 export function viewCorsBlacklist(): string[] {
   const blacklist = getCorsBlacklist();
   const domains = [...blacklist];
-  console.log(`📋 CORS Blacklist (${domains.length} domains):`, domains);
+  simpleLogger.info(`📋 CORS Blacklist (${domains.length} domains):`, domains);
   return domains;
 }
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
+import { simpleLogger } from '../utils/logger';
 
 interface Category {
   id: number;
@@ -26,7 +27,7 @@ export function useCategoriesData() {
 
   const fetchCategories = useCallback(async () => {
     try {
-      console.log('Fetching categories with statistics...');
+      simpleLogger.info('Fetching categories with statistics...');
       setLoading(true);
       setError(null);
 
@@ -68,7 +69,7 @@ export function useCategoriesData() {
         .rpc('get_category_stats');
 
       if (statsError) {
-        console.error('Error fetching category stats via RPC:', statsError);
+        simpleLogger.error('Error fetching category stats via RPC:', statsError);
       }
 
       const statsMap = new Map<number, any>(
@@ -97,7 +98,7 @@ export function useCategoriesData() {
 
       setCategories(categoriesWithStats);
     } catch (err: any) {
-      console.error('Error in fetchCategories:', err);
+      simpleLogger.error('Error in fetchCategories:', err);
       setError(err.message || 'Failed to fetch categories');
     } finally {
       setLoading(false);
@@ -116,7 +117,7 @@ export function useCategoriesData() {
       .single();
 
     if (error) {
-      console.error('Error adding category:', error);
+      simpleLogger.error('Error adding category:', error);
       toast.error('Failed to add category');
       return;
     }
@@ -150,7 +151,7 @@ export function useCategoriesData() {
       );
       toast.success('Category updated successfully');
     } catch (error) {
-      console.error('Error updating category:', error);
+      simpleLogger.error('Error updating category:', error);
       toast.error('Failed to update category');
     }
   }, []);
@@ -181,7 +182,7 @@ export function useCategoriesData() {
       toast.success('Category deleted successfully');
       await fetchCategories();
     } catch (error) {
-      console.error('Error deleting category:', error);
+      simpleLogger.error('Error deleting category:', error);
       toast.error('Failed to delete category');
     }
   }, [fetchCategories]);

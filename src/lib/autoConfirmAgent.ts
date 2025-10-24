@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { simpleLogger } from '../utils/logger';
 
 // ═══════════════════════════════════════════════════════════════
 // 🎯 TYPES
@@ -52,7 +53,7 @@ export async function autoConfirm(
     logToDatabase = true,
   } = options;
 
-  console.log('🤖 [AutoConfirm] Starting with options:', {
+  simpleLogger.info('🤖 [AutoConfirm] Starting with options:', {
     minProbability,
     maxBatchSize,
     dryRun,
@@ -83,16 +84,16 @@ export async function autoConfirm(
     const { data: pending, error: fetchError } = await query;
 
     if (fetchError) {
-      console.error('❌ [AutoConfirm] Error fetching pending answers:', fetchError);
+      simpleLogger.error('❌ [AutoConfirm] Error fetching pending answers:', fetchError);
       throw fetchError;
     }
 
     if (!pending || pending.length === 0) {
-      console.log('✅ [AutoConfirm] No pending answers to process');
+      simpleLogger.info('✅ [AutoConfirm] No pending answers to process');
       return result;
     }
 
-    console.log(`📊 [AutoConfirm] Found ${pending.length} pending answers`);
+    simpleLogger.info(`📊 [AutoConfirm] Found ${pending.length} pending answers`);
 
     // ✅ Process each answer
     for (const answer of pending) {
@@ -119,7 +120,7 @@ export async function autoConfirm(
         const probability = topPrediction.probability;
         const suggestedCode = topPrediction.item;
 
-        console.log(`🔍 [AutoConfirm] Answer ${answer.id}: ${suggestedCode} (${(probability * 100).toFixed(1)}%)`);
+        simpleLogger.info(`🔍 [AutoConfirm] Answer ${answer.id}: ${suggestedCode} (${(probability * 100).toFixed(1)}%)`);
 
         // ✅ Check if probability meets threshold
         if (probability < minProbability) {
@@ -167,7 +168,7 @@ export async function autoConfirm(
             status: 'confirmed',
             reason: 'DRY RUN - Would confirm',
           });
-          console.log(`✅ [AutoConfirm] DRY RUN: Would confirm answer ${answer.id} with ${suggestedCode}`);
+          simpleLogger.info(`✅ [AutoConfirm] DRY RUN: Would confirm answer ${answer.id} with ${suggestedCode}`);
           continue;
         }
 
@@ -194,7 +195,7 @@ export async function autoConfirm(
             status: 'error',
             reason: updateError.message,
           });
-          console.error(`❌ [AutoConfirm] Error updating answer ${answer.id}:`, updateError);
+          simpleLogger.error(`❌ [AutoConfirm] Error updating answer ${answer.id}:`, updateError);
           continue;
         }
 
@@ -207,7 +208,7 @@ export async function autoConfirm(
           });
 
         if (relationError) {
-          console.warn(`⚠️ [AutoConfirm] Error creating answer_codes relation:`, relationError);
+          simpleLogger.warn(`⚠️ [AutoConfirm] Error creating answer_codes relation:`, relationError);
         }
 
         // ✅ Log to audit table
@@ -230,7 +231,7 @@ export async function autoConfirm(
           status: 'confirmed',
         });
 
-        console.log(`✅ [AutoConfirm] Confirmed answer ${answer.id}: ${suggestedCode} (${(probability * 100).toFixed(1)}%)`);
+        simpleLogger.info(`✅ [AutoConfirm] Confirmed answer ${answer.id}: ${suggestedCode} (${(probability * 100).toFixed(1)}%)`);
       } catch (err: any) {
         result.errors++;
         result.details.push({
@@ -241,11 +242,11 @@ export async function autoConfirm(
           status: 'error',
           reason: err.message,
         });
-        console.error(`❌ [AutoConfirm] Error processing answer ${answer.id}:`, err);
+        simpleLogger.error(`❌ [AutoConfirm] Error processing answer ${answer.id}:`, err);
       }
     }
 
-    console.log('✅ [AutoConfirm] Complete:', {
+    simpleLogger.info('✅ [AutoConfirm] Complete:', {
       processed: result.processed,
       confirmed: result.confirmed,
       skipped: result.skipped,
@@ -254,7 +255,7 @@ export async function autoConfirm(
 
     return result;
   } catch (err: any) {
-    console.error('❌ [AutoConfirm] Fatal error:', err);
+    simpleLogger.error('❌ [AutoConfirm] Fatal error:', err);
     throw err;
   }
 }
@@ -282,10 +283,10 @@ async function logAutoConfirmation(params: {
     });
 
     if (error) {
-      console.warn('⚠️ [AutoConfirm] Error logging to audit table:', error);
+      simpleLogger.warn('⚠️ [AutoConfirm] Error logging to audit table:', error);
     }
   } catch (err) {
-    console.warn('⚠️ [AutoConfirm] Failed to log audit:', err);
+    simpleLogger.warn('⚠️ [AutoConfirm] Failed to log audit:', err);
   }
 }
 
@@ -354,7 +355,7 @@ export async function getAutoConfirmStats(
       readyToConfirm,
     };
   } catch (err) {
-    console.error('❌ [AutoConfirm] Error getting stats:', err);
+    simpleLogger.error('❌ [AutoConfirm] Error getting stats:', err);
     return {
       totalPending: 0,
       highConfidence: 0,
@@ -418,13 +419,13 @@ export async function getAuditLog(
     const { data, error } = await query;
 
     if (error) {
-      console.error('❌ [AutoConfirm] Error fetching audit log:', error);
+      simpleLogger.error('❌ [AutoConfirm] Error fetching audit log:', error);
       return [];
     }
 
     return data || [];
   } catch (err) {
-    console.error('❌ [AutoConfirm] Error in getAuditLog:', err);
+    simpleLogger.error('❌ [AutoConfirm] Error in getAuditLog:', err);
     return [];
   }
 }

@@ -10,6 +10,7 @@ import {
   getUnsyncedChanges,
   markMultipleAsSynced
 } from '../lib/offlineStorage';
+import { simpleLogger } from '../utils/logger';
 import { getSupabaseClient } from '../lib/supabase';
 
 const supabase = getSupabaseClient();
@@ -26,7 +27,7 @@ export function useOfflineSync() {
   // Monitor online/offline status
   useEffect(() => {
     const handleOnline = () => {
-      console.log('🌐 Connection restored');
+      simpleLogger.info('🌐 Connection restored');
       setIsOnline(true);
       setSyncStatus('online');
       toast.success('Connection restored - syncing...');
@@ -34,7 +35,7 @@ export function useOfflineSync() {
     };
 
     const handleOffline = () => {
-      console.log('📴 Connection lost');
+      simpleLogger.info('📴 Connection lost');
       setIsOnline(false);
       setSyncStatus('offline');
       toast.warning('Working offline - changes will sync when online');
@@ -56,7 +57,7 @@ export function useOfflineSync() {
         const stats = await getCacheStats();
         setPendingCount(stats.unsyncedChanges);
       } catch (error) {
-        console.error('Failed to update pending count:', error);
+        simpleLogger.error('Failed to update pending count:', error);
       }
     }
 
@@ -79,16 +80,16 @@ export function useOfflineSync() {
 
       if (isOnline) {
         // Try to sync immediately if online
-        console.log('🔄 Online - attempting immediate sync');
+        simpleLogger.info('🔄 Online - attempting immediate sync');
         syncPendingChanges();
       } else {
         setSyncStatus('offline');
-        console.log('📴 Offline - queued for later sync');
+        simpleLogger.info('📴 Offline - queued for later sync');
       }
 
       return changeId;
     } catch (error) {
-      console.error('Failed to queue change:', error);
+      simpleLogger.error('Failed to queue change:', error);
       toast.error('Failed to save changes');
       throw error;
     }
@@ -103,7 +104,7 @@ export function useOfflineSync() {
     errors: string[];
   }> => {
     if (!isOnline) {
-      console.log('❌ Cannot sync - offline');
+      simpleLogger.info('❌ Cannot sync - offline');
       toast.error('Cannot sync - you are offline');
       return { synced: 0, failed: 0, errors: ['Offline'] };
     }
@@ -113,13 +114,13 @@ export function useOfflineSync() {
       const unsyncedChanges = await getUnsyncedChanges();
 
       if (unsyncedChanges.length === 0) {
-        console.log('✅ No pending changes to sync');
+        simpleLogger.info('✅ No pending changes to sync');
         setSyncStatus('saved');
         setTimeout(() => setSyncStatus('online'), 2000);
         return { synced: 0, failed: 0, errors: [] };
       }
 
-      console.log(`🔄 Syncing ${unsyncedChanges.length} pending changes...`);
+      simpleLogger.info(`🔄 Syncing ${unsyncedChanges.length} pending changes...`);
       setSyncProgress({ current: 0, total: unsyncedChanges.length });
 
       let syncedCount = 0;
@@ -135,7 +136,7 @@ export function useOfflineSync() {
         return acc;
       }, {} as Record<string, typeof unsyncedChanges>);
 
-      console.log(`📦 Grouped into ${Object.keys(grouped).length} batches`);
+      simpleLogger.info(`📦 Grouped into ${Object.keys(grouped).length} batches`);
 
       let processedCount = 0;
 
@@ -144,7 +145,7 @@ export function useOfflineSync() {
 
         try {
           if (action === 'update' && changes.length > 1) {
-            console.log(`🚀 Batch updating ${changes.length} records in ${table}`);
+            simpleLogger.info(`🚀 Batch updating ${changes.length} records in ${table}`);
 
             const bulkRecords = changes.flatMap(change => {
               const ids = change.data.ids || [change.data.id];
@@ -166,7 +167,7 @@ export function useOfflineSync() {
             processedCount += changes.length;
 
           } else if (action === 'insert' && changes.length > 1) {
-            console.log(`🚀 Batch inserting ${changes.length} records in ${table}`);
+            simpleLogger.info(`🚀 Batch inserting ${changes.length} records in ${table}`);
 
             const insertRecords = changes.map(c => c.data);
 
@@ -178,7 +179,7 @@ export function useOfflineSync() {
             processedCount += changes.length;
 
           } else if (action === 'delete' && changes.length > 1) {
-            console.log(`🚀 Batch deleting ${changes.length} records in ${table}`);
+            simpleLogger.info(`🚀 Batch deleting ${changes.length} records in ${table}`);
 
             const idsToDelete = changes.flatMap(c => c.data.ids || [c.data.id]);
 
@@ -223,7 +224,7 @@ export function useOfflineSync() {
                 processedCount++;
 
               } catch (error) {
-                console.error(`❌ Failed to sync single change:`, error);
+                simpleLogger.error(`❌ Failed to sync single change:`, error);
                 failedCount++;
                 errors.push(`${change.action} on ${table}: ${error instanceof Error ? error.message : 'Unknown'}`);
               }
@@ -233,7 +234,7 @@ export function useOfflineSync() {
           setSyncProgress({ current: processedCount, total: unsyncedChanges.length });
 
         } catch (error) {
-          console.error(`❌ Batch operation failed for ${key}:`, error);
+          simpleLogger.error(`❌ Batch operation failed for ${key}:`, error);
           failedCount += changes.length;
           errors.push(`Batch ${key}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -256,11 +257,11 @@ export function useOfflineSync() {
         toast.error(`Synced ${syncedCount}, failed ${failedCount} changes`);
       }
 
-      console.log(`📊 Sync complete: ${syncedCount} synced, ${failedCount} failed`);
+      simpleLogger.info(`📊 Sync complete: ${syncedCount} synced, ${failedCount} failed`);
       return { synced: syncedCount, failed: failedCount, errors };
 
     } catch (error) {
-      console.error('❌ Sync process failed:', error);
+      simpleLogger.error('❌ Sync process failed:', error);
       setSyncStatus('offline');
       setSyncProgress({ current: 0, total: 0 });
       toast.error('Sync process failed');
@@ -274,9 +275,9 @@ export function useOfflineSync() {
   const cacheAnswersOffline = useCallback(async (answers: any[]) => {
     try {
       await cacheAnswers(answers);
-      console.log(`💾 Cached ${answers.length} answers for offline access`);
+      simpleLogger.info(`💾 Cached ${answers.length} answers for offline access`);
     } catch (error) {
-      console.error('Failed to cache answers:', error);
+      simpleLogger.error('Failed to cache answers:', error);
     }
   }, []);
 
@@ -286,10 +287,10 @@ export function useOfflineSync() {
   const getCachedAnswersOffline = useCallback(async () => {
     try {
       const cached = await getCachedAnswers();
-      console.log(`📖 Retrieved ${cached.length} cached answers`);
+      simpleLogger.info(`📖 Retrieved ${cached.length} cached answers`);
       return cached;
     } catch (error) {
-      console.error('Failed to get cached answers:', error);
+      simpleLogger.error('Failed to get cached answers:', error);
       return [];
     }
   }, []);
@@ -302,9 +303,9 @@ export function useOfflineSync() {
       await clearCache();
       setPendingCount(0);
       toast.success('Offline cache cleared');
-      console.log('🗑️ Offline cache cleared');
+      simpleLogger.info('🗑️ Offline cache cleared');
     } catch (error) {
-      console.error('Failed to clear cache:', error);
+      simpleLogger.error('Failed to clear cache:', error);
       toast.error('Failed to clear cache');
     }
   }, []);
@@ -326,7 +327,7 @@ export function useOfflineSync() {
       URL.revokeObjectURL(url);
       toast.success('Changes exported for debugging');
     } catch (error) {
-      console.error('Failed to export changes:', error);
+      simpleLogger.error('Failed to export changes:', error);
       toast.error('Failed to export changes');
     }
   }, []);
@@ -338,7 +339,7 @@ export function useOfflineSync() {
     try {
       return await getCacheStats();
     } catch (error) {
-      console.error('Failed to get cache stats:', error);
+      simpleLogger.error('Failed to get cache stats:', error);
       return { pendingChanges: 0, cachedAnswers: 0, unsyncedChanges: 0 };
     }
   }, []);

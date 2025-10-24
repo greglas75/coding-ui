@@ -1,4 +1,4 @@
-import type { Answer } from '../../types';
+Cimport type { Answer } from '../../types';
 
 export interface CodingGridProps {
   answers: Answer[];

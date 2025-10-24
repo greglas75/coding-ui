@@ -1,5 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabaseClient } from './supabase';
+import { simpleLogger } from '../utils/logger';
 
 const supabase = getSupabaseClient();
 
@@ -44,7 +45,7 @@ export class RealtimeService {
       await this.leave();
     }
 
-    console.log(`🔗 Joining realtime channel for category: ${categoryId}`);
+    simpleLogger.info(`🔗 Joining realtime channel for category: ${categoryId}`);
 
     // Create channel for this category
     this.channel = supabase.channel(`category:${categoryId}`, {
@@ -73,11 +74,11 @@ export class RealtimeService {
           });
         });
 
-        console.log(`👥 Presence synced: ${this.presenceData.size} users online`);
+        simpleLogger.info(`👥 Presence synced: ${this.presenceData.size} users online`);
         this.notifyPresenceChange();
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-        console.log(`👋 User joined:`, key);
+        simpleLogger.info(`👋 User joined:`, key);
         newPresences.forEach((presence: any) => {
           this.presenceData.set(presence.userId, {
             ...presence,
@@ -87,7 +88,7 @@ export class RealtimeService {
         this.notifyPresenceChange();
       })
       .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-        console.log(`👋 User left:`, key);
+        simpleLogger.info(`👋 User left:`, key);
         leftPresences.forEach((presence: any) => {
           this.presenceData.delete(presence.userId);
         });
@@ -99,7 +100,7 @@ export class RealtimeService {
       'broadcast',
       { event: 'code-update' },
       (payload) => {
-        console.log('📡 Received code update:', payload.payload);
+        simpleLogger.info('📡 Received code update:', payload.payload);
         if (this.onCodeUpdate) {
           this.onCodeUpdate(payload.payload as CodeUpdateEvent);
         }
@@ -109,7 +110,7 @@ export class RealtimeService {
     // Subscribe and set initial presence
     await this.channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
-        console.log('✅ Subscribed to realtime channel');
+        simpleLogger.info('✅ Subscribed to realtime channel');
         await this.channel!.track({
           userId,
           userName,
@@ -118,9 +119,9 @@ export class RealtimeService {
           lastActivity: new Date().toISOString()
         });
       } else if (status === 'CHANNEL_ERROR') {
-        console.error('❌ Channel subscription error');
+        simpleLogger.error('❌ Channel subscription error');
       } else if (status === 'TIMED_OUT') {
-        console.error('⏱️ Channel subscription timed out');
+        simpleLogger.error('⏱️ Channel subscription timed out');
       }
     });
   }
@@ -137,7 +138,7 @@ export class RealtimeService {
           currentAnswerId: answerId,
           lastActivity: new Date().toISOString()
         });
-        console.log(`👁️ Updated current answer: ${answerId}`);
+        simpleLogger.info(`👁️ Updated current answer: ${answerId}`);
       }
     }
   }
@@ -158,7 +159,7 @@ export class RealtimeService {
         payload: fullUpdate
       });
 
-      console.log('📤 Broadcasted code update:', fullUpdate);
+      simpleLogger.info('📤 Broadcasted code update:', fullUpdate);
     }
   }
 
@@ -227,7 +228,7 @@ export class RealtimeService {
    */
   async leave(): Promise<void> {
     if (this.channel) {
-      console.log('👋 Leaving realtime channel');
+      simpleLogger.info('👋 Leaving realtime channel');
       await this.channel.unsubscribe();
       this.channel = null;
       this.presenceData.clear();

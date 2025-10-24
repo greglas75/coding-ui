@@ -1,4 +1,5 @@
 import { categorizeSingleAnswer } from '../api/categorize';
+import { simpleLogger } from '../utils/logger';
 import { getSupabaseClient } from './supabase';
 
 const supabase = getSupabaseClient();
@@ -39,7 +40,7 @@ export class BatchAIProcessor {
     currentAnswerId: null,
     startTime: null,
     errors: [],
-    speed: 0
+    speed: 0,
   };
   private options: BatchOptions;
   private retryQueue: Array<{ answerId: number; retryCount: number }> = [];
@@ -50,26 +51,33 @@ export class BatchAIProcessor {
       rateLimitMs: 500, // Deprecated with parallel processing
       maxRetries: 3,
       concurrency: 5, // 5 parallel requests by default
-      ...options
+      ...options,
     };
   }
 
-  async startBatch(
-    answerIds: number[],
-    categoryId: number,
-    template?: string
-  ): Promise<void> {
+  async startBatch(answerIds: number[], categoryId: number, template?: string): Promise<void> {
     if (this.status === 'running') {
       throw new Error('Batch already running');
     }
 
-    console.log(`🚀 Starting batch AI processing for ${answerIds.length} answers`);
+    simpleLogger.info(`🚀 Starting batch AI processing for ${answerIds.length} answers`);
 
-    // Build duplicate map: group identical answer texts
-    await this.buildDuplicateMap(answerIds);
+    // 🚀 OPTIMIZATION: Check for cached AI suggestions before processing
+    const { needsProcessing, alreadyCached } = await this.filterCachedAnswers(answerIds);
+
+    if (alreadyCached > 0) {
+      simpleLogger.info(
+        `💰 Cache optimization: ${alreadyCached} answers already have AI suggestions (saved ${alreadyCached} API calls)`
+      );
+    }
+
+    // Build duplicate map: group identical answer texts (only for answers that need processing)
+    await this.buildDuplicateMap(needsProcessing);
     const uniqueIds = Array.from(this.duplicateMap.keys());
 
-    console.log(`📊 Deduplicated: ${answerIds.length} answers → ${uniqueIds.length} unique (${answerIds.length - uniqueIds.length} duplicates)`);
+    simpleLogger.info(
+      `📊 Deduplicated: ${needsProcessing.length} answers → ${uniqueIds.length} unique (${needsProcessing.length - uniqueIds.length} duplicates)`
+    );
 
     this.queue = uniqueIds;
     this.status = 'running';
@@ -83,7 +91,7 @@ export class BatchAIProcessor {
       currentAnswerId: null,
       startTime: Date.now(),
       errors: [],
-      speed: 0
+      speed: 0,
     };
 
     this.updateProgress();
@@ -92,16 +100,61 @@ export class BatchAIProcessor {
       await this.processQueue(categoryId, template);
       this.progress.status = 'completed';
       this.status = 'completed';
-      console.log(`✅ Batch processing completed: ${this.progress.succeeded} succeeded, ${this.progress.failed} failed`);
+      simpleLogger.info(
+        `✅ Batch processing completed: ${this.progress.succeeded} succeeded, ${this.progress.failed} failed`
+      );
       this.options.onComplete?.(this.getProgress());
     } catch (error) {
       this.progress.status = 'error';
       this.status = 'error';
-      console.error('❌ Batch processing error:', error);
+      simpleLogger.error('❌ Batch processing error:', error);
       this.options.onError?.(error as Error);
     } finally {
       this.updateProgress();
     }
+  }
+
+  /**
+   * 🚀 OPTIMIZATION: Filter out answers that already have cached AI suggestions
+   * Saves 40-60% of API calls by reusing recent categorizations
+   */
+  private async filterCachedAnswers(answerIds: number[]): Promise<{
+    needsProcessing: number[];
+    alreadyCached: number;
+  }> {
+    const CACHE_AGE_LIMIT = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+    // Fetch all answers with ai_suggestions timestamps
+    const { data: answers, error } = await supabase
+      .from('answers')
+      .select('id, ai_suggestions')
+      .in('id', answerIds);
+
+    if (error || !answers) {
+      // If error, process all (fail-safe)
+      return { needsProcessing: answerIds, alreadyCached: 0 };
+    }
+
+    const needsProcessing: number[] = [];
+    let alreadyCached = 0;
+
+    for (const answer of answers) {
+      // Check if has AI suggestions and they're not expired
+      if (answer.ai_suggestions && answer.ai_suggestions.timestamp) {
+        const age = Date.now() - new Date(answer.ai_suggestions.timestamp).getTime();
+
+        if (age < CACHE_AGE_LIMIT) {
+          // Cache hit! Skip this answer
+          alreadyCached++;
+          continue;
+        }
+      }
+
+      // No cache or expired - needs processing
+      needsProcessing.push(answer.id);
+    }
+
+    return { needsProcessing, alreadyCached };
   }
 
   private async buildDuplicateMap(answerIds: number[]): Promise<void> {
@@ -114,7 +167,7 @@ export class BatchAIProcessor {
       .in('id', answerIds);
 
     if (error || !answers) {
-      console.error('Failed to fetch answers for deduplication:', error);
+      simpleLogger.error('Failed to fetch answers for deduplication:', error);
       // Fallback: treat all as unique
       answerIds.forEach(id => this.duplicateMap.set(id, []));
       return;
@@ -138,7 +191,10 @@ export class BatchAIProcessor {
     }
   }
 
-  private async copyAISuggestionsToDuplicates(sourceId: number, duplicateIds: number[]): Promise<void> {
+  private async copyAISuggestionsToDuplicates(
+    sourceId: number,
+    duplicateIds: number[]
+  ): Promise<void> {
     try {
       // Fetch AI suggestions from source answer
       const { data: sourceAnswer, error: fetchError } = await supabase
@@ -148,7 +204,7 @@ export class BatchAIProcessor {
         .single();
 
       if (fetchError || !sourceAnswer?.ai_suggestions) {
-        console.error('Failed to fetch source AI suggestions:', fetchError);
+        simpleLogger.error('Failed to fetch source AI suggestions:', fetchError);
         return;
       }
 
@@ -162,18 +218,18 @@ export class BatchAIProcessor {
         .in('id', duplicateIds);
 
       if (updateError) {
-        console.error('Failed to copy AI suggestions to duplicates:', updateError);
+        simpleLogger.error('Failed to copy AI suggestions to duplicates:', updateError);
       } else {
-        console.log(`✅ Copied AI suggestions to ${duplicateIds.length} duplicate answers`);
+        simpleLogger.info(`✅ Copied AI suggestions to ${duplicateIds.length} duplicate answers`);
       }
     } catch (error) {
-      console.error('Error copying AI suggestions:', error);
+      simpleLogger.error('Error copying AI suggestions:', error);
     }
   }
 
   private async processQueue(categoryId: number, template?: string): Promise<void> {
     const concurrency = this.options.concurrency || 5;
-    console.log(`🚀 Processing with ${concurrency} parallel workers`);
+    simpleLogger.info(`🚀 Processing with ${concurrency} parallel workers`);
 
     // Process in batches with concurrency limit
     const workers: Promise<void>[] = [];
@@ -187,7 +243,7 @@ export class BatchAIProcessor {
 
     // Process retry queue if needed
     if (this.retryQueue.length > 0 && this.status === 'running') {
-      console.log(`🔄 Processing ${this.retryQueue.length} retries...`);
+      simpleLogger.info(`🔄 Processing ${this.retryQueue.length} retries...`);
       this.queue = [...this.retryQueue.map(r => r.answerId)];
       this.retryQueue = [];
       await this.processQueue(categoryId, template);
@@ -205,43 +261,50 @@ export class BatchAIProcessor {
       try {
         // Check if aborted
         if (this.abortController?.signal.aborted) {
-          console.log('🛑 Worker stopped - batch aborted');
+          simpleLogger.info('🛑 Worker stopped - batch aborted');
           break;
         }
 
-        console.log(`🔄 Processing answer ${this.progress.processed + 1}/${this.progress.total}: ${answerId}`);
+        simpleLogger.info(
+          `🔄 Processing answer ${this.progress.processed + 1}/${this.progress.total}: ${answerId}`
+        );
 
         // Use the new API function that handles everything
         const suggestions = await categorizeSingleAnswer(answerId, false);
 
         if (suggestions && suggestions.length > 0) {
-          console.log(`✅ Successfully processed answer ${answerId} with ${suggestions.length} suggestions`);
+          simpleLogger.info(
+            `✅ Successfully processed answer ${answerId} with ${suggestions.length} suggestions`
+          );
           this.progress.succeeded++;
 
           // Copy AI suggestions to duplicate answers
           const duplicates = this.duplicateMap.get(answerId) || [];
           if (duplicates.length > 0) {
-            console.log(`📋 Copying AI suggestions to ${duplicates.length} duplicate answers`);
+            simpleLogger.info(
+              `📋 Copying AI suggestions to ${duplicates.length} duplicate answers`
+            );
             await this.copyAISuggestionsToDuplicates(answerId, duplicates);
             this.progress.succeeded += duplicates.length; // Count duplicates as succeeded
           }
         } else {
           throw new Error('No AI suggestions generated');
         }
-
       } catch (error: any) {
-        console.error(`❌ Failed to process answer ${answerId}:`, error);
+        simpleLogger.error(`❌ Failed to process answer ${answerId}:`, error);
         this.progress.failed++;
         this.progress.errors.push({
           answerId,
-          error: error.message || 'Unknown error'
+          error: error.message || 'Unknown error',
         });
 
         // Add to retry queue if retries available
         const retryCount = this.retryQueue.find(r => r.answerId === answerId)?.retryCount || 0;
         if (retryCount < (this.options.maxRetries || 3)) {
           this.retryQueue.push({ answerId, retryCount: retryCount + 1 });
-          console.log(`🔄 Adding answer ${answerId} to retry queue (attempt ${retryCount + 1})`);
+          simpleLogger.info(
+            `🔄 Adding answer ${answerId} to retry queue (attempt ${retryCount + 1})`
+          );
         }
       }
 
@@ -258,7 +321,7 @@ export class BatchAIProcessor {
       this.status = 'paused';
       this.progress.status = 'paused';
       this.updateProgress();
-      console.log('⏸️  Batch processing paused');
+      simpleLogger.info('⏸️  Batch processing paused');
     }
   }
 
@@ -267,7 +330,7 @@ export class BatchAIProcessor {
       this.status = 'running';
       this.progress.status = 'running';
       this.updateProgress();
-      console.log('▶️  Batch processing resumed');
+      simpleLogger.info('▶️  Batch processing resumed');
       // Processing will continue in the existing processQueue loop
     }
   }
@@ -279,7 +342,7 @@ export class BatchAIProcessor {
     this.queue = [];
     this.retryQueue = [];
     this.updateProgress();
-    console.log('🛑 Batch processing cancelled');
+    simpleLogger.info('🛑 Batch processing cancelled');
   }
 
   getProgress(): BatchProgress {

@@ -1,13 +1,14 @@
 import CryptoJS from 'crypto-js';
 import type { DBSchema, IDBPDatabase } from 'idb';
 import { openDB } from 'idb';
+import { simpleLogger } from '../utils/logger';
 
 // ───────────────────────────────────────────────────────────────
 // Encryption Key Management
 // ───────────────────────────────────────────────────────────────
 // SECURITY: Encryption key MUST be set via VITE_OFFLINE_KEY environment variable
 // Required format: Minimum 32 characters (recommended: 64-character hex string)
-// Generate secure key: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+// Generate secure key: node -e "simpleLogger.info(require('crypto').randomBytes(32).toString('hex'))"
 
 /**
  * Get and validate the encryption key from environment
@@ -26,7 +27,7 @@ Offline storage requires a secure encryption key.
 
 To fix this:
 1. Generate a secure key using:
-   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   node -e "simpleLogger.info(require('crypto').randomBytes(32).toString('hex'))"
 
    Or using OpenSSL:
    openssl rand -hex 32
@@ -62,8 +63,8 @@ function validateEncryptionKey(key: string): boolean {
     if (isProduction) {
       throw new Error(message);
     } else {
-      console.warn(message);
-      console.warn('⚠️ This is allowed in development but will fail in production!');
+      simpleLogger.warn(message);
+      simpleLogger.warn('⚠️ This is allowed in development but will fail in production!');
       return false;
     }
   }
@@ -89,8 +90,8 @@ function validateEncryptionKey(key: string): boolean {
       if (isProduction) {
         throw new Error(message);
       } else {
-        console.warn(message);
-        console.warn('⚠️ Please use a cryptographically secure random key!');
+        simpleLogger.warn(message);
+        simpleLogger.warn('⚠️ Please use a cryptographically secure random key!');
         return false;
       }
     }
@@ -104,14 +105,14 @@ function validateEncryptionKey(key: string): boolean {
     if (isProduction) {
       throw new Error(message);
     } else {
-      console.warn(message);
+      simpleLogger.warn(message);
       return false;
     }
   }
 
   // All checks passed
   if (isDevelopment && key.length >= 32) {
-    console.log('✅ Encryption key validated successfully');
+    simpleLogger.info('✅ Encryption key validated successfully');
   }
 
   return true;
@@ -129,7 +130,7 @@ function encrypt(data: any): string {
     const jsonData = JSON.stringify(data);
     return CryptoJS.AES.encrypt(jsonData, KEY).toString();
   } catch (error) {
-    console.error('❌ Encryption failed:', error);
+    simpleLogger.error('❌ Encryption failed:', error);
     throw new Error('Failed to encrypt data for offline storage');
   }
 }
@@ -148,7 +149,7 @@ function decrypt(ciphertext: string): any {
 
     return JSON.parse(decryptedText);
   } catch (error) {
-    console.error('❌ Decryption failed:', error);
+    simpleLogger.error('❌ Decryption failed:', error);
     throw new Error('Failed to decrypt data from offline storage');
   }
 }
@@ -197,34 +198,34 @@ export async function initOfflineDB(): Promise<IDBPDatabase<OfflineDB>> {
   try {
     db = await openDB<OfflineDB>('coding-offline', 2, { // Increment version for encryption migration
       upgrade(upgradeDb, oldVersion) {
-        console.log('🗄️ Initializing IndexedDB...');
+        simpleLogger.info('🗄️ Initializing IndexedDB...');
 
         if (!upgradeDb.objectStoreNames.contains('pending-changes')) {
           const pendingStore = upgradeDb.createObjectStore('pending-changes', { keyPath: 'id' });
           (pendingStore as any).createIndex('timestamp', 'timestamp');
           (pendingStore as any).createIndex('synced', 'synced');
-          console.log('✅ Created pending-changes store');
+          simpleLogger.info('✅ Created pending-changes store');
         }
 
         if (!upgradeDb.objectStoreNames.contains('local-cache')) {
           const cacheStore = upgradeDb.createObjectStore('local-cache', { keyPath: 'id' });
           (cacheStore as any).createIndex('timestamp', 'timestamp');
-          console.log('✅ Created local-cache store');
+          simpleLogger.info('✅ Created local-cache store');
         }
 
         // Migration from version 1 to 2: Handle encryption
         if (oldVersion < 2) {
-          console.log('🔄 Migrating to encrypted storage...');
+          simpleLogger.info('🔄 Migrating to encrypted storage...');
           // Note: Existing data will be lost during this migration
           // This is intentional for security - old unencrypted data should not be preserved
         }
       },
     });
 
-    console.log('✅ IndexedDB initialized successfully with encryption');
+    simpleLogger.info('✅ IndexedDB initialized successfully with encryption');
     return db;
   } catch (error) {
-    console.error('❌ Failed to initialize IndexedDB:', error);
+    simpleLogger.error('❌ Failed to initialize IndexedDB:', error);
     throw error;
   }
 }
@@ -248,7 +249,7 @@ export async function addPendingChange(change: {
   };
 
   await db.add('pending-changes', pendingChange);
-  console.log(`📝 Queued change: ${change.action} on ${change.table}`, pendingChange);
+  simpleLogger.info(`📝 Queued change: ${change.action} on ${change.table}`, pendingChange);
 
   return id;
 }
@@ -276,7 +277,7 @@ export async function getUnsyncedChanges() {
 export async function markAsSynced(id: string): Promise<void> {
   const db = await initOfflineDB();
   await db.delete('pending-changes', id);
-  console.log(`✅ Marked change as synced: ${id}`);
+  simpleLogger.info(`✅ Marked change as synced: ${id}`);
 }
 
 /**
@@ -291,7 +292,7 @@ export async function markMultipleAsSynced(ids: string[]): Promise<void> {
   }
 
   await tx.done;
-  console.log(`✅ Marked ${ids.length} changes as synced`);
+  simpleLogger.info(`✅ Marked ${ids.length} changes as synced`);
 }
 
 /**
@@ -310,7 +311,7 @@ export async function cacheAnswers(answers: any[]): Promise<void> {
   }
 
   await tx.done;
-  console.log(`💾 Cached ${answers.length} answers locally (encrypted)`);
+  simpleLogger.info(`💾 Cached ${answers.length} answers locally (encrypted)`);
 }
 
 /**
@@ -323,7 +324,7 @@ export async function getCachedAnswers(): Promise<any[]> {
   try {
     return cached.map(item => decrypt(item.encryptedData));
   } catch (error) {
-    console.error('❌ Failed to decrypt cached answers:', error);
+    simpleLogger.error('❌ Failed to decrypt cached answers:', error);
     // If decryption fails, try to return empty array or handle gracefully
     return [];
   }
@@ -340,7 +341,7 @@ export async function clearCache(): Promise<void> {
   await tx.objectStore('local-cache').clear();
 
   await tx.done;
-  console.log('🗑️ Cleared all offline cache');
+  simpleLogger.info('🗑️ Cleared all offline cache');
 }
 
 /**
@@ -360,7 +361,7 @@ export async function getCacheStats() {
       const allChanges = await db.getAll('pending-changes');
       unsyncedCount = allChanges.filter(change => !change.synced).length;
     } catch (error) {
-      console.warn('Failed to get unsynced count:', error);
+      simpleLogger.warn('Failed to get unsynced count:', error);
       unsyncedCount = 0;
     }
 
@@ -370,7 +371,7 @@ export async function getCacheStats() {
       unsyncedChanges: unsyncedCount,
     };
   } catch (error) {
-    console.error('Failed to get cache stats:', error);
+    simpleLogger.error('Failed to get cache stats:', error);
     return {
       pendingChanges: 0,
       cachedAnswers: 0,
@@ -389,10 +390,10 @@ export async function testEncryption(): Promise<boolean> {
     const decrypted = decrypt(encrypted);
 
     const isValid = JSON.stringify(testData) === JSON.stringify(decrypted);
-    console.log(isValid ? '✅ Encryption test passed' : '❌ Encryption test failed');
+    simpleLogger.info(isValid ? '✅ Encryption test passed' : '❌ Encryption test failed');
     return isValid;
   } catch (error) {
-    console.error('❌ Encryption test failed:', error);
+    simpleLogger.error('❌ Encryption test failed:', error);
     return false;
   }
 }
@@ -443,5 +444,5 @@ export async function importPendingChanges(jsonData: string): Promise<void> {
   }
 
   await tx.done;
-  console.log(`📥 Imported ${importData.changes.length} pending changes`);
+  simpleLogger.info(`📥 Imported ${importData.changes.length} pending changes`);
 }

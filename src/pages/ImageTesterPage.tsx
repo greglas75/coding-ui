@@ -1,5 +1,5 @@
+import { Image as ImageIcon, Loader2, Search } from 'lucide-react';
 import { useState } from 'react';
-import { Search, Image as ImageIcon, Loader2 } from 'lucide-react';
 
 interface TestResult {
   model: string;
@@ -16,14 +16,24 @@ interface TestResult {
 
 export default function ImageTesterPage() {
   const [prompt, setPrompt] = useState('find 3 pictures for category toothpaste, keyword: colgate');
-  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash-lite');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.0-pro-exp');
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<TestResult | null>(null);
 
   // Available models for image search (same as Vision Model list)
   const models = [
-    { id: 'gemini-2.5-flash-lite', name: 'Google Gemini 2.5 Flash Lite', price: '$0.05/1M', icon: '🔮' },
-    { id: 'gemini-2.0-flash-lite', name: 'Google Gemini 2.0 Flash Lite', price: '$0.05/1M', icon: '🔮' },
+    {
+      id: 'gemini-2.0-pro-exp',
+      name: 'Google Gemini 2.0 Pro Experimental',
+      price: '$2.50/1M',
+      icon: '🔮',
+    },
+    {
+      id: 'gemini-2.0-flash-lite',
+      name: 'Google Gemini 2.0 Flash Lite',
+      price: '$0.05/1M',
+      icon: '🔮',
+    },
     { id: 'gemini-2.5-flash', name: 'Google Gemini 2.5 Flash', price: '$0.075/1M', icon: '🔮' },
     { id: 'gemini-2.0-flash', name: 'Google Gemini 2.0 Flash', price: '$0.075/1M', icon: '🔮' },
     { id: 'gemini-1.5-flash', name: 'Google Gemini 1.5 Flash', price: '$0.075/1M', icon: '🔮' },
@@ -74,7 +84,6 @@ export default function ImageTesterPage() {
         reasoning: data.reasoning,
         duration,
       });
-
     } catch (error: any) {
       const duration = Date.now() - startTime;
       setResults({
@@ -111,7 +120,7 @@ export default function ImageTesterPage() {
             </label>
             <textarea
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={e => setPrompt(e.target.value)}
               placeholder="Example: find 3 pictures for category toothpaste, keyword: colgate"
               className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
               rows={3}
@@ -125,10 +134,10 @@ export default function ImageTesterPage() {
             </label>
             <select
               value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
+              onChange={e => setSelectedModel(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             >
-              {models.map((model) => (
+              {models.map(model => (
                 <option key={model.id} value={model.id}>
                   {model.icon} {model.name} - {model.price}
                 </option>
@@ -188,7 +197,9 @@ export default function ImageTesterPage() {
             {/* Reasoning */}
             {results.reasoning && (
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-                <div className="text-blue-800 dark:text-blue-200 font-semibold mb-2">AI Reasoning</div>
+                <div className="text-blue-800 dark:text-blue-200 font-semibold mb-2">
+                  AI Reasoning
+                </div>
                 <div className="text-blue-700 dark:text-blue-300 text-sm whitespace-pre-wrap">
                   {results.reasoning}
                 </div>
@@ -214,8 +225,9 @@ export default function ImageTesterPage() {
                         src={image.url}
                         alt={image.title || `Image ${idx + 1}`}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999"%3ENo Image%3C/text%3E%3C/svg%3E';
+                        onError={e => {
+                          (e.target as HTMLImageElement).src =
+                            'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999"%3ENo Image%3C/text%3E%3C/svg%3E';
                         }}
                       />
                       {image.source && (

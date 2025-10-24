@@ -1,26 +1,27 @@
 import { supabase } from "./supabase";
+import { simpleLogger } from "../utils/logger";
 
 // 1️⃣ Pobierz wszystkie kody
 export async function fetchCodes() {
-  console.log("🟡 [fetchCodes] Fetching all codes...");
+  simpleLogger.info("🟡 [fetchCodes] Fetching all codes...");
   const { data, error } = await supabase
     .from("codes")
     .select("id, name")
     .order("name", { ascending: true });
   if (error) {
-    console.error("❌ Error fetching codes:", error);
+    simpleLogger.error("❌ Error fetching codes:", error);
     return [];
   }
-  console.log(`✅ [fetchCodes] ${data.length} codes fetched.`);
+  simpleLogger.info(`✅ [fetchCodes] ${data.length} codes fetched.`);
   return data;
 }
 
 // 2️⃣ Utwórz nowy kod
 export async function createCode(name: string) {
-  console.log("🟢 [createCode] Creating code:", name);
+  simpleLogger.info("🟢 [createCode] Creating code:", name);
   const { data, error } = await supabase.from("codes").insert([{ name }]).select().single();
   if (error) {
-    console.error("❌ Error creating code:", error);
+    simpleLogger.error("❌ Error creating code:", error);
     throw error;
   }
   return data;
@@ -28,7 +29,7 @@ export async function createCode(name: string) {
 
 // 3️⃣ Zapisz przypisanie kodów do odpowiedzi (many-to-many)
 export async function saveCodesForAnswer(answerId: number, codeIds: number[], mode: "overwrite" | "additional") {
-  console.log(`🟣 [saveCodesForAnswer] Saving codes for answer ${answerId}, mode=${mode}`);
+  simpleLogger.info(`🟣 [saveCodesForAnswer] Saving codes for answer ${answerId}, mode=${mode}`);
 
   try {
     // 🔹 Fetch existing codes
@@ -40,7 +41,7 @@ export async function saveCodesForAnswer(answerId: number, codeIds: number[], mo
     if (fetchError) throw fetchError;
 
     const existingIds = (existingCodes || []).map(r => r.code_id);
-    console.log(`🟣 [saveCodesForAnswer] Existing: ${existingIds.join(',')}, New: ${codeIds.join(',')}`);
+    simpleLogger.info(`🟣 [saveCodesForAnswer] Existing: ${existingIds.join(',')}, New: ${codeIds.join(',')}`);
 
     // 🔹 Jeśli tryb overwrite — usuń stare połączenia
     if (mode === 'overwrite') {
@@ -50,7 +51,7 @@ export async function saveCodesForAnswer(answerId: number, codeIds: number[], mo
         .eq('answer_id', answerId);
 
       if (deleteError) throw deleteError;
-      console.log('✅ [saveCodesForAnswer] Existing codes deleted');
+      simpleLogger.info('✅ [saveCodesForAnswer] Existing codes deleted');
     }
 
     // 🔹 Przygotuj unikalne wpisy
@@ -61,11 +62,11 @@ export async function saveCodesForAnswer(answerId: number, codeIds: number[], mo
     }));
 
     if (records.length === 0) {
-      console.warn('⚠️ [saveCodesForAnswer] No codes to insert.');
+      simpleLogger.warn('⚠️ [saveCodesForAnswer] No codes to insert.');
       return;
     }
 
-    console.log(`🟣 [saveCodesForAnswer] Records to insert:`, records);
+    simpleLogger.info(`🟣 [saveCodesForAnswer] Records to insert:`, records);
 
     // 🔹 Insert z on_conflict (bez błędu 409)
     const { error: insertError } = await supabase
@@ -74,12 +75,12 @@ export async function saveCodesForAnswer(answerId: number, codeIds: number[], mo
 
     if (insertError) throw insertError;
 
-    console.log(`✅ [saveCodesForAnswer] ${records.length} codes saved successfully for answer ${answerId}`);
+    simpleLogger.info(`✅ [saveCodesForAnswer] ${records.length} codes saved successfully for answer ${answerId}`);
 
     // Update selected_code column in answers table
     await updateSelectedCodeColumn(answerId);
   } catch (error: any) {
-    console.error('❌ [saveCodesForAnswer] Error:', error);
+    simpleLogger.error('❌ [saveCodesForAnswer] Error:', error);
   }
 }
 
@@ -97,7 +98,7 @@ async function updateSelectedCodeColumn(answerId: number) {
       .eq("answer_id", answerId);
 
     if (allCodesError) {
-      console.error("❌ Error fetching all answer codes:", allCodesError);
+      simpleLogger.error("❌ Error fetching all answer codes:", allCodesError);
       return;
     }
 
@@ -109,12 +110,12 @@ async function updateSelectedCodeColumn(answerId: number) {
       .eq("id", answerId);
 
     if (updateError) {
-      console.error("❌ Error updating selected_code:", updateError);
+      simpleLogger.error("❌ Error updating selected_code:", updateError);
     } else {
-      console.log("✅ [saveCodesForAnswer] selected_code updated:", allCodeNames || "null");
+      simpleLogger.info("✅ [saveCodesForAnswer] selected_code updated:", allCodeNames || "null");
     }
   } catch (err) {
-    console.error("❌ Error in updateSelectedCodeColumn:", err);
+    simpleLogger.error("❌ Error in updateSelectedCodeColumn:", err);
   }
 }
 
@@ -126,7 +127,7 @@ export async function fetchAISuggestion(answerId: number) {
     .eq("id", answerId)
     .single();
   if (error) {
-    console.error("❌ Error fetching AI suggestion:", error);
+    simpleLogger.error("❌ Error fetching AI suggestion:", error);
     return [];
   }
   // Convert string to array if it exists

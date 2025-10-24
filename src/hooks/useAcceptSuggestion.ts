@@ -7,6 +7,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
+import { simpleLogger } from '../utils/logger';
 
 interface AcceptSuggestionParams {
   answerId: number;
@@ -48,7 +49,10 @@ export function useAcceptSuggestion() {
       codeName,
       confidence,
     }: AcceptSuggestionParams) => {
-      console.log(`🎯 Accepting AI suggestion for answer ${answerId}:`, { codeName, confidence });
+      simpleLogger.info(`🎯 Accepting AI suggestion for answer ${answerId}:`, {
+        codeName,
+        confidence,
+      });
 
       // First, get the current answer to check existing codes
       const { data: currentAnswer, error: fetchError } = await supabase
@@ -58,7 +62,7 @@ export function useAcceptSuggestion() {
         .single();
 
       if (fetchError) {
-        console.error('Error fetching current answer:', fetchError);
+        simpleLogger.error('Error fetching current answer:', fetchError);
         throw fetchError;
       }
 
@@ -92,21 +96,21 @@ export function useAcceptSuggestion() {
         .eq('id', answerId);
 
       if (updateError) {
-        console.error('Error accepting suggestion:', updateError);
+        simpleLogger.error('Error accepting suggestion:', updateError);
         throw updateError;
       }
 
-      console.log(`✅ AI suggestion accepted for answer ${answerId}`);
+      simpleLogger.info(`✅ AI suggestion accepted for answer ${answerId}`);
 
       // Auto-copy code to identical answers
-      console.log(`🔍 Checking for duplicates to copy code...`);
+      simpleLogger.info(`🔍 Checking for duplicates to copy code...`);
       const copiedCount = await copyCodeToIdenticalAnswers(answerId, newSelectedCode);
-      console.log(`✅ Auto-copy complete, copied to ${copiedCount} duplicates`);
+      simpleLogger.info(`✅ Auto-copy complete, copied to ${copiedCount} duplicates`);
 
       return { answerId, codeName, copiedCount };
     },
 
-    onSuccess: (data) => {
+    onSuccess: data => {
       // Show success toast with duplicate count
       if (data.copiedCount > 0) {
         toast.success(`Code applied to ${data.copiedCount + 1} answer(s)!`, {
@@ -119,15 +123,15 @@ export function useAcceptSuggestion() {
       }
 
       // Invalidate queries to refresh UI
-      console.log(`♻️ Invalidating queries for ${data.copiedCount + 1} answer(s)...`);
+      simpleLogger.info(`♻️ Invalidating queries for ${data.copiedCount + 1} answer(s)...`);
       queryClient.invalidateQueries({ queryKey: ['answers'] });
       queryClient.invalidateQueries({ queryKey: ['answer', data.answerId] });
 
-      console.log(`✅ Cache invalidated for answer ${data.answerId}`);
+      simpleLogger.info(`✅ Cache invalidated for answer ${data.answerId}`);
     },
 
-    onError: (error) => {
-      console.error('Error accepting suggestion:', error);
+    onError: error => {
+      simpleLogger.error('Error accepting suggestion:', error);
 
       // Show error toast
       toast.error('Failed to apply code', {
@@ -157,7 +161,7 @@ export function useAcceptSuggestionsBatch() {
 
   return useMutation({
     mutationFn: async (suggestions: AcceptSuggestionParams[]) => {
-      console.log(`🎯 Batch accepting ${suggestions.length} AI suggestions`);
+      simpleLogger.info(`🎯 Batch accepting ${suggestions.length} AI suggestions`);
 
       const results = {
         processed: 0,
@@ -210,35 +214,37 @@ export function useAcceptSuggestionsBatch() {
             answerId: suggestion.answerId,
             error: error instanceof Error ? error.message : 'Unknown error',
           });
-          console.error(`Failed to accept suggestion for answer ${suggestion.answerId}:`, error);
+          simpleLogger.error(
+            `Failed to accept suggestion for answer ${suggestion.answerId}:`,
+            error
+          );
         }
       }
 
-      console.log(`✅ Batch complete: ${results.processed} processed, ${results.errors} errors`);
+      simpleLogger.info(
+        `✅ Batch complete: ${results.processed} processed, ${results.errors} errors`
+      );
       return results;
     },
 
-    onSuccess: (data) => {
+    onSuccess: data => {
       // Show success toast
       if (data.errors === 0) {
         toast.success(`✅ Successfully applied ${data.processed} codes!`);
       } else {
-        toast.warning(
-          `⚠️ Batch complete: ${data.processed} succeeded, ${data.errors} failed`,
-          {
-            description: `Success rate: ${(data.processed / (data.processed + data.errors) * 100).toFixed(1)}%`,
-          }
-        );
+        toast.warning(`⚠️ Batch complete: ${data.processed} succeeded, ${data.errors} failed`, {
+          description: `Success rate: ${((data.processed / (data.processed + data.errors)) * 100).toFixed(1)}%`,
+        });
       }
 
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ['answers'] });
 
-      console.log('Batch accept complete:', data);
+      simpleLogger.info('Batch accept complete:', data);
     },
 
-    onError: (error) => {
-      console.error('Batch accept error:', error);
+    onError: error => {
+      simpleLogger.error('Batch accept error:', error);
       toast.error('Failed to apply codes', {
         description: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -252,7 +258,9 @@ export function useAcceptSuggestionsBatch() {
  */
 async function copyCodeToIdenticalAnswers(sourceId: number, selectedCode: string): Promise<number> {
   try {
-    console.log(`🔎 copyCodeToIdenticalAnswers called for answer ${sourceId} with code "${selectedCode}"`);
+    simpleLogger.info(
+      `🔎 copyCodeToIdenticalAnswers called for answer ${sourceId} with code "${selectedCode}"`
+    );
 
     // Get source answer
     const { data: sourceAnswer, error: fetchError } = await supabase
@@ -262,11 +270,13 @@ async function copyCodeToIdenticalAnswers(sourceId: number, selectedCode: string
       .single();
 
     if (fetchError || !sourceAnswer) {
-      console.error('Failed to fetch source answer:', fetchError);
+      simpleLogger.error('Failed to fetch source answer:', fetchError);
       return 0;
     }
 
-    console.log(`📝 Source answer: text="${sourceAnswer.answer_text}", category=${sourceAnswer.category_id}`);
+    simpleLogger.info(
+      `📝 Source answer: text="${sourceAnswer.answer_text}", category=${sourceAnswer.category_id}`
+    );
 
     // Find identical answers (same text, same category, not already coded)
     const { data: duplicates, error: dupError } = await supabase
@@ -278,16 +288,16 @@ async function copyCodeToIdenticalAnswers(sourceId: number, selectedCode: string
       .is('selected_code', null);
 
     if (dupError) {
-      console.error('Error finding duplicates:', dupError);
+      simpleLogger.error('Error finding duplicates:', dupError);
       return 0;
     }
 
     if (!duplicates || duplicates.length === 0) {
-      console.log(`ℹ️ No identical uncoded answers found`);
+      simpleLogger.info(`ℹ️ No identical uncoded answers found`);
       return 0;
     }
 
-    console.log(`📋 Found ${duplicates.length} identical uncoded answers, copying code...`);
+    simpleLogger.info(`📋 Found ${duplicates.length} identical uncoded answers, copying code...`);
 
     // Update all duplicates with the same code
     const { error: updateError } = await supabase
@@ -298,17 +308,20 @@ async function copyCodeToIdenticalAnswers(sourceId: number, selectedCode: string
         general_status: 'whitelist',
         coding_date: new Date().toISOString(),
       })
-      .in('id', duplicates.map(d => d.id));
+      .in(
+        'id',
+        duplicates.map(d => d.id)
+      );
 
     if (updateError) {
-      console.error('Failed to copy code to duplicates:', updateError);
+      simpleLogger.error('Failed to copy code to duplicates:', updateError);
       return 0;
     }
 
-    console.log(`✅ Copied code to ${duplicates.length} identical answers`);
+    simpleLogger.info(`✅ Copied code to ${duplicates.length} identical answers`);
     return duplicates.length;
   } catch (error) {
-    console.error('Error copying code to duplicates:', error);
+    simpleLogger.error('Error copying code to duplicates:', error);
     return 0;
   }
 }

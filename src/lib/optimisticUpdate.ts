@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import { simpleLogger } from '../utils/logger';
 
 interface OptimisticUpdateOptions<T> {
   data: T[];
@@ -73,7 +74,7 @@ export async function optimisticUpdate<T extends { id: number | string }>(
 
     const err = error as Error;
     toast.error(errorMessage);
-    console.error('Optimistic update failed:', err);
+    simpleLogger.error('Optimistic update failed:', err);
 
     if (onError) {
       onError(err);
@@ -136,7 +137,7 @@ export async function optimisticArrayUpdate<T extends { id: number | string }>(
 
     const err = error as Error;
     toast.error(options?.errorMessage || 'Operation failed. Changes reverted.');
-    console.error('Optimistic array update failed:', err);
+    simpleLogger.error('Optimistic array update failed:', err);
 
     if (options?.onError) {
       options.onError(err);
@@ -204,7 +205,7 @@ export async function optimisticBatchUpdate<T extends { id: number | string }>(
     const err = error as Error;
     const message = options?.errorMessage || 'Batch update failed. All changes reverted.';
     toast.error(message);
-    console.error('Optimistic batch update failed:', err);
+    simpleLogger.error('Optimistic batch update failed:', err);
 
     if (options?.onError) {
       options.onError(err);

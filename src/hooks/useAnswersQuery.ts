@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { normalizeStatuses } from '../lib/statusNormalization';
 import { supabase } from '../lib/supabase';
 import type { Answer } from '../types';
+import { simpleLogger } from '../utils/logger';
 
 // ═══════════════════════════════════════════════════════════════
 // 🔍 QUERY: Fetch Answers
@@ -30,17 +31,17 @@ export function useAnswers(options: UseAnswersOptions) {
 
     queryFn: async ({ signal }) => {
       if (!categoryId) {
-        console.log('⏸️  useAnswers: No category ID, returning empty array');
+        simpleLogger.info('⏸️  useAnswers: No category ID, returning empty array');
         return { data: [], count: 0 };
       }
 
-      console.log('📥 useAnswers: Fetching for category:', categoryId, 'page:', page);
+      simpleLogger.info('📥 useAnswers: Fetching for category:', categoryId, 'page:', page);
 
       const controller = new AbortController();
 
       signal.addEventListener('abort', () => {
         controller.abort();
-        console.log('🛑 Query cancelled for category:', categoryId);
+        simpleLogger.info('🛑 Query cancelled for category:', categoryId);
       });
 
       let query = supabase
@@ -82,19 +83,19 @@ export function useAnswers(options: UseAnswersOptions) {
 
         if (error) {
           if (error.message.includes('aborted')) {
-            console.log('⏹️ Query aborted gracefully');
+            simpleLogger.info('⏹️ Query aborted gracefully');
             return { data: [], count: 0 };
           }
-          console.error('❌ useAnswers: Fetch error:', error);
+          simpleLogger.error('❌ useAnswers: Fetch error:', error);
           throw error;
         }
 
-        console.log(`✅ useAnswers: Loaded ${data?.length || 0} of ${count || 0} answers`);
+        simpleLogger.info(`✅ useAnswers: Loaded ${data?.length || 0} of ${count || 0} answers`);
         return { data: data || [], count: count || 0 };
 
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
-          console.log('⏹️ Fetch aborted');
+          simpleLogger.info('⏹️ Fetch aborted');
           return { data: [], count: 0 };
         }
         throw error;
@@ -123,7 +124,7 @@ export function useUpdateAnswer() {
 
   return useMutation({
     mutationFn: async ({ id, updates }: UpdateAnswerPayload) => {
-      console.log('💾 useUpdateAnswer: Updating answer', id, updates);
+      simpleLogger.info('💾 useUpdateAnswer: Updating answer', id, updates);
 
       const { data, error } = await supabase
         .from('answers')
@@ -133,11 +134,11 @@ export function useUpdateAnswer() {
         .single();
 
       if (error) {
-        console.error('❌ useUpdateAnswer: Error:', error);
+        simpleLogger.error('❌ useUpdateAnswer: Error:', error);
         throw error;
       }
 
-      console.log('✅ useUpdateAnswer: Updated successfully');
+      simpleLogger.info('✅ useUpdateAnswer: Updated successfully');
       return data;
     },
 
@@ -166,7 +167,7 @@ export function useUpdateAnswer() {
 
     // If the mutation fails, rollback
     onError: (err, _variables, context) => {
-      console.error('❌ useUpdateAnswer: Mutation failed, rolling back', err);
+      simpleLogger.error('❌ useUpdateAnswer: Mutation failed, rolling back', err);
       if (context?.previousData) {
         context.previousData.forEach(([queryKey, data]) => {
           queryClient.setQueryData(queryKey, data);
@@ -190,7 +191,7 @@ export function useDeleteAnswer() {
 
   return useMutation({
     mutationFn: async (id: number) => {
-      console.log('🗑️ useDeleteAnswer: Deleting answer', id);
+      simpleLogger.info('🗑️ useDeleteAnswer: Deleting answer', id);
 
       const { error } = await supabase
         .from('answers')
@@ -198,11 +199,11 @@ export function useDeleteAnswer() {
         .eq('id', id);
 
       if (error) {
-        console.error('❌ useDeleteAnswer: Error:', error);
+        simpleLogger.error('❌ useDeleteAnswer: Error:', error);
         throw error;
       }
 
-      console.log('✅ useDeleteAnswer: Deleted successfully');
+      simpleLogger.info('✅ useDeleteAnswer: Deleted successfully');
       return id;
     },
 
@@ -227,7 +228,7 @@ export function useBulkUpdateAnswers() {
 
   return useMutation({
     mutationFn: async ({ ids, updates }: BulkUpdatePayload) => {
-      console.log('💾 useBulkUpdateAnswers: Updating', ids.length, 'answers');
+      simpleLogger.info('💾 useBulkUpdateAnswers: Updating', ids.length, 'answers');
 
       const { data, error } = await supabase
         .from('answers')
@@ -236,11 +237,11 @@ export function useBulkUpdateAnswers() {
         .select();
 
       if (error) {
-        console.error('❌ useBulkUpdateAnswers: Error:', error);
+        simpleLogger.error('❌ useBulkUpdateAnswers: Error:', error);
         throw error;
       }
 
-      console.log('✅ useBulkUpdateAnswers: Updated', data?.length, 'answers');
+      simpleLogger.info('✅ useBulkUpdateAnswers: Updated', data?.length, 'answers');
       return data;
     },
 

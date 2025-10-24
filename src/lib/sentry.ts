@@ -12,6 +12,7 @@
 
 // TODO: Install @sentry/react to enable error tracking
 // import * as Sentry from '@sentry/react';
+import { simpleLogger } from '../utils/logger';
 const Sentry = {
   addBreadcrumb: () => {},
   captureException: () => {},
@@ -166,7 +167,7 @@ export function clearUserContext() {
  */
 export function captureException(error: Error, context?: Record<string, any>) {
   if (!isSentryEnabled()) {
-    console.error('Error (Sentry disabled):', error, context);
+    simpleLogger.error('Error (Sentry disabled):', error, context);
     return;
   }
 

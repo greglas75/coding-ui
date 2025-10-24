@@ -8,6 +8,7 @@ import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { MainLayout } from '../components/layout/MainLayout';
 import { UploadListModal } from '../components/UploadListModal';
 import { fetchCategories } from '../lib/fetchCategories';
+import { simpleLogger } from '../utils/logger';
 import { recountMentions } from '../lib/metrics';
 import { optimisticArrayUpdate, optimisticUpdate } from '../lib/optimisticUpdate';
 import { supabase } from '../lib/supabase';
@@ -35,13 +36,13 @@ export function CodeListPage() {
   // Load categories using professional fetcher
   useEffect(() => {
     const loadCategories = async () => {
-      console.log("CodeListPage - fetching categories...");
+      simpleLogger.info("CodeListPage - fetching categories...");
       const result = await fetchCategories();
 
       if (result.success) {
         setCategories(result.data);
       } else {
-        console.error("Error fetching categories:", result.error);
+        simpleLogger.error("Error fetching categories:", result.error);
         setError(`Failed to load categories: ${result.error instanceof Error ? result.error.message : 'Unknown error'}`);
       }
     };
@@ -124,7 +125,7 @@ export function CodeListPage() {
 
   // Fetch usage count for each code
   async function fetchCodeUsageCounts(codes: CodeWithCategories[]) {
-    console.log('📊 Fetching usage counts for codes...');
+    simpleLogger.info('📊 Fetching usage counts for codes...');
 
     const countsMap: Record<number, number> = {};
 
@@ -140,15 +141,15 @@ export function CodeListPage() {
         if (!error) {
           countsMap[code.id] = count || 0;
         } else {
-          console.error(`Error counting usage for code ${code.name}:`, error);
+          simpleLogger.error(`Error counting usage for code ${code.name}:`, error);
           countsMap[code.id] = 0;
         }
       }
 
-      console.log('✅ Code usage counts loaded:', countsMap);
+      simpleLogger.info('✅ Code usage counts loaded:', countsMap);
       return countsMap;
     } catch (error) {
-      console.error('❌ Error fetching code usage counts:', error);
+      simpleLogger.error('❌ Error fetching code usage counts:', error);
       return {};
     }
   }
@@ -179,7 +180,7 @@ export function CodeListPage() {
         updated_at: new Date().toISOString()
       } as Partial<CodeWithCategories>,
       updateFn: async () => {
-        console.log("🟡 Renaming code:", id, "→", newName);
+        simpleLogger.info("🟡 Renaming code:", id, "→", newName);
         const { error } = await supabase
           .from('codes')
           .update({
@@ -189,7 +190,7 @@ export function CodeListPage() {
           .eq('id', id);
 
         if (error) throw error;
-        console.log("✅ Code name updated successfully:", newName);
+        simpleLogger.info("✅ Code name updated successfully:", newName);
       },
       successMessage: `Code renamed to "${newName}"`,
       errorMessage: 'Failed to update code name',
@@ -231,7 +232,7 @@ export function CodeListPage() {
       .eq('code_id', id);
 
     if (deleteError) {
-      console.error('Error deleting category relations:', deleteError);
+      simpleLogger.error('Error deleting category relations:', deleteError);
       return;
     }
 
@@ -247,7 +248,7 @@ export function CodeListPage() {
         .insert(relations);
 
       if (insertError) {
-        console.error('Error inserting category relations:', insertError);
+        simpleLogger.error('Error inserting category relations:', insertError);
         return;
       }
     }
@@ -315,7 +316,7 @@ export function CodeListPage() {
       setDeleteModalOpen(false);
       setCodeToDelete(null);
     } catch (error) {
-      console.error('❌ Error deleting code:', error);
+      simpleLogger.error('❌ Error deleting code:', error);
     } finally {
       setDeleting(false);
     }
@@ -330,7 +331,7 @@ export function CodeListPage() {
       .single();
 
     if (error) {
-      console.error('Error adding code:', error);
+      simpleLogger.error('Error adding code:', error);
       return;
     }
 
@@ -346,7 +347,7 @@ export function CodeListPage() {
         .insert(relations);
 
       if (relationsError) {
-        console.error('Error adding category relations:', relationsError);
+        simpleLogger.error('Error adding category relations:', relationsError);
         return;
       }
     }
@@ -368,7 +369,7 @@ export function CodeListPage() {
         .select();
 
       if (insertError) {
-        console.error('Error inserting codes:', insertError);
+        simpleLogger.error('Error inserting codes:', insertError);
         toast.error('Failed to upload codes');
         return;
       }
@@ -389,7 +390,7 @@ export function CodeListPage() {
           .insert(relations);
 
         if (relationsError) {
-          console.error('Error adding category relations:', relationsError);
+          simpleLogger.error('Error adding category relations:', relationsError);
           toast.warning('Codes uploaded but category assignment failed');
         } else {
           toast.success(`Assigned to ${categoryIds.length} categories`);
@@ -400,7 +401,7 @@ export function CodeListPage() {
       fetchCodes(); // Refresh list
       fetchCategories(); // Refresh categories to update counts
     } catch (error) {
-      console.error('Bulk upload error:', error);
+      simpleLogger.error('Bulk upload error:', error);
       toast.error('Upload failed');
     }
   }

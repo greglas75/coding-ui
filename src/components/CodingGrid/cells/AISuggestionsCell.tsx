@@ -1,9 +1,9 @@
-import { RotateCw, Info } from 'lucide-react';
+import { Info, RotateCw } from 'lucide-react';
 import type { FC } from 'react';
 import { useState } from 'react';
+import type { ImageResult } from '../../../types';
 import { Tooltip } from '../../shared/Tooltip';
 import { AIInsightsModal } from '../modals/AIInsightsModal';
-import type { ImageResult } from '../../../types';
 
 interface AISuggestion {
   code_id: string;
@@ -59,7 +59,7 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
   onAccept,
   onRegenerate,
   answer,
-  translation
+  translation,
 }) => {
   const [selectedSuggestion, setSelectedSuggestion] = useState<AISuggestion | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -90,16 +90,18 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
     return 'Low';
   };
 
-
   return (
     <div className="flex items-center gap-2 h-[28px] overflow-hidden">
-
-      {/* Suggestions (if any) */}
-      {aiSuggestions?.suggestions && aiSuggestions.suggestions.length > 0 ? (
+      {/* Suggestions (if any) - FILTER OUT NEGATIVE CONFIDENCE */}
+      {aiSuggestions?.suggestions &&
+      aiSuggestions.suggestions.length > 0 &&
+      aiSuggestions.suggestions.filter(s => s.confidence > 0).length > 0 ? (
         <div className="flex-1 overflow-hidden">
           <div className="flex items-center gap-2 h-full">
             <div className="flex items-center gap-1 overflow-hidden">
-              {aiSuggestions.suggestions.map((suggestion, idx) => (
+              {aiSuggestions.suggestions
+                .filter(suggestion => suggestion.confidence > 0) // 🎯 HIDE NEGATIVE CONFIDENCE
+                .map((suggestion, idx) => (
                   <Tooltip
                     key={idx}
                     content={
@@ -114,8 +116,19 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
                         )}
                         <div>
                           <span className="font-semibold">Confidence: </span>
-                          <span className={getConfidenceLabel(suggestion.confidence) === 'Very High' ? 'text-green-300' : getConfidenceLabel(suggestion.confidence) === 'High' ? 'text-blue-300' : getConfidenceLabel(suggestion.confidence) === 'Medium' ? 'text-yellow-300' : 'text-gray-300'}>
-                            {getConfidenceLabel(suggestion.confidence)} ({(suggestion.confidence * 100).toFixed(0)}%)
+                          <span
+                            className={
+                              getConfidenceLabel(suggestion.confidence) === 'Very High'
+                                ? 'text-green-300'
+                                : getConfidenceLabel(suggestion.confidence) === 'High'
+                                  ? 'text-blue-300'
+                                  : getConfidenceLabel(suggestion.confidence) === 'Medium'
+                                    ? 'text-yellow-300'
+                                    : 'text-gray-300'
+                            }
+                          >
+                            {getConfidenceLabel(suggestion.confidence)} (
+                            {(suggestion.confidence * 100).toFixed(0)}%)
                           </span>
                         </div>
                         <div>
@@ -137,7 +150,9 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
                         onClick={() => !isAccepting && onAccept(suggestion)}
                         className={`group relative px-2 py-1 text-xs rounded border flex items-center gap-1 cursor-pointer transition-opacity h-[24px] whitespace-nowrap ${getConfidenceColor(suggestion.confidence)} ${isAccepting ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
                       >
-                        <span className="text-xs font-semibold leading-none">{suggestion.code_name}</span>
+                        <span className="text-xs font-semibold leading-none">
+                          {suggestion.code_name}
+                        </span>
                         {suggestion.isNew && (
                           <span className="text-[10px] font-bold px-1 py-0.5 bg-purple-500 text-white rounded uppercase">
                             NEW
@@ -148,7 +163,7 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
                         </span>
                       </div>
                       <button
-                        onClick={(e) => {
+                        onClick={e => {
                           e.stopPropagation();
                           handleShowInsights(suggestion);
                         }}
@@ -162,7 +177,7 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
                 ))}
             </div>
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 onRegenerate();
               }}
@@ -179,7 +194,7 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400 dark:text-gray-500">No match</span>
           <button
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation();
               setIsModalOpen(true);
             }}

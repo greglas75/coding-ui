@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 // Types
 import type { Answer } from '../../types';
 import type { CodingGridProps } from './types';
+import { simpleLogger } from '../../utils/logger';
 
 // Hooks - Internal
 import { useAnswerActions } from './hooks/useAnswerActions';
@@ -230,7 +231,7 @@ export function CodingGrid({
     const filterParam = params.get('filter');
 
     if (filterParam) {
-      console.log('🔍 Applying initial filter from URL:', filterParam);
+      simpleLogger.info('🔍 Applying initial filter from URL:', filterParam);
       // Support comma-separated multiple statuses
       const statusValues = filterParam.split(',').map(s => s.trim());
       // Normalize to canonical values before setting
@@ -256,7 +257,7 @@ export function CodingGrid({
           });
 
           if (error) {
-            console.error('Error fetching filter options:', error);
+            simpleLogger.error('Error fetching filter options:', error);
             return;
           }
 
@@ -281,7 +282,7 @@ export function CodingGrid({
             });
           }
         } catch (error) {
-          console.error('Error fetching filter options:', error);
+          simpleLogger.error('Error fetching filter options:', error);
         }
       };
       fetchFilterOptions();
@@ -306,7 +307,7 @@ export function CodingGrid({
           await syncPendingChanges();
         }
       } catch (error) {
-        console.error('Auto-save error:', error);
+        simpleLogger.error('Auto-save error:', error);
       }
     }, 5000);
 
@@ -321,7 +322,7 @@ export function CodingGrid({
         const presets = JSON.parse(saved);
         setFilterPresets(presets);
       } catch (error) {
-        console.error('Failed to load filter presets:', error);
+        simpleLogger.error('Failed to load filter presets:', error);
       }
     }
   }, []);
@@ -353,7 +354,7 @@ export function CodingGrid({
           setTimeout(() => setLiveUpdate(null), 4000);
         });
       } catch (error) {
-        console.error('❌ Failed to initialize realtime:', error);
+        simpleLogger.error('❌ Failed to initialize realtime:', error);
       }
     };
 
@@ -399,7 +400,7 @@ export function CodingGrid({
 
       // Clear focus when clicking anywhere else
       if (focusedRowId) {
-        console.log('🧹 Clearing focus - clicked outside grid');
+        simpleLogger.info('🧹 Clearing focus - clicked outside grid');
         setFocusedRowId(null);
       }
     };
@@ -484,7 +485,7 @@ export function CodingGrid({
         queryClient.invalidateQueries({ queryKey: ['codes'] });
       } catch (error) {
         toast.error(`❌ Failed to create code: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: 'create-code' });
-        console.error('Error creating code:', error);
+        simpleLogger.error('Error creating code:', error);
         return; // Don't proceed with applying the code if creation failed
       }
     }
@@ -513,7 +514,7 @@ export function CodingGrid({
     const duplicateIds = await answerActions.findDuplicateAnswers(currentAnswer, true);
     const allIds = [answerId, ...duplicateIds];
 
-    console.log(`🎯 Accepting suggestion for answer ${answerId} + ${duplicateIds.length} duplicates (total: ${allIds.length})`);
+    simpleLogger.info(`🎯 Accepting suggestion for answer ${answerId} + ${duplicateIds.length} duplicates (total: ${allIds.length})`);
 
     _acceptSuggestion({
       answerId,
@@ -628,7 +629,7 @@ export function CodingGrid({
         .in('id', updatedAnswerIds);
 
       if (error) {
-        console.error('Error refreshing answers:', error);
+        simpleLogger.error('Error refreshing answers:', error);
         return;
       }
 
@@ -647,7 +648,7 @@ export function CodingGrid({
 
       setHasLocalModifications(true);
     } catch (err) {
-      console.error('Error refreshing answers:', err);
+      simpleLogger.error('Error refreshing answers:', err);
     }
 
     modals.setModalOpen(false);
@@ -660,7 +661,7 @@ export function CodingGrid({
       const duplicateIds = await answerActions.findDuplicateAnswers(answer, false);
       const allIds = [answer.id, ...duplicateIds];
 
-      console.log(`🔄 Rolling back ${allIds.length} answer(s) (including ${duplicateIds.length} duplicates)`);
+      simpleLogger.info(`🔄 Rolling back ${allIds.length} answer(s) (including ${duplicateIds.length} duplicates)`);
 
       // Update in database
       const { error } = await supabase
@@ -756,7 +757,7 @@ export function CodingGrid({
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['answers', currentCategoryId] });
     } catch (error) {
-      console.error('❌ Error rolling back:', error);
+      simpleLogger.error('❌ Error rolling back:', error);
       toast.error('Failed to rollback');
     }
   };
@@ -810,7 +811,7 @@ export function CodingGrid({
         currentCategoryId
       );
     } catch (error) {
-      console.error('Batch AI processing error:', error);
+      simpleLogger.error('Batch AI processing error:', error);
       toast.error('Failed to start batch processing');
       modals.setShowBatchModal(false);
     }
@@ -1028,7 +1029,7 @@ export function CodingGrid({
         onClick={(e) => {
           // Clear focus when clicking on empty space in table container
           if (e.target === e.currentTarget) {
-            console.log('🧹 Clearing focus - clicked on table container');
+            simpleLogger.info('🧹 Clearing focus - clicked on table container');
             setFocusedRowId(null);
           }
         }}
@@ -1038,7 +1039,7 @@ export function CodingGrid({
           onClick={(e) => {
             // Clear focus when clicking on table (but not on rows)
             if (e.target === e.currentTarget) {
-              console.log('🧹 Clearing focus - clicked on table element');
+              simpleLogger.info('🧹 Clearing focus - clicked on table element');
               setFocusedRowId(null);
             }
           }}
@@ -1066,7 +1067,7 @@ export function CodingGrid({
             onClick={(e) => {
               // Clear focus when clicking on empty space in tbody
               if (e.target === e.currentTarget) {
-                console.log('🧹 Clearing focus - clicked on tbody element');
+                simpleLogger.info('🧹 Clearing focus - clicked on tbody element');
                 setFocusedRowId(null);
               }
             }}
@@ -1081,11 +1082,11 @@ export function CodingGrid({
                 isAccepting={false}
                 rowAnimation={rowAnimations[answer.id] || ''}
                 onFocus={() => {
-                  console.log('🎯 Setting focus to answer:', answer.id);
+                  simpleLogger.info('🎯 Setting focus to answer:', answer.id);
                   setFocusedRowId(answer.id);
                 }}
                 onClick={(_e) => {
-                  console.log('🎯 Setting focus to answer (click):', answer.id);
+                  simpleLogger.info('🎯 Setting focus to answer (click):', answer.id);
                   setFocusedRowId(answer.id);
                 }}
                 onToggleSelection={(id, e) => {
@@ -1115,7 +1116,7 @@ export function CodingGrid({
         onClick={(e) => {
           // Clear focus when clicking on empty space in mobile container
           if (e.target === e.currentTarget) {
-            console.log('🧹 Clearing focus - clicked on mobile container');
+            simpleLogger.info('🧹 Clearing focus - clicked on mobile container');
             setFocusedRowId(null);
           }
         }}

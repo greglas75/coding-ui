@@ -43,7 +43,7 @@ interface ResponsiveTableProps<T> {
  *     { key: 'status', label: 'Status', render: (item) => item.status, mobileHidden: true },
  *   ]}
  *   keyExtractor={(item) => item.id}
- *   onRowClick={(item) => console.log(item)}
+ *   onRowClick={(item) => handleRowClick(item)}
  * />
  * ```
  */

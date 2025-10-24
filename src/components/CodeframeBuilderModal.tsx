@@ -1,8 +1,17 @@
-import { useState } from 'react';
-import { X, Plus, Sparkles, ClipboardPaste, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { toast } from 'sonner';
 import axios from 'axios';
+import {
+  AlertCircle,
+  CheckCircle2,
+  ClipboardPaste,
+  Loader2,
+  Plus,
+  Sparkles,
+  X,
+} from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'sonner';
 import type { Category } from '../types';
+import { simpleLogger } from '../utils/logger';
 
 interface CodeframeBuilderModalProps {
   isOpen: boolean;
@@ -28,7 +37,7 @@ export function CodeframeBuilderModal({
   isOpen,
   onClose,
   category,
-  onCodesCreated
+  onCodesCreated,
 }: CodeframeBuilderModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('manual');
   const [loading, setLoading] = useState(false);
@@ -88,7 +97,7 @@ export function CodeframeBuilderModal({
     try {
       await axios.post('/api/v1/codes/bulk-create', {
         category_id: category.id,
-        code_names: manualCodes
+        code_names: manualCodes,
       });
 
       toast.success(`Created ${manualCodes.length} codes!`);
@@ -116,7 +125,7 @@ export function CodeframeBuilderModal({
       const discoverResponse = await axios.post('/api/v1/codes/ai-discover', {
         category_id: category.id,
         limit: aiLimit,
-        min_frequency: aiMinFrequency
+        min_frequency: aiMinFrequency,
       });
 
       const discoveredBrands = discoverResponse.data.discovered_codes || [];
@@ -128,7 +137,10 @@ export function CodeframeBuilderModal({
         return;
       }
 
-      console.log(`[AI Discovery] Found ${discoveredBrands.length} brands:`, discoveredBrands);
+      simpleLogger.info(
+        `[AI Discovery] Found ${discoveredBrands.length} brands:`,
+        discoveredBrands
+      );
 
       // STEP 2: Verify brands with Google
       setVerificationStep('verifying');
@@ -136,13 +148,15 @@ export function CodeframeBuilderModal({
       toast.info(`Step 2/2: Verifying ${discoveredBrands.length} brands with Google...`);
 
       const verifyResponse = await axios.post('/api/v1/codes/verify-brands', {
-        codes: discoveredBrands
+        codes: discoveredBrands,
       });
 
       const verifiedBrands = verifyResponse.data.verified || [];
       const rejectedBrands = verifyResponse.data.rejected || [];
 
-      console.log(`[Google Verification] Verified: ${verifiedBrands.length}, Rejected: ${rejectedBrands.length}`);
+      simpleLogger.info(
+        `[Google Verification] Verified: ${verifiedBrands.length}, Rejected: ${rejectedBrands.length}`
+      );
 
       setDiscoveredCodes(verifiedBrands);
       setRejectedCodes(rejectedBrands);
@@ -151,14 +165,13 @@ export function CodeframeBuilderModal({
       if (verifiedBrands.length > 0) {
         toast.success(
           `✅ Verified ${verifiedBrands.length}/${discoveredBrands.length} brands!\n` +
-          (rejectedBrands.length > 0 ? `${rejectedBrands.length} rejected (low confidence)` : '')
+            (rejectedBrands.length > 0 ? `${rejectedBrands.length} rejected (low confidence)` : '')
         );
       } else {
         toast.warning('No brands could be verified. Try different search terms.');
       }
-
     } catch (error: any) {
-      console.error('[AI Discovery] Error:', error);
+      simpleLogger.error('[AI Discovery] Error:', error);
       toast.error(`Discovery failed: ${error.response?.data?.message || error.message}`);
       setVerificationStep('idle');
     } finally {
@@ -179,7 +192,7 @@ export function CodeframeBuilderModal({
 
       await axios.post('/api/v1/codes/bulk-create', {
         category_id: category.id,
-        code_names: codeNames
+        code_names: codeNames,
       });
 
       toast.success(`Created ${discoveredCodes.length} verified brand codes!`);
@@ -227,7 +240,7 @@ export function CodeframeBuilderModal({
     try {
       await axios.post('/api/v1/codes/bulk-create', {
         category_id: category.id,
-        code_names: parsedCodes
+        code_names: parsedCodes,
       });
 
       toast.success(`Created ${parsedCodes.length} codes!`);
@@ -248,12 +261,8 @@ export function CodeframeBuilderModal({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-800">
           <div>
-            <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-              Manage Codes
-            </h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-              {category.name}
-            </p>
+            <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Manage Codes</h2>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">{category.name}</p>
           </div>
           <button
             onClick={onClose}
@@ -319,7 +328,7 @@ export function CodeframeBuilderModal({
                   <input
                     type="text"
                     value={manualCodeName}
-                    onChange={(e) => setManualCodeName(e.target.value)}
+                    onChange={e => setManualCodeName(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Type code name and press Enter"
                     className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 dark:placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -392,11 +401,14 @@ export function CodeframeBuilderModal({
                           AI Discovery + Google Verification
                         </h3>
                         <p className="text-sm text-blue-800 dark:text-blue-300 mb-4">
-                          Our AI will scan your answers to find brands, then verify each one using Google Search to ensure accuracy.
+                          Our AI will scan your answers to find brands, then verify each one using
+                          Google Search to ensure accuracy.
                         </p>
 
                         <div className="bg-white dark:bg-zinc-800 rounded p-3 mb-4 border border-blue-200 dark:border-blue-700">
-                          <p className="text-xs font-medium text-zinc-900 dark:text-zinc-100 mb-2">What we verify:</p>
+                          <p className="text-xs font-medium text-zinc-900 dark:text-zinc-100 mb-2">
+                            What we verify:
+                          </p>
                           <ul className="text-xs space-y-1 text-zinc-700 dark:text-zinc-300">
                             <li className="flex items-center gap-2">
                               <CheckCircle2 size={12} className="text-green-600" />
@@ -432,7 +444,7 @@ export function CodeframeBuilderModal({
                       <input
                         type="number"
                         value={aiLimit}
-                        onChange={(e) => setAiLimit(parseInt(e.target.value) || 100)}
+                        onChange={e => setAiLimit(parseInt(e.target.value) || 100)}
                         min={10}
                         max={1000}
                         className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -449,7 +461,7 @@ export function CodeframeBuilderModal({
                       <input
                         type="number"
                         value={aiMinFrequency}
-                        onChange={(e) => setAiMinFrequency(parseInt(e.target.value) || 2)}
+                        onChange={e => setAiMinFrequency(parseInt(e.target.value) || 2)}
                         min={1}
                         max={50}
                         className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -503,7 +515,7 @@ export function CodeframeBuilderModal({
                     <div
                       className="h-full bg-blue-600 transition-all duration-300"
                       style={{
-                        width: `${(verificationProgress.current / verificationProgress.total) * 100}%`
+                        width: `${(verificationProgress.current / verificationProgress.total) * 100}%`,
                       }}
                     />
                   </div>
@@ -522,7 +534,9 @@ export function CodeframeBuilderModal({
                         <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                           {discoveredCodes.length}
                         </div>
-                        <div className="text-xs text-green-800 dark:text-green-300">Verified Brands</div>
+                        <div className="text-xs text-green-800 dark:text-green-300">
+                          Verified Brands
+                        </div>
                       </div>
                       <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
                         <div className="text-2xl font-bold text-red-600 dark:text-red-400">
@@ -532,7 +546,12 @@ export function CodeframeBuilderModal({
                       </div>
                       <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                         <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                          {Math.round((discoveredCodes.length / (discoveredCodes.length + rejectedCodes.length)) * 100)}%
+                          {Math.round(
+                            (discoveredCodes.length /
+                              (discoveredCodes.length + rejectedCodes.length)) *
+                              100
+                          )}
+                          %
                         </div>
                         <div className="text-xs text-blue-800 dark:text-blue-300">Accuracy</div>
                       </div>
@@ -541,16 +560,23 @@ export function CodeframeBuilderModal({
 
                   {/* Verified brands with logos */}
                   <div className="space-y-2 mb-4">
-                    <h4 className="font-medium text-sm text-zinc-900 dark:text-zinc-100">Verified Brands:</h4>
+                    <h4 className="font-medium text-sm text-zinc-900 dark:text-zinc-100">
+                      Verified Brands:
+                    </h4>
                     <div className="max-h-64 overflow-y-auto space-y-2">
                       {discoveredCodes.map((code, index) => (
-                        <div key={index} className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                        <div
+                          key={index}
+                          className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg"
+                        >
                           {code.logo_url && (
                             <img
                               src={code.logo_url}
                               alt={code.official_name || code.name}
                               className="w-10 h-10 object-contain flex-shrink-0"
-                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                              onError={e => {
+                                e.currentTarget.style.display = 'none';
+                              }}
                             />
                           )}
                           <div className="flex-1 min-w-0">
@@ -578,9 +604,17 @@ export function CodeframeBuilderModal({
                       </summary>
                       <div className="mt-3 space-y-1.5">
                         {rejectedCodes.map((code, index) => (
-                          <div key={index} className="text-xs p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
-                            <span className="font-medium text-zinc-900 dark:text-zinc-100">{code.name}</span>
-                            <span className="text-zinc-600 dark:text-zinc-400"> - {code.reason}</span>
+                          <div
+                            key={index}
+                            className="text-xs p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded"
+                          >
+                            <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                              {code.name}
+                            </span>
+                            <span className="text-zinc-600 dark:text-zinc-400">
+                              {' '}
+                              - {code.reason}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -618,7 +652,7 @@ export function CodeframeBuilderModal({
                 </label>
                 <textarea
                   value={pasteText}
-                  onChange={(e) => setPasteText(e.target.value)}
+                  onChange={e => setPasteText(e.target.value)}
                   placeholder="Paste from Excel or CSV here...&#10;&#10;Examples:&#10;Code 1&#10;Code 2&#10;Code 3&#10;&#10;Or: Code 1, Code 2, Code 3&#10;Or: Code 1	Code 2	Code 3"
                   rows={10}
                   className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 dark:placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono text-sm"

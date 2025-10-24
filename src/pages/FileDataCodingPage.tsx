@@ -96,7 +96,7 @@ export function FileDataCodingPage() {
       setShowPreview(true);
       toast.success('Preview loaded successfully');
     } catch (err: any) {
-      console.error('Preview parsing error:', err);
+      simpleLogger.error('Preview parsing error:', err);
       setPreviewError(`Parsing error: ${err.message}`);
       toast.error('Failed to parse file preview');
     }
@@ -177,7 +177,7 @@ export function FileDataCodingPage() {
 
       // Show errors if any (limited to first few)
       if (result.errors && result.errors.length > 0) {
-        console.warn('Upload errors:', result.errors);
+        simpleLogger.warn('Upload errors:', result.errors);
         toast.warning(`⚠️ ${result.totalErrors || result.errors.length} rows had issues`);
       }
 
@@ -188,7 +188,7 @@ export function FileDataCodingPage() {
       setPreviewError(null);
       (document.getElementById('file-input') as HTMLInputElement).value = '';
     } catch (error: any) {
-      console.error('Upload error:', error);
+      simpleLogger.error('Upload error:', error);
       setUploadResult({
         success: false,
         message: error.message || 'Upload failed'

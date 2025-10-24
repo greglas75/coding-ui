@@ -2,6 +2,7 @@ import { Settings, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getTemplate, type TemplatePreset } from '../config/DefaultTemplates';
 import { useAIPricing } from '../hooks/useAIPricing';
+import { simpleLogger } from '../utils/logger';
 import { TestPromptModal } from './TestPromptModal';
 
 interface EditCategoryModalProps {
@@ -56,6 +57,18 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
     return () => setFade(false);
   }, []);
 
+  // 🔍 DEBUG: Log category data when modal opens
+  useEffect(() => {
+    simpleLogger.info('🔍 EditCategoryModal opened with category:', {
+      id: category.id,
+      name: category.name,
+      openai_model: category.openai_model,
+      claude_model: category.claude_model,
+      gemini_model: category.gemini_model,
+      model: category.model,
+    });
+  }, [category]);
+
   // 🔧 FIX: Close modal with ESC key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -75,15 +88,16 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
     preset: category.llm_preset || category.preset || 'LLM Proper Name', // ✅ New column first, then legacy
 
     // ✅ Unified model selection (supports all providers)
+    // Priority: claude_model > openai_model > gemini_model > model > default
     model:
-      category.openai_model ||
       category.claude_model ||
+      category.openai_model ||
       category.gemini_model ||
       category.model ||
       'gpt-4o-mini',
 
     // ✅ Vision model for image analysis (default: cheapest Gemini)
-    visionModel: category.vision_model || 'gemini-2.5-flash-lite',
+    visionModel: category.vision_model || 'gemini-2.0-pro-exp',
 
     template: category.gpt_template || category.template || '', // ✅ New column first, then legacy
     brandsSorting: category.brands_sorting || 'Alphanumerical',
@@ -169,9 +183,15 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
   ].sort((a, b) => a.costPer1M - b.costPer1M); // Sort by price (cheapest first)
 
   const handleSave = async (closeAfter = false) => {
-    console.log('Saving:', form);
-    await onSave(form);
-    if (closeAfter) onClose();
+    simpleLogger.info('💾 Saving category settings:', form);
+    try {
+      await onSave(form);
+      simpleLogger.info('✅ Category settings saved successfully');
+      if (closeAfter) onClose();
+    } catch (error) {
+      simpleLogger.error('❌ Failed to save category settings:', error);
+      throw error;
+    }
   };
 
   return (
@@ -181,7 +201,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
           fade ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        <div className="bg-white dark:bg-neutral-900 rounded-xl p-6 w-full max-w-6xl shadow-lg transform transition-all scale-100">
+        <div className="bg-white dark:bg-neutral-900 rounded-xl p-6 w-full max-w-6xl max-h-[90vh] overflow-y-auto shadow-lg transform transition-all scale-ов">
           {/* Header */}
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold flex items-center gap-2 text-gray-900 dark:text-gray-100">
@@ -197,9 +217,9 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
           </div>
 
           {/* 2-Column Layout */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Column (2/3 width) */}
-            <div className="col-span-1 md:col-span-2 space-y-4">
+            <div className="col-span-1 lg:col-span-2 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Category Name
@@ -229,10 +249,10 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                   GPT Template
                 </label>
                 <textarea
-                  rows={14}
+                  rows={8}
                   value={form.template}
                   onChange={e => setForm({ ...form, template: e.target.value })}
-                  className="w-full font-mono border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full font-mono border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-vertical"
                   placeholder="Enter GPT system prompt template..."
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -259,7 +279,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
             </div>
 
             {/* Right Column (1/3 width) */}
-            <div className="col-span-1 space-y-4">
+            <div className="col-span-1 space-y-4 overflow-y-auto max-h-[70vh]">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Google Search Name

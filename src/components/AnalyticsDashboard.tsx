@@ -11,10 +11,12 @@ import {
   PieChart,
   ResponsiveContainer,
   Tooltip,
-  XAxis, YAxis
+  XAxis,
+  YAxis,
 } from 'recharts';
 import { toast } from 'sonner';
 import { AnalyticsEngine, type AnalyticsData } from '../lib/analyticsEngine';
+import { simpleLogger } from '../utils/logger';
 
 interface Props {
   categoryId?: number;
@@ -25,7 +27,7 @@ export function AnalyticsDashboard({ categoryId }: Props) {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({
     from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-    to: new Date()
+    to: new Date(),
   });
 
   const analyticsEngine = new AnalyticsEngine();
@@ -39,9 +41,9 @@ export function AnalyticsDashboard({ categoryId }: Props) {
     try {
       const data = await analyticsEngine.generateAnalytics(categoryId, dateRange);
       setAnalytics(data);
-      console.log('✅ Analytics loaded:', data);
+      simpleLogger.info('✅ Analytics loaded:', data);
     } catch (error) {
-      console.error('❌ Error loading analytics:', error);
+      simpleLogger.error('❌ Error loading analytics:', error);
       toast.error('Failed to load analytics');
     } finally {
       setLoading(false);
@@ -68,7 +70,16 @@ export function AnalyticsDashboard({ categoryId }: Props) {
 
   if (!analytics) return null;
 
-  const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+  const COLORS = [
+    '#3B82F6',
+    '#10B981',
+    '#F59E0B',
+    '#EF4444',
+    '#8B5CF6',
+    '#EC4899',
+    '#06B6D4',
+    '#84CC16',
+  ];
 
   return (
     <div className="space-y-6 p-6">
@@ -89,11 +100,11 @@ export function AnalyticsDashboard({ categoryId }: Props) {
         <div className="flex items-center gap-3">
           {/* Date Range Selector */}
           <select
-            onChange={(e) => {
+            onChange={e => {
               const days = parseInt(e.target.value);
               setDateRange({
                 from: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
-                to: new Date()
+                to: new Date(),
               });
             }}
             className="px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
@@ -128,9 +139,7 @@ export function AnalyticsDashboard({ categoryId }: Props) {
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {analytics.summary.totalCoded}
           </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            Coded Answers
-          </div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Coded Answers</div>
         </div>
 
         <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 rounded-lg p-6 border border-green-200 dark:border-green-800">
@@ -145,9 +154,7 @@ export function AnalyticsDashboard({ categoryId }: Props) {
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {analytics.codingSpeed.totalTime.toFixed(0)}m
           </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            Time Spent
-          </div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Time Spent</div>
         </div>
 
         <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 rounded-lg p-6 border border-purple-200 dark:border-purple-800">
@@ -162,9 +169,7 @@ export function AnalyticsDashboard({ categoryId }: Props) {
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {analytics.aiVsManual.ai}
           </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            AI Coded
-          </div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">AI Coded</div>
         </div>
 
         <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 rounded-lg p-6 border border-orange-200 dark:border-orange-800">
@@ -179,9 +184,7 @@ export function AnalyticsDashboard({ categoryId }: Props) {
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {analytics.topCodes.length}
           </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            Unique Codes
-          </div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Unique Codes</div>
         </div>
       </div>
 
@@ -210,7 +213,7 @@ export function AnalyticsDashboard({ categoryId }: Props) {
                     backgroundColor: '#1F2937',
                     border: 'none',
                     borderRadius: '8px',
-                    color: '#fff'
+                    color: '#fff',
                   }}
                 />
                 <Line
@@ -241,12 +244,14 @@ export function AnalyticsDashboard({ categoryId }: Props) {
                 <Pie
                   data={[
                     { name: 'AI Coded', value: analytics.aiVsManual.ai },
-                    { name: 'Manual Coded', value: analytics.aiVsManual.manual }
+                    { name: 'Manual Coded', value: analytics.aiVsManual.manual },
                   ]}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${name}: ${((percent as number) * 100).toFixed(0)}%`}
+                  label={({ name, percent }) =>
+                    `${name}: ${((percent as number) * 100).toFixed(0)}%`
+                  }
                   outerRadius={100}
                   fill="#8884d8"
                   dataKey="value"
@@ -289,7 +294,7 @@ export function AnalyticsDashboard({ categoryId }: Props) {
                     backgroundColor: '#1F2937',
                     border: 'none',
                     borderRadius: '8px',
-                    color: '#fff'
+                    color: '#fff',
                   }}
                   formatter={(value: any, name: string) => {
                     if (name === 'count') return [value, 'Count'];
@@ -377,7 +382,9 @@ export function AnalyticsDashboard({ categoryId }: Props) {
 
               <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-950 rounded-lg">
                 <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Avg Time per Answer</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Avg Time per Answer
+                  </div>
                   <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                     {analytics.codingSpeed.averageTimePerAnswer.toFixed(0)}s
                   </div>
@@ -413,7 +420,9 @@ export function AnalyticsDashboard({ categoryId }: Props) {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ categoryName, percentage }) => `${categoryName}: ${(percentage as number).toFixed(0)}%`}
+                  label={({ categoryName, percentage }) =>
+                    `${categoryName}: ${(percentage as number).toFixed(0)}%`
+                  }
                   outerRadius={100}
                   fill="#8884d8"
                   dataKey="count"
@@ -428,7 +437,10 @@ export function AnalyticsDashboard({ categoryId }: Props) {
 
             <div className="space-y-2">
               {analytics.categoryDistribution.map((cat, index) => (
-                <div key={cat.categoryId} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-800 rounded-lg">
+                <div
+                  key={cat.categoryId}
+                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-800 rounded-lg"
+                >
                   <div className="flex items-center gap-3">
                     <div
                       className="w-4 h-4 rounded"

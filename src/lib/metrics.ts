@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { simpleLogger } from '../utils/logger';
 
 export async function recountMentions(codeName: string): Promise<number> {
   const { count, error } = await supabase
@@ -7,7 +8,7 @@ export async function recountMentions(codeName: string): Promise<number> {
     .ilike('answer_text', `%${codeName}%`);
 
   if (error) {
-    console.error('Error recounting mentions:', error);
+    simpleLogger.error('Error recounting mentions:', error);
     return 0;
   }
 

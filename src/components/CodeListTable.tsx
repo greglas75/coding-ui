@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Category, CodeWithCategories } from '../types';
+import { simpleLogger } from '../utils/logger';
 
 interface CodeListTableProps {
   codes: CodeWithCategories[];
@@ -20,7 +21,7 @@ export function CodeListTable({
   onToggleWhitelist,
   onUpdateCategories,
   onDelete,
-  onRecountMentions: _onRecountMentions
+  onRecountMentions: _onRecountMentions,
 }: CodeListTableProps) {
   const [editingName, setEditingName] = useState<number | null>(null);
   const [editingCategories, setEditingCategories] = useState<number | null>(null);
@@ -56,15 +57,21 @@ export function CodeListTable({
     if (bVal == null) return -1;
 
     if (typeof aVal === 'string' && typeof bVal === 'string') {
-      return sortOrder === 'asc'
-        ? aVal.localeCompare(bVal)
-        : bVal.localeCompare(aVal);
+      return sortOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
     }
 
     if (typeof aVal === 'boolean' && typeof bVal === 'boolean') {
       return sortOrder === 'asc'
-        ? (aVal === bVal ? 0 : aVal ? -1 : 1)
-        : (aVal === bVal ? 0 : aVal ? 1 : -1);
+        ? aVal === bVal
+          ? 0
+          : aVal
+            ? -1
+            : 1
+        : aVal === bVal
+          ? 0
+          : aVal
+            ? 1
+            : -1;
     }
 
     return 0;
@@ -98,7 +105,7 @@ export function CodeListTable({
         });
       }, 1000);
     } catch (error) {
-      console.error('Error saving code name:', error);
+      simpleLogger.error('Error saving code name:', error);
     } finally {
       setSavingName(false);
     }
@@ -127,9 +134,7 @@ export function CodeListTable({
 
   function toggleCategory(categoryId: number) {
     setTempCategories(prev =>
-      prev.includes(categoryId)
-        ? prev.filter(id => id !== categoryId)
-        : [...prev, categoryId]
+      prev.includes(categoryId) ? prev.filter(id => id !== categoryId) : [...prev, categoryId]
     );
   }
 
@@ -151,14 +156,16 @@ export function CodeListTable({
   function formatDate(dateString: string | null | undefined): string {
     if (!dateString) return '—';
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-CA', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).replace(',', '');
+    return date
+      .toLocaleDateString('en-CA', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
+      .replace(',', '');
   }
 
   return (
@@ -173,7 +180,10 @@ export function CodeListTable({
                 className="text-left px-3 py-2 w-auto text-xs font-medium uppercase tracking-wide text-zinc-500 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
                 title="Sort by code name"
               >
-                Code {sortField === 'name' && <span className="ml-1">{sortOrder === 'asc' ? '▲' : '▼'}</span>}
+                Code{' '}
+                {sortField === 'name' && (
+                  <span className="ml-1">{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                )}
               </th>
               <th className="text-left px-3 py-2 w-[200px] text-xs font-medium uppercase tracking-wide text-zinc-500">
                 Categories
@@ -183,7 +193,10 @@ export function CodeListTable({
                 className="text-left px-3 py-2 w-[100px] text-xs font-medium uppercase tracking-wide text-zinc-500 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
                 title="Sort by whitelist status"
               >
-                Whitelist {sortField === 'is_whitelisted' && <span className="ml-1">{sortOrder === 'asc' ? '▲' : '▼'}</span>}
+                Whitelist{' '}
+                {sortField === 'is_whitelisted' && (
+                  <span className="ml-1">{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                )}
               </th>
               <th className="text-left px-3 py-2 w-[120px] text-xs font-medium uppercase tracking-wide text-zinc-500">
                 Mentions
@@ -193,14 +206,20 @@ export function CodeListTable({
                 className="text-left px-3 py-2 w-[120px] text-xs font-medium uppercase tracking-wide text-zinc-500 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
                 title="Sort by created date"
               >
-                Added {sortField === 'created_at' && <span className="ml-1">{sortOrder === 'asc' ? '▲' : '▼'}</span>}
+                Added{' '}
+                {sortField === 'created_at' && (
+                  <span className="ml-1">{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                )}
               </th>
               <th
                 onClick={() => handleSort('updated_at')}
                 className="text-left px-3 py-2 w-[120px] text-xs font-medium uppercase tracking-wide text-zinc-500 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
                 title="Sort by updated date"
               >
-                Edited {sortField === 'updated_at' && <span className="ml-1">{sortOrder === 'asc' ? '▲' : '▼'}</span>}
+                Edited{' '}
+                {sortField === 'updated_at' && (
+                  <span className="ml-1">{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                )}
               </th>
               <th className="text-left px-3 py-2 w-[100px] text-xs font-medium uppercase tracking-wide text-zinc-500">
                 Actions
@@ -208,11 +227,13 @@ export function CodeListTable({
             </tr>
           </thead>
           <tbody>
-            {sortedCodes.map((code) => (
+            {sortedCodes.map(code => (
               <tr
                 key={code.id}
                 className={`group border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 bg-white dark:bg-zinc-900 transition-colors ${
-                  successAnimation.has(code.id) ? 'animate-pulse bg-green-50 dark:bg-green-900/20' : ''
+                  successAnimation.has(code.id)
+                    ? 'animate-pulse bg-green-50 dark:bg-green-900/20'
+                    : ''
                 }`}
               >
                 {/* Name */}
@@ -222,8 +243,8 @@ export function CodeListTable({
                       <input
                         type="text"
                         value={tempName}
-                        onChange={(e) => setTempName(e.target.value)}
-                        onKeyDown={(e) => {
+                        onChange={e => setTempName(e.target.value)}
+                        onKeyDown={e => {
                           if (e.key === 'Enter') saveName(code.id);
                           if (e.key === 'Escape') cancelEditingName();
                         }}
@@ -238,12 +259,33 @@ export function CodeListTable({
                       >
                         {savingName ? (
                           <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
                           </svg>
                         ) : (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M5 13l4 4L19 7"
+                            />
                           </svg>
                         )}
                       </button>
@@ -252,8 +294,18 @@ export function CodeListTable({
                         className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors cursor-pointer"
                         title="Cancel"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
                         </svg>
                       </button>
                     </div>
@@ -279,22 +331,53 @@ export function CodeListTable({
                             ? 'text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 bg-green-100 dark:bg-green-900/20 opacity-100'
                             : 'text-zinc-400 hover:text-blue-500 opacity-0 group-hover:opacity-100 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                         } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        title={editingName === code.id ? "Save changes" : "Edit code name"}
+                        title={editingName === code.id ? 'Save changes' : 'Edit code name'}
                       >
                         {editingName === code.id ? (
                           savingName ? (
                             <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
                             </svg>
                           ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M5 13l4 4L19 7"
+                              />
                             </svg>
                           )
                         ) : (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                            />
                           </svg>
                         )}
                       </button>
@@ -367,7 +450,7 @@ export function CodeListTable({
                     <input
                       type="checkbox"
                       checked={code.is_whitelisted}
-                      onChange={(e) => onToggleWhitelist(code.id, e.target.checked)}
+                      onChange={e => onToggleWhitelist(code.id, e.target.checked)}
                       className="w-4 h-4 text-blue-600 bg-zinc-100 border-zinc-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-zinc-800 focus:ring-2 dark:bg-zinc-700 dark:border-zinc-600"
                     />
                     <span className="text-sm text-zinc-700 dark:text-zinc-300">
@@ -438,7 +521,7 @@ export function CodeListTable({
 
       {/* Mobile Card View */}
       <div className="md:hidden space-y-3 p-4">
-        {sortedCodes.map((code) => (
+        {sortedCodes.map(code => (
           <div
             key={code.id}
             className={`rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 bg-white dark:bg-zinc-900 transition-colors ${
@@ -447,16 +530,14 @@ export function CodeListTable({
           >
             {/* Code */}
             <div className="mb-3">
-              <div className="text-sm font-medium text-zinc-800 dark:text-zinc-100 mb-1">
-                Code:
-              </div>
+              <div className="text-sm font-medium text-zinc-800 dark:text-zinc-100 mb-1">Code:</div>
               {editingName === code.id ? (
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={tempName}
-                    onChange={(e) => setTempName(e.target.value)}
-                    onKeyDown={(e) => {
+                    onChange={e => setTempName(e.target.value)}
+                    onKeyDown={e => {
                       if (e.key === 'Enter') saveName(code.id);
                       if (e.key === 'Escape') cancelEditingName();
                     }}
@@ -471,12 +552,33 @@ export function CodeListTable({
                   >
                     {savingName ? (
                       <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
                       </svg>
                     ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
                       </svg>
                     )}
                   </button>
@@ -486,7 +588,12 @@ export function CodeListTable({
                     title="Cancel"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </button>
                 </div>
@@ -504,7 +611,12 @@ export function CodeListTable({
                     title="Edit code name"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
                     </svg>
                   </button>
                 </div>
@@ -544,7 +656,7 @@ export function CodeListTable({
                 <input
                   type="checkbox"
                   checked={code.is_whitelisted}
-                  onChange={(e) => onToggleWhitelist(code.id, e.target.checked)}
+                  onChange={e => onToggleWhitelist(code.id, e.target.checked)}
                   className="w-4 h-4 text-blue-600 bg-zinc-100 border-zinc-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-zinc-800 focus:ring-2 dark:bg-zinc-700 dark:border-zinc-600"
                 />
                 <span className="text-sm text-zinc-700 dark:text-zinc-300">

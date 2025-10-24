@@ -1,8 +1,9 @@
-import { Settings, FolderTree } from 'lucide-react';
+import { FolderTree, Settings } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { optimisticArrayUpdate } from '../lib/optimisticUpdate';
 import { supabase } from '../lib/supabase';
 import type { Category } from '../types';
+import { simpleLogger } from '../utils/logger';
 import { CodeframeBuilderModal } from './CodeframeBuilderModal';
 
 interface CategoryDetailsProps {
@@ -21,7 +22,7 @@ interface CodeWithAssignment {
 export function CategoryDetails({
   selectedCategory,
   onCodesChanged,
-  onEditCategory
+  onEditCategory,
 }: CategoryDetailsProps) {
   const [searchText, setSearchText] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -51,14 +52,16 @@ export function CategoryDetails({
         // Get codes assigned to this category only
         const { data: codesData } = await supabase
           .from('codes_categories')
-          .select(`
+          .select(
+            `
             code_id,
             codes (
               id,
               name,
               is_whitelisted
             )
-          `)
+          `
+          )
           .eq('category_id', selectedCategory.id);
 
         // Transform the data to match our interface
@@ -66,12 +69,12 @@ export function CategoryDetails({
           id: item.codes.id,
           name: item.codes.name,
           is_whitelisted: item.codes.is_whitelisted,
-          assigned: true // All codes here are assigned to this category
+          assigned: true, // All codes here are assigned to this category
         }));
 
         setRealCodes(enriched);
       } catch (error) {
-        console.error('Error loading codes for category:', error);
+        simpleLogger.error('Error loading codes for category:', error);
       } finally {
         setLoading(false);
       }
@@ -83,7 +86,6 @@ export function CategoryDetails({
   const filteredCodes = realCodes.filter(code =>
     code.name.toLowerCase().includes(debouncedSearch.toLowerCase())
   );
-
 
   async function handleSelectAll() {
     if (!selectedCategory) return;
@@ -104,17 +106,15 @@ export function CategoryDetails({
 
     const relations = unassignedCodes.map(code => ({
       code_id: code.id,
-      category_id: selectedCategory.id
+      category_id: selectedCategory.id,
     }));
 
     if (relations.length === 0) return;
 
-    const { error } = await supabase
-      .from('codes_categories')
-      .insert(relations);
+    const { error } = await supabase.from('codes_categories').insert(relations);
 
     if (error) {
-      console.error('Error assigning codes to category:', error);
+      simpleLogger.error('Error assigning codes to category:', error);
       return;
     }
 
@@ -122,21 +122,23 @@ export function CategoryDetails({
     const loadCodes = async () => {
       const { data: codesData } = await supabase
         .from('codes_categories')
-        .select(`
+        .select(
+          `
           code_id,
           codes (
             id,
             name,
             is_whitelisted
           )
-        `)
+        `
+        )
         .eq('category_id', selectedCategory.id);
 
       const enriched: CodeWithAssignment[] = (codesData || []).map((item: any) => ({
         id: item.codes.id,
         name: item.codes.name,
         is_whitelisted: item.codes.is_whitelisted,
-        assigned: true
+        assigned: true,
       }));
 
       setRealCodes(enriched);
@@ -154,7 +156,7 @@ export function CategoryDetails({
       .eq('category_id', selectedCategory.id);
 
     if (error) {
-      console.error('Error clearing category codes:', error);
+      simpleLogger.error('Error clearing category codes:', error);
       return;
     }
 
@@ -250,7 +252,7 @@ export function CategoryDetails({
             type="text"
             placeholder="Search codes..."
             value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            onChange={e => setSearchText(e.target.value)}
             className="flex-1 px-3 py-2 border border-zinc-300 rounded-md bg-white text-zinc-900 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-400"
           />
         </div>
@@ -294,7 +296,7 @@ export function CategoryDetails({
             </div>
           ) : (
             <div className="space-y-2">
-              {filteredCodes.map((code) => (
+              {filteredCodes.map(code => (
                 <div
                   key={code.id}
                   className="flex items-center gap-3 p-3 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 bg-white dark:bg-zinc-900"

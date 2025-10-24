@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { simpleLogger } from '../utils/logger';
 
 interface UseInfiniteScrollOptions<T> {
   pageSize?: number;
@@ -52,17 +53,17 @@ export function useInfiniteScroll<T>({
       setError(null);
 
       try {
-        console.log(`📥 Loading initial page (page ${initialPage}, size ${pageSize})`);
+        simpleLogger.info(`📥 Loading initial page (page ${initialPage}, size ${pageSize})`);
         const data = await fetchPage(initialPage, pageSize);
 
         if (isMountedRef.current) {
           setItems(data);
           setCurrentPage(initialPage);
           setHasMore(data.length === pageSize);
-          console.log(`✅ Loaded ${data.length} items (hasMore: ${data.length === pageSize})`);
+          simpleLogger.info(`✅ Loaded ${data.length} items (hasMore: ${data.length === pageSize})`);
         }
       } catch (err) {
-        console.error('Error loading initial data:', err);
+        simpleLogger.error('Error loading initial data:', err);
         if (isMountedRef.current) {
           setError(err instanceof Error ? err : new Error('Failed to load data'));
         }
@@ -94,17 +95,17 @@ export function useInfiniteScroll<T>({
     const nextPage = currentPage + 1;
 
     try {
-      console.log(`📥 Loading more items (page ${nextPage}, size ${pageSize})`);
+      simpleLogger.info(`📥 Loading more items (page ${nextPage}, size ${pageSize})`);
       const data = await fetchPage(nextPage, pageSize);
 
       if (isMountedRef.current) {
         setItems(prev => [...prev, ...data]);
         setCurrentPage(nextPage);
         setHasMore(data.length === pageSize);
-        console.log(`✅ Loaded ${data.length} more items (total: ${items.length + data.length})`);
+        simpleLogger.info(`✅ Loaded ${data.length} more items (total: ${items.length + data.length})`);
       }
     } catch (err) {
-      console.error('Error loading more data:', err);
+      simpleLogger.error('Error loading more data:', err);
       if (isMountedRef.current) {
         setError(err instanceof Error ? err : new Error('Failed to load more data'));
       }
@@ -135,17 +136,17 @@ export function useInfiniteScroll<T>({
     setError(null);
 
     try {
-      console.log('🔄 Refreshing data...');
+      simpleLogger.info('🔄 Refreshing data...');
       const data = await fetchPage(initialPage, pageSize);
 
       if (isMountedRef.current) {
         setItems(data);
         setCurrentPage(initialPage);
         setHasMore(data.length === pageSize);
-        console.log(`✅ Refreshed with ${data.length} items`);
+        simpleLogger.info(`✅ Refreshed with ${data.length} items`);
       }
     } catch (err) {
-      console.error('Error refreshing data:', err);
+      simpleLogger.error('Error refreshing data:', err);
       if (isMountedRef.current) {
         setError(err instanceof Error ? err : new Error('Failed to refresh data'));
       }

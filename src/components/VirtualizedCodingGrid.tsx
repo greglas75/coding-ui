@@ -7,6 +7,7 @@ import { memo, useState, useCallback, useMemo } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import type { Answer } from '../types';
+import { simpleLogger } from '../utils/logger';
 
 interface VirtualizedCodingGridProps {
   answers: Answer[];
@@ -133,13 +134,13 @@ export const VirtualizedCodingGrid = memo<VirtualizedCodingGridProps>(({
   const loadMoreItems = useCallback(async (startIndex: number, stopIndex: number) => {
     if (loadingMore || !hasMore || !onLoadMore) return;
 
-    console.log(`📥 Loading more items: ${startIndex} - ${stopIndex}`);
+    simpleLogger.info(`📥 Loading more items: ${startIndex} - ${stopIndex}`);
     setLoadingMore(true);
 
     try {
       await onLoadMore();
     } catch (error) {
-      console.error('Error loading more items:', error);
+      simpleLogger.error('Error loading more items:', error);
     } finally {
       setLoadingMore(false);
     }

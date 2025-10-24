@@ -31,9 +31,9 @@
  * ```
  */
 
-import { type ReactNode, useEffect } from 'react';
 import { X } from 'lucide-react';
-// @ts-ignore - focus-trap-react types may not be perfect
+import { useEffect, type ReactNode } from 'react';
+// @ts-expect-error - focus-trap-react types may not be perfect
 import FocusTrap from 'focus-trap-react';
 import { cn } from '../../lib/utils';
 
@@ -105,7 +105,6 @@ export function BaseModal({
   disableFocusTrap = false,
   ariaLabel,
 }: BaseModalProps) {
-
   // ─────────────────────────────────────────────────────────
   // Handle ESC key
   // ─────────────────────────────────────────────────────────
@@ -174,7 +173,7 @@ export function BaseModal({
         'flex flex-col max-h-[90vh]',
         className
       )}
-      onClick={(e) => e.stopPropagation()}
+      onClick={e => e.stopPropagation()}
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
@@ -185,15 +184,8 @@ export function BaseModal({
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <div className="flex items-start justify-between p-6 pb-4 border-b border-gray-200 dark:border-zinc-700">
         <div className="flex items-center gap-3 flex-1">
-          {icon && (
-            <div className="flex-shrink-0">
-              {icon}
-            </div>
-          )}
-          <h2
-            id="modal-title"
-            className="text-xl font-semibold text-gray-900 dark:text-gray-100"
-          >
+          {icon && <div className="flex-shrink-0">{icon}</div>}
+          <h2 id="modal-title" className="text-xl font-semibold text-gray-900 dark:text-gray-100">
             {title}
           </h2>
         </div>
@@ -219,9 +211,7 @@ export function BaseModal({
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       {/* CONTENT */}
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <div className="flex-1 overflow-auto p-6">
-        {children}
-      </div>
+      <div className="flex-1 overflow-auto p-6">{children}</div>
 
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       {/* FOOTER */}

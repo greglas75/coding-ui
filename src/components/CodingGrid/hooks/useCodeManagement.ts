@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getSupabaseClient } from '../../../lib/supabase';
+import { simpleLogger } from '../../../utils/logger';
 
 const supabase = getSupabaseClient();
 
@@ -20,7 +21,7 @@ export function useCodeManagement(currentCategoryId?: number) {
     }
 
     if (isFetchingCodes.current) {
-      console.log('⏸️  Already fetching codes, skipping');
+      simpleLogger.info('⏸️  Already fetching codes, skipping');
       return;
     }
 
@@ -31,11 +32,11 @@ export function useCodeManagement(currentCategoryId?: number) {
       try {
         const parsedCodes = JSON.parse(cached);
         setCachedCodes(parsedCodes);
-        console.log(`✅ Loaded ${parsedCodes.length} codes from cache`);
+        simpleLogger.info(`✅ Loaded ${parsedCodes.length} codes from cache`);
         setHasMoreCodes(false);
         return;
       } catch (error) {
-        console.error('❌ Error parsing cached codes:', error);
+        simpleLogger.error('❌ Error parsing cached codes:', error);
         localStorage.removeItem(cacheKey);
       }
     }
@@ -74,7 +75,7 @@ export function useCodeManagement(currentCategoryId?: number) {
         }
       }
     } catch (error) {
-      console.error('❌ Error loading codes:', error);
+      simpleLogger.error('❌ Error loading codes:', error);
     } finally {
       setLoadingCodes(false);
       isFetchingCodes.current = false;
@@ -123,7 +124,7 @@ export function useCodeManagement(currentCategoryId?: number) {
         setHasMoreCodes(data.length === PAGE_SIZE);
       }
     } catch (error) {
-      console.error('Error loading more codes:', error);
+      simpleLogger.error('Error loading more codes:', error);
     } finally {
       setLoadingCodes(false);
     }

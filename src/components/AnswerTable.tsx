@@ -5,6 +5,7 @@ import { useAnswers, useBulkUpdateAnswers } from '../hooks/useAnswersQuery';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { getSupabaseClient } from '../lib/supabase';
 import type { Answer } from '../types';
+import { simpleLogger } from '../utils/logger';
 import { BulkActions } from './BulkActions';
 import { CodingGrid } from './CodingGrid';
 import { MainLayout } from './layout/MainLayout';
@@ -23,25 +24,25 @@ export function AnswerTable() {
   // Get categoryId from URL parameters
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const categoryId = params.get("categoryId");
+    const categoryId = params.get('categoryId');
     if (categoryId) {
       const id = parseInt(categoryId);
       if (!isNaN(id)) {
         setCurrentCategoryId(id);
-        console.log('🔍 AnswerTable: Found categoryId in URL:', id);
+        simpleLogger.info('🔍 AnswerTable: Found categoryId in URL:', id);
       }
     }
   }, []);
 
   // Function to set current category when coding starts
   const handleCodingStart = (categoryId: number | undefined) => {
-    console.log('🔍 AnswerTable: Setting current category ID:', categoryId);
+    simpleLogger.info('🔍 AnswerTable: Setting current category ID:', categoryId);
     setCurrentCategoryId(categoryId);
   };
 
   // Function to update filters from CodingGrid
   const handleFiltersChange = useCallback((filters: any) => {
-    console.log('🔍 AnswerTable: Filters changed:', filters);
+    simpleLogger.info('🔍 AnswerTable: Filters changed:', filters);
     setCurrentFilters(filters);
   }, []);
 
@@ -52,12 +53,12 @@ export function AnswerTable() {
   const {
     data: queryResult,
     isLoading: loading,
-    error
+    error,
   } = useAnswers({
     categoryId: currentCategoryId,
     page,
     pageSize,
-    filters: memoizedFilters
+    filters: memoizedFilters,
   });
 
   const answers = queryResult?.data || [];
@@ -72,8 +73,10 @@ export function AnswerTable() {
         acc[catId] = (acc[catId] || 0) + 1;
         return acc;
       }, {});
-      console.log('🔍 Category ID distribution:', categoryStats);
-      console.log(`📊 Showing page ${page + 1}, ${answers.length} of ${totalCount} total answers`);
+      simpleLogger.info('🔍 Category ID distribution:', categoryStats);
+      simpleLogger.info(
+        `📊 Showing page ${page + 1}, ${answers.length} of ${totalCount} total answers`
+      );
     }
   }, [answers, page, totalCount]);
 
@@ -81,7 +84,7 @@ export function AnswerTable() {
   useEffect(() => {
     if (!currentCategoryId) return;
 
-    console.log('🔄 Setting up realtime subscription for answers');
+    simpleLogger.info('🔄 Setting up realtime subscription for answers');
 
     // Realtime: subscribe to changes in "answers" table
     const channel = supabase
@@ -90,18 +93,18 @@ export function AnswerTable() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'answers' },
         (payload: RealtimePostgresChangesPayload<Answer>) => {
-          console.log('🔄 Realtime update received:', payload.eventType);
+          simpleLogger.info('🔄 Realtime update received:', payload.eventType);
 
           // Invalidate React Query cache to refetch fresh data
           queryClient.invalidateQueries({
-            queryKey: ['answers', currentCategoryId]
+            queryKey: ['answers', currentCategoryId],
           });
         }
       )
       .subscribe();
 
     return () => {
-      console.log('🔄 Cleaning up realtime subscription');
+      simpleLogger.info('🔄 Cleaning up realtime subscription');
       supabase.removeChannel(channel);
     };
   }, [currentCategoryId, queryClient]);
@@ -117,14 +120,14 @@ export function AnswerTable() {
         ids: Array.from(selected),
         updates: {
           general_status: status,
-          coding_date: status === 'whitelist' ? new Date().toISOString() : null
-        }
+          coding_date: status === 'whitelist' ? new Date().toISOString() : null,
+        },
       });
 
       setSelected(new Set());
       alert(`Updated ${selected.size} items to ${status}`);
     } catch (error) {
-      console.error('Error updating answers:', error);
+      simpleLogger.error('Error updating answers:', error);
       alert((error as Error).message);
     }
   }
@@ -132,36 +135,32 @@ export function AnswerTable() {
   // Keyboard shortcuts
   useKeyboardShortcuts({
     selectedCount: selected.size,
-    onBulkUpdate: bulkUpdateStatus
+    onBulkUpdate: bulkUpdateStatus,
   });
 
-  if (loading) return (
-    <MainLayout>
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        <p className="ml-4 text-gray-500 dark:text-gray-400">Loading answers...</p>
-      </div>
-    </MainLayout>
-  );
+  if (loading)
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <p className="ml-4 text-gray-500 dark:text-gray-400">Loading answers...</p>
+        </div>
+      </MainLayout>
+    );
 
-  if (err) return (
-    <MainLayout>
-      <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-red-700 dark:text-red-400">
-        Error: {err}
-      </div>
-    </MainLayout>
-  );
+  if (err)
+    return (
+      <MainLayout>
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-red-700 dark:text-red-400">
+          Error: {err}
+        </div>
+      </MainLayout>
+    );
 
   return (
-    <MainLayout
-      maxWidth="wide"
-    >
-
+    <MainLayout maxWidth="wide">
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border shadow-sm overflow-hidden">
-        <BulkActions
-          selectedCount={selected.size}
-          onBulkUpdate={bulkUpdateStatus}
-        />
+        <BulkActions selectedCount={selected.size} onBulkUpdate={bulkUpdateStatus} />
 
         <div className="p-4">
           <CodingGrid
@@ -179,7 +178,8 @@ export function AnswerTable() {
         {totalCount > pageSize && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
             <div className="text-sm text-gray-600 dark:text-gray-400">
-              Showing {page * pageSize + 1} to {Math.min((page + 1) * pageSize, totalCount)} of {totalCount} answers
+              Showing {page * pageSize + 1} to {Math.min((page + 1) * pageSize, totalCount)} of{' '}
+              {totalCount} answers
             </div>
             <div className="flex gap-2">
               <button

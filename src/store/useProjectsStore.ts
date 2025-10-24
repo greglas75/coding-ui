@@ -77,7 +77,7 @@ export const useProjectsStore = create<ProjectsState>()(
               error: errorMessage,
               isLoading: false
             }, false, 'projects/fetchProjects/error');
-            console.error('❌ Failed to fetch projects:', error);
+            simpleLogger.error('❌ Failed to fetch projects:', error);
           }
         },
 
@@ -103,7 +103,7 @@ export const useProjectsStore = create<ProjectsState>()(
               error: errorMessage,
               isLoading: false
             }, false, 'projects/fetchProjectsWithStats/error');
-            console.error('❌ Failed to fetch projects with stats:', error);
+            simpleLogger.error('❌ Failed to fetch projects with stats:', error);
           }
         },
 
@@ -129,7 +129,7 @@ export const useProjectsStore = create<ProjectsState>()(
               error: errorMessage,
               isLoading: false
             }, false, 'projects/fetchProject/error');
-            console.error('❌ Failed to fetch project:', error);
+            simpleLogger.error('❌ Failed to fetch project:', error);
           }
         },
 
@@ -158,7 +158,7 @@ export const useProjectsStore = create<ProjectsState>()(
               isCreating: false
             }), false, 'projects/createProject/success');
 
-            console.log('✅ Project created:', newProject);
+            simpleLogger.info('✅ Project created:', newProject);
             return newProject;
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to create project';
@@ -166,7 +166,7 @@ export const useProjectsStore = create<ProjectsState>()(
               error: errorMessage,
               isCreating: false
             }, false, 'projects/createProject/error');
-            console.error('❌ Failed to create project:', error);
+            simpleLogger.error('❌ Failed to create project:', error);
             return null;
           }
         },
@@ -191,14 +191,14 @@ export const useProjectsStore = create<ProjectsState>()(
               isUpdating: false
             }), false, 'projects/updateProject/success');
 
-            console.log('✅ Project updated:', id);
+            simpleLogger.info('✅ Project updated:', id);
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to update project';
             set({
               error: errorMessage,
               isUpdating: false
             }, false, 'projects/updateProject/error');
-            console.error('❌ Failed to update project:', error);
+            simpleLogger.error('❌ Failed to update project:', error);
           }
         },
 
@@ -216,14 +216,14 @@ export const useProjectsStore = create<ProjectsState>()(
               isDeleting: false
             }), false, 'projects/deleteProject/success');
 
-            console.log('✅ Project deleted:', id);
+            simpleLogger.info('✅ Project deleted:', id);
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to delete project';
             set({
               error: errorMessage,
               isDeleting: false
             }, false, 'projects/deleteProject/error');
-            console.error('❌ Failed to delete project:', error);
+            simpleLogger.error('❌ Failed to delete project:', error);
           }
         },
 

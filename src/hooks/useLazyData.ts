@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { simpleLogger } from '../utils/logger';
 
 export interface PaginationParams {
   page: number;
@@ -67,10 +68,10 @@ export function useLazyData<T>({
           setTotal(parsed.total);
           setCurrentPage(parsed.page);
           setHasMore(parsed.hasMore);
-          console.log(`📦 Loaded from cache: ${cacheKey}`);
+          simpleLogger.info(`📦 Loaded from cache: ${cacheKey}`);
         }
       } catch (err) {
-        console.warn('Failed to load from cache:', err);
+        simpleLogger.warn('Failed to load from cache:', err);
       }
     }
   }, [cacheKey]);
@@ -87,7 +88,7 @@ export function useLazyData<T>({
           timestamp: Date.now(),
         }));
       } catch (err) {
-        console.warn('Failed to save to cache:', err);
+        simpleLogger.warn('Failed to save to cache:', err);
       }
     }
   }, [cacheKey]);
@@ -116,12 +117,12 @@ export function useLazyData<T>({
         setHasMore(response.hasMore);
         saveToCache(response.data, 1, response.total, response.hasMore);
 
-        console.log(`✅ Loaded initial ${response.data.length}/${response.total} items`);
+        simpleLogger.info(`✅ Loaded initial ${response.data.length}/${response.total} items`);
       }
     } catch (err) {
       if (isMountedRef.current && err instanceof Error && err.name !== 'AbortError') {
         setError(err);
-        console.error('Error loading initial data:', err);
+        simpleLogger.error('Error loading initial data:', err);
       }
     } finally {
       if (isMountedRef.current) {
@@ -156,12 +157,12 @@ export function useLazyData<T>({
         setHasMore(response.hasMore);
         saveToCache(newData, nextPage, response.total, response.hasMore);
 
-        console.log(`✅ Loaded page ${nextPage}: ${response.data.length} items (total: ${newData.length}/${response.total})`);
+        simpleLogger.info(`✅ Loaded page ${nextPage}: ${response.data.length} items (total: ${newData.length}/${response.total})`);
       }
     } catch (err) {
       if (isMountedRef.current) {
         setError(err instanceof Error ? err : new Error('Failed to load more'));
-        console.error('Error loading more data:', err);
+        simpleLogger.error('Error loading more data:', err);
       }
     } finally {
       if (isMountedRef.current) {

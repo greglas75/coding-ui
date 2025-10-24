@@ -1,22 +1,23 @@
-import { RotateCcw, Search } from "lucide-react";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
-import { CodeSuggestionEngine, type CodeSuggestion } from "../lib/codeSuggestionEngine";
-import { supabase } from "../lib/supabase";
-import type { Answer } from "../types";
-import { QuickStatusButtons } from "./CodingGrid/cells/QuickStatusButtons";
-import { Tooltip } from "./shared/Tooltip";
+import { RotateCcw, Search } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { CodeSuggestionEngine, type CodeSuggestion } from '../lib/codeSuggestionEngine';
+import { supabase } from '../lib/supabase';
+import type { Answer } from '../types';
+import { simpleLogger } from '../utils/logger';
+import { QuickStatusButtons } from './CodingGrid/cells/QuickStatusButtons';
+import { Tooltip } from './shared/Tooltip';
 
 interface SelectCodeModalProps {
   open: boolean;
   onClose: () => void;
   selectedAnswerIds: number[];
-  allAnswers: Answer[];          // ADD: full answer objects for navigation
-  currentAnswerIndex: number;     // ADD: current position in the list
+  allAnswers: Answer[]; // ADD: full answer objects for navigation
+  currentAnswerIndex: number; // ADD: current position in the list
   preselectedCodes?: string[];
   onSaved: () => void;
-  onNavigate: (newIndex: number) => void;  // ADD: callback for navigation
-  mode: "overwrite" | "additional";
+  onNavigate: (newIndex: number) => void; // ADD: callback for navigation
+  mode: 'overwrite' | 'additional';
   categoryId?: number;
   selectedAnswer?: string;
   translation?: string;
@@ -51,7 +52,7 @@ export function SelectCodeModal({
 }: SelectCodeModalProps) {
   const [codes, setCodes] = useState<{ id: number; name: string }[]>([]);
   const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
   const [isResetting, setIsResetting] = useState(false);
 
   // Code suggestions state
@@ -65,8 +66,8 @@ export function SelectCodeModal({
       // Reset selected codes to preselected or empty
       setSelectedCodes(preselectedCodes);
       // Clear search term
-      setSearchTerm("");
-      console.log('🔄 SelectCodeModal reset: preselectedCodes =', preselectedCodes);
+      setSearchTerm('');
+      simpleLogger.info('🔄 SelectCodeModal reset: preselectedCodes =', preselectedCodes);
     }
   }, [open, selectedAnswerIds.join(','), preselectedCodes.join(',')]);
 
@@ -74,46 +75,48 @@ export function SelectCodeModal({
   useEffect(() => {
     if (!open) return;
     const fetchCodes = async () => {
-      console.log('🔍 SelectCodeModal fetching codes with categoryId:', _categoryId);
+      simpleLogger.info('🔍 SelectCodeModal fetching codes with categoryId:', _categoryId);
 
       if (_categoryId) {
         // Filter by category using codes_categories table
-        console.log('🔍 Filtering codes by category ID:', _categoryId);
+        simpleLogger.info('🔍 Filtering codes by category ID:', _categoryId);
 
         const { data, error } = await supabase
           .from('codes_categories')
-          .select(`
+          .select(
+            `
             codes (
               id,
               name
             )
-          `)
+          `
+          )
           .eq('category_id', _categoryId);
 
         if (!error && data) {
-          const codes = data.map(item => item.codes).filter(Boolean).flat() as { id: number; name: string }[];
-          console.log('🔍 Fetched codes for category:', codes.length, 'codes');
-          console.log('🔍 Codes data:', codes);
+          const codes = data
+            .map(item => item.codes)
+            .filter(Boolean)
+            .flat() as { id: number; name: string }[];
+          simpleLogger.info('🔍 Fetched codes for category:', codes.length, 'codes');
+          simpleLogger.info('🔍 Codes data:', codes);
 
           const sorted = codes.sort((a, b) => a.name.localeCompare(b.name));
           setCodes(sorted);
         } else {
-          console.error('🔍 Error fetching codes for category:', error);
+          simpleLogger.error('🔍 Error fetching codes for category:', error);
         }
       } else {
         // Show all codes if no category filter
-        console.log('🔍 No category filter - showing all codes');
+        simpleLogger.info('🔍 No category filter - showing all codes');
 
-        const { data, error } = await supabase
-          .from("codes")
-          .select('id, name')
-          .order('name');
+        const { data, error } = await supabase.from('codes').select('id, name').order('name');
 
         if (!error && data) {
-          console.log('🔍 Fetched all codes:', data.length, 'codes');
+          simpleLogger.info('🔍 Fetched all codes:', data.length, 'codes');
           setCodes(data);
         } else {
-          console.error('🔍 Error fetching all codes:', error);
+          simpleLogger.error('🔍 Error fetching all codes:', error);
         }
       }
     };
@@ -131,22 +134,23 @@ export function SelectCodeModal({
         await suggestionEngine.initialize(_categoryId);
 
         // Get current code ID (if any)
-        const currentCodeId = selectedCodes.length > 0
-          ? codes.find(c => c.name === selectedCodes[0])?.id || null
-          : null;
+        const currentCodeId =
+          selectedCodes.length > 0
+            ? codes.find(c => c.name === selectedCodes[0])?.id || null
+            : null;
 
-          const suggestions = await suggestionEngine.getSuggestions(
-            _selectedAnswer,
-            currentCodeId,
-            _categoryId,
-            translation || null,
-            null
-          );
+        const suggestions = await suggestionEngine.getSuggestions(
+          _selectedAnswer,
+          currentCodeId,
+          _categoryId,
+          translation || null,
+          null
+        );
 
         setSuggestions(suggestions);
-        console.log(`💡 Loaded ${suggestions.length} code suggestions`);
+        simpleLogger.info(`💡 Loaded ${suggestions.length} code suggestions`);
       } catch (error) {
-        console.error('❌ Error loading suggestions:', error);
+        simpleLogger.error('❌ Error loading suggestions:', error);
       } finally {
         setLoadingSuggestions(false);
       }
@@ -159,11 +163,11 @@ export function SelectCodeModal({
   const handleQuickStatus = async (answer: Answer, status: string) => {
     // Map short codes to full status names
     const statusMap: Record<string, string> = {
-      'Oth': 'Other',
-      'Ign': 'Ignore',
-      'gBL': 'Global Blacklist',
-      'BL': 'Blacklist',
-      'C': 'Confirmed'
+      Oth: 'Other',
+      Ign: 'Ignore',
+      gBL: 'Global Blacklist',
+      BL: 'Blacklist',
+      C: 'Confirmed',
     };
 
     const fullStatus = statusMap[status] || status;
@@ -195,22 +199,21 @@ export function SelectCodeModal({
           .map(s => s.code_name)
           .join(', ');
         update.selected_code = allCodes;
-        console.log(`✅ Auto-accepting ${suggestions.length} AI suggestion(s): ${allCodes}`);
+        simpleLogger.info(`✅ Auto-accepting ${suggestions.length} AI suggestion(s): ${allCodes}`);
         toast.success(`Status: Whitelist | Codes: ${allCodes}`);
       }
     } else {
       update.coding_date = null;
+      // Clear selected_code for non-whitelist statuses (Other, Ignored, Blacklist, Global Blacklist)
+      update.selected_code = null;
       toast.success(`Status: ${fullStatus}`);
     }
 
-    const { error } = await supabase
-      .from('answers')
-      .update(update)
-      .eq('id', answer.id);
+    const { error } = await supabase.from('answers').update(update).eq('id', answer.id);
 
     if (error) {
       toast.error('Failed to update status');
-      console.error('Status update error:', error);
+      simpleLogger.error('Status update error:', error);
     } else {
       onSaved(); // Refresh parent
     }
@@ -224,16 +227,16 @@ export function SelectCodeModal({
       // Don't trigger shortcuts when typing in input fields
       if (e.target instanceof HTMLInputElement) return;
 
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         onClose();
       }
 
       // Arrow key navigation
-      if (e.key === "ArrowLeft" && currentAnswerIndex > 0) {
+      if (e.key === 'ArrowLeft' && currentAnswerIndex > 0) {
         e.preventDefault();
         onNavigate(currentAnswerIndex - 1);
       }
-      if (e.key === "ArrowRight" && currentAnswerIndex < allAnswers.length - 1) {
+      if (e.key === 'ArrowRight' && currentAnswerIndex < allAnswers.length - 1) {
         e.preventDefault();
         onNavigate(currentAnswerIndex + 1);
       }
@@ -267,7 +270,7 @@ export function SelectCodeModal({
         e.preventDefault();
         if (selectedAnswerIds.length > 0 && onGenerateAISuggestions) {
           const answerId = selectedAnswerIds[0]; // Use first selected answer
-          console.log('🤖 Generating AI suggestions for answer:', answerId);
+          simpleLogger.info('🤖 Generating AI suggestions for answer:', answerId);
           toast.info('🤖 Generating AI suggestions...');
           onGenerateAISuggestions(answerId);
         } else {
@@ -276,33 +279,40 @@ export function SelectCodeModal({
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose, currentAnswerIndex, allAnswers, onNavigate, handleQuickStatus, selectedAnswerIds, onGenerateAISuggestions]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    open,
+    onClose,
+    currentAnswerIndex,
+    allAnswers,
+    onNavigate,
+    handleQuickStatus,
+    selectedAnswerIds,
+    onGenerateAISuggestions,
+  ]);
 
   // 🔹 Reset all selected codes with animation
   const handleResetCodes = () => {
     setIsResetting(true);
     setSelectedCodes([]);
-    toast.success("All selected codes have been cleared.");
+    toast.success('All selected codes have been cleared.');
     setTimeout(() => setIsResetting(false), 300);
   };
 
   // 🔹 Toggle code selection
   const handleToggleCode = (codeName: string) => {
-    setSelectedCodes((prev) =>
-      prev.includes(codeName)
-        ? prev.filter((c) => c !== codeName)
-        : [...prev, codeName]
+    setSelectedCodes(prev =>
+      prev.includes(codeName) ? prev.filter(c => c !== codeName) : [...prev, codeName]
     );
   };
 
   // 🔹 Apply code suggestion
   const handleApplySuggestion = async (codeId: number, codeName: string) => {
-    console.log(`✨ Applying suggestion: ${codeName} (ID: ${codeId})`);
+    simpleLogger.info(`✨ Applying suggestion: ${codeName} (ID: ${codeId})`);
 
     // Add code to selected codes
-    setSelectedCodes((prev) => {
+    setSelectedCodes(prev => {
       if (prev.includes(codeName)) {
         return prev; // Already selected
       }
@@ -320,18 +330,18 @@ export function SelectCodeModal({
     try {
       // Delete existing codes for all selected answers
       const { error: deleteError } = await supabase
-        .from("answer_codes")
+        .from('answer_codes')
         .delete()
-        .in("answer_id", selectedAnswerIds);
+        .in('answer_id', selectedAnswerIds);
 
       if (deleteError) throw deleteError;
 
       // Insert new codes if any selected
       if (selectedCodes.length > 0) {
         const { data: allCodes } = await supabase
-          .from("codes")
-          .select("id, name")
-          .in("name", selectedCodes);
+          .from('codes')
+          .select('id, name')
+          .in('name', selectedCodes);
 
         if (allCodes && allCodes.length > 0) {
           // Insert codes for ALL selected answers (not just the first one)
@@ -342,9 +352,7 @@ export function SelectCodeModal({
             }))
           );
 
-          const { error: insertError } = await supabase
-            .from("answer_codes")
-            .insert(inserts);
+          const { error: insertError } = await supabase.from('answer_codes').insert(inserts);
 
           if (insertError) throw insertError;
 
@@ -352,26 +360,26 @@ export function SelectCodeModal({
           const selectedCodeString = allCodes.map(c => c.name).join(', ');
 
           const { error: updateError } = await supabase
-            .from("answers")
+            .from('answers')
             .update({
               selected_code: selectedCodeString,
               general_status: 'whitelist',
-              coding_date: new Date().toISOString()
+              coding_date: new Date().toISOString(),
             })
-            .in("id", selectedAnswerIds);
+            .in('id', selectedAnswerIds);
 
           if (updateError) throw updateError;
         }
       } else {
         // If no codes selected, clear the selected_code column and reset status
         const { error: clearError } = await supabase
-          .from("answers")
+          .from('answers')
           .update({
             selected_code: null,
             general_status: 'uncategorized',
-            coding_date: null
+            coding_date: null,
           })
-          .in("id", selectedAnswerIds);
+          .in('id', selectedAnswerIds);
 
         if (clearError) throw clearError;
       }
@@ -385,8 +393,8 @@ export function SelectCodeModal({
       onSaved();
       onClose();
     } catch (err) {
-      console.error("Error saving codes:", err);
-      toast.error("Error saving codes");
+      simpleLogger.error('Error saving codes:', err);
+      toast.error('Error saving codes');
     }
   };
 
@@ -436,13 +444,12 @@ export function SelectCodeModal({
         }
 
         const duplicateIds = duplicates.map(d => d.id);
-        console.log(`📋 Found ${duplicateIds.length} identical uncoded answers for "${source.answer_text}"`);
+        simpleLogger.info(
+          `📋 Found ${duplicateIds.length} identical uncoded answers for "${source.answer_text}"`
+        );
 
         // Delete existing codes for duplicates
-        await supabase
-          .from('answer_codes')
-          .delete()
-          .in('answer_id', duplicateIds);
+        await supabase.from('answer_codes').delete().in('answer_id', duplicateIds);
 
         // Insert codes for duplicates
         const inserts = duplicateIds.flatMap(answerId =>
@@ -452,12 +459,10 @@ export function SelectCodeModal({
           }))
         );
 
-        const { error: insertError } = await supabase
-          .from('answer_codes')
-          .insert(inserts);
+        const { error: insertError } = await supabase.from('answer_codes').insert(inserts);
 
         if (insertError) {
-          console.error('Failed to insert codes for duplicates:', insertError);
+          simpleLogger.error('Failed to insert codes for duplicates:', insertError);
           continue;
         }
 
@@ -472,13 +477,13 @@ export function SelectCodeModal({
           .in('id', duplicateIds);
 
         if (updateError) {
-          console.error('Failed to update duplicates:', updateError);
+          simpleLogger.error('Failed to update duplicates:', updateError);
         } else {
-          console.log(`✅ Copied codes to ${duplicateIds.length} identical answers`);
+          simpleLogger.info(`✅ Copied codes to ${duplicateIds.length} identical answers`);
         }
       }
     } catch (error) {
-      console.error('Error copying codes to identical answers:', error);
+      simpleLogger.error('Error copying codes to identical answers:', error);
     }
   }
 
@@ -494,9 +499,7 @@ export function SelectCodeModal({
     }
   };
 
-  const filteredCodes = codes.filter((c) =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredCodes = codes.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   if (!open) return null;
 
@@ -524,11 +527,9 @@ export function SelectCodeModal({
                   type="text"
                   placeholder="Type to search codes..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={e => setSearchTerm(e.target.value)}
                   onFocus={() =>
-                    setCodes((prev) =>
-                      [...prev].sort((a, b) => a.name.localeCompare(b.name))
-                    )
+                    setCodes(prev => [...prev].sort((a, b) => a.name.localeCompare(b.name)))
                   }
                   className="w-full rounded-md border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 pl-10 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 dark:text-gray-100"
                 />
@@ -536,7 +537,7 @@ export function SelectCodeModal({
             </div>
 
             <div className="overflow-y-auto max-h-[400px] space-y-1 flex-1 pr-2">
-              {filteredCodes.map((code) => (
+              {filteredCodes.map(code => (
                 <label
                   key={code.id}
                   className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
@@ -553,7 +554,7 @@ export function SelectCodeModal({
               {filteredCodes.length === 0 && (
                 <div className="text-center py-8">
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {searchTerm ? "No codes found matching your search" : "No codes available"}
+                    {searchTerm ? 'No codes found matching your search' : 'No codes available'}
                   </p>
                 </div>
               )}
@@ -600,14 +601,20 @@ export function SelectCodeModal({
                     <span className="flex items-center gap-2">
                       <span className="text-purple-600 dark:text-purple-400">✨</span>
                       AI Suggestions
-                      <span className="text-xs text-gray-500">(Press <kbd className="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">A</kbd>)</span>
+                      <span className="text-xs text-gray-500">
+                        (Press{' '}
+                        <kbd className="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">
+                          A
+                        </kbd>
+                        )
+                      </span>
                     </span>
                     <button
                       onClick={() => {
                         // Generate AI suggestions for the selected answer
                         if (selectedAnswerIds.length > 0 && onGenerateAISuggestions) {
                           const answerId = selectedAnswerIds[0]; // Use first selected answer
-                          console.log('🤖 Generating AI suggestions for answer:', answerId);
+                          simpleLogger.info('🤖 Generating AI suggestions for answer:', answerId);
                           toast.info('🤖 Generating AI suggestions...');
                           onGenerateAISuggestions(answerId);
                         } else {
@@ -621,57 +628,63 @@ export function SelectCodeModal({
                     </button>
                   </h3>
                   <div className="border border-purple-200 dark:border-purple-800 rounded-lg p-4 bg-purple-50 dark:bg-purple-900/10 h-[180px] flex flex-col overflow-y-auto">
-                    {aiSuggestions && aiSuggestions.suggestions && aiSuggestions.suggestions.length > 0 ? (
+                    {aiSuggestions &&
+                    aiSuggestions.suggestions &&
+                    aiSuggestions.suggestions.length > 0 &&
+                    aiSuggestions.suggestions.filter(s => s.confidence > 0).length > 0 ? (
                       <div className="w-full space-y-2">
                         <div className="flex flex-wrap gap-2">
-                          {aiSuggestions.suggestions.map((suggestion, idx) => {
-                            const confidence = Math.round(suggestion.confidence * 100);
-                            const colorClass = confidence >= 90
-                              ? 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-200'
-                              : confidence >= 70
-                              ? 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-200'
-                              : 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-200';
+                          {aiSuggestions.suggestions
+                            .filter(suggestion => suggestion.confidence > 0) // 🎯 HIDE NEGATIVE CONFIDENCE
+                            .map((suggestion, idx) => {
+                              const confidence = Math.round(suggestion.confidence * 100);
+                              const colorClass =
+                                confidence >= 90
+                                  ? 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-200'
+                                  : confidence >= 70
+                                    ? 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-200'
+                                    : 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-200';
 
-                            const getConfidenceLabel = (conf: number): string => {
-                              if (conf >= 90) return 'Very High';
-                              if (conf >= 70) return 'High';
-                              if (conf >= 50) return 'Medium';
-                              return 'Low';
-                            };
+                              const getConfidenceLabel = (conf: number): string => {
+                                if (conf >= 90) return 'Very High';
+                                if (conf >= 70) return 'High';
+                                if (conf >= 50) return 'Medium';
+                                return 'Low';
+                              };
 
-                            return (
-                              <Tooltip
-                                key={idx}
-                                content={
-                                  <div className="space-y-1">
-                                    <div className="font-semibold">
-                                      {getConfidenceLabel(confidence)} ({confidence}%)
-                                    </div>
-                                    <div className="text-xs">{suggestion.reasoning}</div>
-                                    {aiSuggestions.model && (
-                                      <div className="text-xs text-gray-400 border-t border-gray-700 pt-1 mt-1">
-                                        Model: {aiSuggestions.model}
+                              return (
+                                <Tooltip
+                                  key={idx}
+                                  content={
+                                    <div className="space-y-1">
+                                      <div className="font-semibold">
+                                        {getConfidenceLabel(confidence)} ({confidence}%)
                                       </div>
-                                    )}
-                                  </div>
-                                }
-                              >
-                                <button
-                                  onClick={() => {
-                                    const codeId = parseInt(suggestion.code_id);
-                                    handleApplySuggestion(codeId, suggestion.code_name);
-                                  }}
-                                  className={`px-3 py-1.5 rounded-md border text-sm font-medium hover:opacity-80 transition-all ${colorClass}`}
+                                      <div className="text-xs">{suggestion.reasoning}</div>
+                                      {aiSuggestions.model && (
+                                        <div className="text-xs text-gray-400 border-t border-gray-700 pt-1 mt-1">
+                                          Model: {aiSuggestions.model}
+                                        </div>
+                                      )}
+                                    </div>
+                                  }
                                 >
-                                  <span className="flex items-center gap-1">
-                                    <span>✨</span>
-                                    <span>{suggestion.code_name}</span>
-                                    <span className="text-xs opacity-70">{confidence}%</span>
-                                  </span>
-                                </button>
-                              </Tooltip>
-                            );
-                          })}
+                                  <button
+                                    onClick={() => {
+                                      const codeId = parseInt(suggestion.code_id);
+                                      handleApplySuggestion(codeId, suggestion.code_name);
+                                    }}
+                                    className={`px-3 py-1.5 rounded-md border text-sm font-medium hover:opacity-80 transition-all ${colorClass}`}
+                                  >
+                                    <span className="flex items-center gap-1">
+                                      <span>✨</span>
+                                      <span>{suggestion.code_name}</span>
+                                      <span className="text-xs opacity-70">{confidence}%</span>
+                                    </span>
+                                  </button>
+                                </Tooltip>
+                              );
+                            })}
                         </div>
                         {aiSuggestions.timestamp && (
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
@@ -701,7 +714,9 @@ export function SelectCodeModal({
                     {loadingSuggestions ? (
                       <div className="flex-1 flex items-center justify-center">
                         <span className="h-5 w-5 animate-spin">⏳</span>
-                        <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">Loading...</span>
+                        <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
+                          Loading...
+                        </span>
                       </div>
                     ) : suggestions && suggestions.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
@@ -710,9 +725,7 @@ export function SelectCodeModal({
                             key={idx}
                             content={
                               <div className="space-y-1">
-                                <div className="font-semibold">
-                                  {suggestion.codeName}
-                                </div>
+                                <div className="font-semibold">{suggestion.codeName}</div>
                                 <div className="text-xs">{suggestion.reason}</div>
                                 {suggestion.frequency && suggestion.frequency > 0 && (
                                   <div className="text-xs text-gray-400 border-t border-gray-700 pt-1 mt-1">
@@ -723,7 +736,9 @@ export function SelectCodeModal({
                             }
                           >
                             <button
-                              onClick={() => handleApplySuggestion(suggestion.codeId, suggestion.codeName)}
+                              onClick={() =>
+                                handleApplySuggestion(suggestion.codeId, suggestion.codeName)
+                              }
                               className="px-3 py-1.5 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200 rounded-md border border-blue-300 dark:border-blue-700 text-sm hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
                             >
                               {suggestion.codeName}
@@ -752,9 +767,7 @@ export function SelectCodeModal({
               {/* Selected Codes */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    Codes
-                  </h3>
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Codes</h3>
                   {selectedCodes.length > 0 && (
                     <button
                       onClick={handleResetCodes}
@@ -771,7 +784,7 @@ export function SelectCodeModal({
                 <div className="border border-green-200 dark:border-green-800 rounded-lg p-4 bg-green-50 dark:bg-green-900/10 min-h-[80px]">
                   {selectedCodes.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
-                      {selectedCodes.map((code) => (
+                      {selectedCodes.map(code => (
                         <span
                           key={code}
                           className="px-2 py-1 bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 rounded-full text-sm flex items-center gap-1"
@@ -810,18 +823,20 @@ export function SelectCodeModal({
           <div className="flex items-center gap-4">
             {/* Quick Status Block */}
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Quick Status:</span>
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                Quick Status:
+              </span>
               <div className="flex items-center gap-1">
                 <QuickStatusButtons
                   answer={allAnswers[currentAnswerIndex]}
                   onStatusChange={async (answer, status) => {
                     // Map short codes to full status names
                     const statusMap: Record<string, string> = {
-                      'Oth': 'Other',
-                      'Ign': 'Ignore',
-                      'gBL': 'Global Blacklist',
-                      'BL': 'Blacklist',
-                      'C': 'Confirmed'
+                      Oth: 'Other',
+                      Ign: 'Ignore',
+                      gBL: 'Global Blacklist',
+                      BL: 'Blacklist',
+                      C: 'Confirmed',
                     };
 
                     const fullStatus = statusMap[status] || status;
@@ -866,7 +881,7 @@ export function SelectCodeModal({
 
                     if (error) {
                       toast.error('Failed to update status');
-                      console.error('Status update error:', error);
+                      simpleLogger.error('Status update error:', error);
                     } else {
                       toast.success(`Status updated to ${fullStatus}`);
                       // Trigger refresh of parent component
@@ -883,7 +898,11 @@ export function SelectCodeModal({
                 onClick={handleSave}
                 disabled={selectedCodes.length === 0}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                title={selectedCodes.length > 0 ? `Confirm ${selectedCodes.length} code(s) and close` : 'Select at least one code'}
+                title={
+                  selectedCodes.length > 0
+                    ? `Confirm ${selectedCodes.length} code(s) and close`
+                    : 'Select at least one code'
+                }
               >
                 Confirm Answer
               </button>
@@ -893,7 +912,11 @@ export function SelectCodeModal({
                   onClick={handleConfirmAndNext}
                   disabled={selectedCodes.length === 0}
                   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                  title={selectedCodes.length > 0 ? `Confirm and move to next answer` : 'Select at least one code'}
+                  title={
+                    selectedCodes.length > 0
+                      ? `Confirm and move to next answer`
+                      : 'Select at least one code'
+                  }
                 >
                   Confirm & Next <span>→</span>
                 </button>

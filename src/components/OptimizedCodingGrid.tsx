@@ -7,6 +7,7 @@
 import { memo, useCallback, useState } from 'react';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import type { Answer } from '../types';
+import { simpleLogger } from '../utils/logger';
 import { CodingGrid } from './CodingGrid';
 import { VirtualizedCodingGrid } from './VirtualizedCodingGrid';
 
@@ -67,7 +68,7 @@ export const OptimizedCodingGrid = memo<OptimizedCodingGridProps>(({
   const answers = useLazyLoading ? lazyAnswers : initialAnswers;
   const shouldVirtualize = forceVirtualization || answers.length > virtualizationThreshold;
 
-  console.log(`📊 CodingGrid: ${answers.length} answers, virtualized: ${shouldVirtualize}, lazy: ${useLazyLoading}`);
+  simpleLogger.info(`📊 CodingGrid: ${answers.length} answers, virtualized: ${shouldVirtualize}, lazy: ${useLazyLoading}`);
 
   const handleSelectAnswer = useCallback((answer: Answer) => {
     setSelectedAnswerId(answer.id);

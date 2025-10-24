@@ -13,6 +13,7 @@ import {
   categorizeSingleAnswer
 } from '../api/categorize';
 import type { AiCodeSuggestion } from '../types';
+import { simpleLogger } from '../utils/logger';
 
 /**
  * Hook for categorizing a single answer
@@ -36,7 +37,7 @@ export function useCategorizeAnswer() {
     mutationFn: (answerId: number) => categorizeSingleAnswer(answerId, true), // Always force regenerate
 
     onMutate: (answerId) => {
-      console.log(`Starting AI categorization for answer ${answerId}`);
+      simpleLogger.info(`Starting AI categorization for answer ${answerId}`);
       toast.loading('🤖 Getting AI suggestions...', {
         id: `categorize-${answerId}`,
       });
@@ -60,7 +61,7 @@ export function useCategorizeAnswer() {
       queryClient.invalidateQueries({ queryKey: ['answers'] });
       queryClient.invalidateQueries({ queryKey: ['answer', answerId] });
 
-      console.log(`✅ AI suggestions generated for answer ${answerId}:`, data);
+      simpleLogger.info(`✅ AI suggestions generated for answer ${answerId}:`, data);
     },
 
     onError: (error, answerId) => {
@@ -72,7 +73,7 @@ export function useCategorizeAnswer() {
         description: error.message,
       });
 
-      console.error('Categorization error:', error);
+      simpleLogger.error('Categorization error:', error);
     },
   });
 }
@@ -100,7 +101,7 @@ export function useBatchCategorize() {
     mutationFn: categorizeBatchAnswers,
 
     onMutate: (answerIds) => {
-      console.log(`Starting batch categorization for ${answerIds.length} answers`);
+      simpleLogger.info(`Starting batch categorization for ${answerIds.length} answers`);
       toast.loading(`🤖 Categorizing ${answerIds.length} answers...`, {
         id: 'batch-categorize',
       });
@@ -125,7 +126,7 @@ export function useBatchCategorize() {
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ['answers'] });
 
-      console.log('Batch categorization complete:', data);
+      simpleLogger.info('Batch categorization complete:', data);
     },
 
     onError: (error, _answerIds) => { // answerIds available for future error tracking
@@ -133,7 +134,7 @@ export function useBatchCategorize() {
       toast.error('❌ Batch categorization failed', {
         description: error.message,
       });
-      console.error('Batch categorization error:', error);
+      simpleLogger.error('Batch categorization error:', error);
     },
   });
 }
@@ -161,7 +162,7 @@ export function useCategorizeCategory() {
     mutationFn: ({ categoryId, limit }) => categorizeCategoryAnswers(categoryId, limit),
 
     onMutate: ({ categoryId, limit = 100 }) => {
-      console.log(`Starting category categorization for category ${categoryId}, limit ${limit}`);
+      simpleLogger.info(`Starting category categorization for category ${categoryId}, limit ${limit}`);
       toast.loading(`🤖 Categorizing up to ${limit} answers...`, {
         id: 'category-categorize',
       });
@@ -187,7 +188,7 @@ export function useCategorizeCategory() {
       queryClient.invalidateQueries({ queryKey: ['answers'] });
       queryClient.invalidateQueries({ queryKey: ['answers', categoryId] });
 
-      console.log('Category categorization complete:', data);
+      simpleLogger.info('Category categorization complete:', data);
     },
 
     onError: (error, { categoryId: _categoryId }) => { // categoryId available for per-category error handling
@@ -195,7 +196,7 @@ export function useCategorizeCategory() {
       toast.error('❌ Category categorization failed', {
         description: error.message,
       });
-      console.error('Category categorization error:', error);
+      simpleLogger.error('Category categorization error:', error);
     },
   });
 }
@@ -224,7 +225,7 @@ export function useAutoConfirm() {
       autoConfirmHighConfidence(categoryId, threshold),
 
     onMutate: ({ threshold = 0.95 }) => {
-      console.log(`Starting auto-confirm with threshold ${threshold}`);
+      simpleLogger.info(`Starting auto-confirm with threshold ${threshold}`);
       toast.loading('🚀 Auto-confirming high-confidence suggestions...', {
         id: 'auto-confirm',
       });
@@ -250,7 +251,7 @@ export function useAutoConfirm() {
       queryClient.invalidateQueries({ queryKey: ['answers'] });
       queryClient.invalidateQueries({ queryKey: ['categories'] });
 
-      console.log('Auto-confirm complete:', data);
+      simpleLogger.info('Auto-confirm complete:', data);
     },
 
     onError: (error, { threshold: _threshold }) => { // threshold available for error logging
@@ -258,7 +259,7 @@ export function useAutoConfirm() {
       toast.error('❌ Auto-confirm failed', {
         description: error.message,
       });
-      console.error('Auto-confirm error:', error);
+      simpleLogger.error('Auto-confirm error:', error);
     },
   });
 }

@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { ExportEngine, type ExportOptions } from '../lib/exportEngine';
 import { ImportEngine } from '../lib/importEngine';
+import { simpleLogger } from '../utils/logger';
 
 interface Props {
   onClose: () => void;
@@ -18,7 +19,7 @@ export function ExportImportModal({ onClose, categoryId }: Props) {
     includeCategories: false,
     includeAnswers: false,
     includeCodedAnswers: false,
-    categoryId
+    categoryId,
   });
   const [importStrategy, setImportStrategy] = useState<'merge' | 'replace'>('merge');
   const [importing, setImporting] = useState(false);
@@ -33,7 +34,7 @@ export function ExportImportModal({ onClose, categoryId }: Props) {
       const result = await exportEngine.export(exportOptions);
       toast.success(`Exported to ${result.filename}`);
     } catch (error: any) {
-      console.error('Export error:', error);
+      simpleLogger.error('Export error:', error);
       toast.error(`Export failed: ${error.message}`);
     } finally {
       setExporting(false);
@@ -60,7 +61,7 @@ export function ExportImportModal({ onClose, categoryId }: Props) {
         toast.success(message);
 
         if (result.errors.length > 0) {
-          console.error('Import errors:', result.errors);
+          simpleLogger.error('Import errors:', result.errors);
           toast.warning(`${result.errors.length} errors occurred. Check console for details.`);
         }
 
@@ -70,10 +71,10 @@ export function ExportImportModal({ onClose, categoryId }: Props) {
         }, 2000);
       } else {
         toast.error('Import failed. Check console for details.');
-        console.error('Import errors:', result.errors);
+        simpleLogger.error('Import errors:', result.errors);
       }
     } catch (error: any) {
-      console.error('Import error:', error);
+      simpleLogger.error('Import error:', error);
       toast.error(`Import failed: ${error.message}`);
     } finally {
       setImporting(false);
@@ -85,7 +86,7 @@ export function ExportImportModal({ onClose, categoryId }: Props) {
     const templateData = [
       { Name: 'Example Code 1' },
       { Name: 'Example Code 2' },
-      { Name: 'Example Code 3' }
+      { Name: 'Example Code 3' },
     ];
 
     const ws = XLSX.utils.json_to_sheet(templateData);
@@ -94,7 +95,7 @@ export function ExportImportModal({ onClose, categoryId }: Props) {
 
     const buffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
     const blob = new Blob([buffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
 
     const url = URL.createObjectURL(blob);
@@ -210,17 +211,23 @@ export function ExportImportModal({ onClose, categoryId }: Props) {
                     <input
                       type="checkbox"
                       checked={exportOptions.includeCodes}
-                      onChange={(e) => setExportOptions({ ...exportOptions, includeCodes: e.target.checked })}
+                      onChange={e =>
+                        setExportOptions({ ...exportOptions, includeCodes: e.target.checked })
+                      }
                       className="w-4 h-4 text-blue-600 rounded"
                     />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Codes {categoryId && '(current category only)'}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      Codes {categoryId && '(current category only)'}
+                    </span>
                   </label>
 
                   <label className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={exportOptions.includeCategories}
-                      onChange={(e) => setExportOptions({ ...exportOptions, includeCategories: e.target.checked })}
+                      onChange={e =>
+                        setExportOptions({ ...exportOptions, includeCategories: e.target.checked })
+                      }
                       className="w-4 h-4 text-blue-600 rounded"
                     />
                     <span className="text-sm text-gray-700 dark:text-gray-300">Categories</span>
@@ -230,20 +237,31 @@ export function ExportImportModal({ onClose, categoryId }: Props) {
                     <input
                       type="checkbox"
                       checked={exportOptions.includeAnswers}
-                      onChange={(e) => setExportOptions({ ...exportOptions, includeAnswers: e.target.checked })}
+                      onChange={e =>
+                        setExportOptions({ ...exportOptions, includeAnswers: e.target.checked })
+                      }
                       className="w-4 h-4 text-blue-600 rounded"
                     />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Answers (max 1000)</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      Answers (max 1000)
+                    </span>
                   </label>
 
                   <label className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={exportOptions.includeCodedAnswers}
-                      onChange={(e) => setExportOptions({ ...exportOptions, includeCodedAnswers: e.target.checked })}
+                      onChange={e =>
+                        setExportOptions({
+                          ...exportOptions,
+                          includeCodedAnswers: e.target.checked,
+                        })
+                      }
                       className="w-4 h-4 text-blue-600 rounded"
                     />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Coded Answers (assignments)</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      Coded Answers (assignments)
+                    </span>
                   </label>
                 </div>
               </div>

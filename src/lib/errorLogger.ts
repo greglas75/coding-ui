@@ -1,3 +1,5 @@
+import { simpleLogger } from '../utils/logger';
+
 interface ErrorLog {
   message: string;
   stack?: string;
@@ -31,7 +33,7 @@ class ErrorLogger {
 
     // Log to console in dev
     if (import.meta.env.DEV) {
-      console.error('🔴 Error logged:', errorLog);
+      simpleLogger.error('🔴 Error logged:', errorLog);
     }
 
     // TODO: Send to external service (Sentry, LogRocket, etc.)
@@ -41,7 +43,7 @@ class ErrorLogger {
     try {
       localStorage.setItem('error_logs', JSON.stringify(this.logs));
     } catch (e) {
-      console.warn('Failed to save error logs to localStorage');
+      simpleLogger.warn('Failed to save error logs to localStorage');
     }
   }
 

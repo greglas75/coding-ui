@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/react';
 import { AlertTriangle, Bug, Home, RefreshCw, RotateCcw } from 'lucide-react';
 import { Component, type ReactNode } from 'react';
-import { logError, logFatal } from '../utils/logger';
+import { logError, logFatal, simpleLogger } from '../utils/logger';
 
 interface Props {
   children: ReactNode;
@@ -32,29 +32,38 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: any) {
     // Log to console
-    console.error('🔴 Error caught by boundary:', error);
-    console.error('📍 Component stack:', errorInfo.componentStack);
+    simpleLogger.error('🔴 Error caught by boundary:', error);
+    simpleLogger.error('📍 Component stack:', errorInfo.componentStack);
 
     // Log to centralized logger
-    const isFatal = error.message.toLowerCase().includes('fatal') ||
-                     error.message.toLowerCase().includes('critical');
+    const isFatal =
+      error.message.toLowerCase().includes('fatal') ||
+      error.message.toLowerCase().includes('critical');
 
     if (isFatal) {
-      logFatal('Component error boundary triggered', {
-        component: 'ErrorBoundary',
-        extra: {
-          componentStack: errorInfo.componentStack,
-          errorMessage: error.message,
+      logFatal(
+        'Component error boundary triggered',
+        {
+          component: 'ErrorBoundary',
+          extra: {
+            componentStack: errorInfo.componentStack,
+            errorMessage: error.message,
+          },
         },
-      }, error);
+        error
+      );
     } else {
-      logError('Component error boundary triggered', {
-        component: 'ErrorBoundary',
-        extra: {
-          componentStack: errorInfo.componentStack,
-          errorMessage: error.message,
+      logError(
+        'Component error boundary triggered',
+        {
+          component: 'ErrorBoundary',
+          extra: {
+            componentStack: errorInfo.componentStack,
+            errorMessage: error.message,
+          },
         },
-      }, error);
+        error
+      );
     }
 
     // Call custom error handler if provided
@@ -74,10 +83,10 @@ export class ErrorBoundary extends Component<Props, State> {
         level: isFatal ? 'fatal' : 'error',
       });
 
-      console.log('📤 Error reported to Sentry:', eventId);
+      simpleLogger.info('📤 Error reported to Sentry:', eventId);
       this.setState({ errorInfo, eventId });
     } catch (sentryError) {
-      console.error('Failed to report error to Sentry:', sentryError);
+      simpleLogger.error('Failed to report error to Sentry:', sentryError);
       this.setState({ errorInfo });
     }
   }
@@ -99,7 +108,7 @@ export class ErrorBoundary extends Component<Props, State> {
       // Call custom report callback if provided
       if (this.props.onReport) {
         await this.props.onReport(this.state.error, this.state.errorInfo);
-        console.log('✅ Error reported via custom callback');
+        simpleLogger.info('✅ Error reported via custom callback');
       }
 
       // Show Sentry feedback dialog if available
@@ -117,9 +126,9 @@ export class ErrorBoundary extends Component<Props, State> {
         });
       }
 
-      console.log('📧 Error report dialog shown');
+      simpleLogger.info('📧 Error report dialog shown');
     } catch (error) {
-      console.error('Failed to show report dialog:', error);
+      simpleLogger.error('Failed to show report dialog:', error);
     } finally {
       this.setState({ isReporting: false });
     }
@@ -137,10 +146,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-zinc-900 p-4">
           <div className="max-w-md w-full bg-white dark:bg-zinc-800 rounded-xl shadow-lg p-8 text-center">
             <div className="mb-6">
-              <AlertTriangle
-                size={64}
-                className="mx-auto text-red-500 dark:text-red-400"
-              />
+              <AlertTriangle size={64} className="mx-auto text-red-500 dark:text-red-400" />
             </div>
 
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
@@ -197,7 +203,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 )}
 
                 <button
-                  onClick={() => window.location.href = '/'}
+                  onClick={() => (window.location.href = '/')}
                   className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-gray-800 dark:text-gray-200 rounded-lg font-medium transition-colors flex items-center gap-2"
                   title="Return to home page"
                 >

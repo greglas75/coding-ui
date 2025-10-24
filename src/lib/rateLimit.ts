@@ -5,6 +5,8 @@
  * and processing them at a controlled rate.
  */
 
+import { simpleLogger } from '../utils/logger';
+
 /**
  * Generic rate limiter class
  *
@@ -73,7 +75,7 @@ class RateLimiter {
 
         // Wait if necessary to maintain rate limit
         if (timeToWait > 0) {
-          console.log(`🚦 Rate limiter: Waiting ${timeToWait}ms before next request`);
+          simpleLogger.info(`🚦 Rate limiter: Waiting ${timeToWait}ms before next request`);
           await new Promise(resolve => setTimeout(resolve, timeToWait));
         }
 
@@ -104,25 +106,102 @@ class RateLimiter {
   clear() {
     this.queue = [];
     this.processing = false;
-    console.log('🚦 Rate limiter queue cleared');
+    simpleLogger.info('🚦 Rate limiter queue cleared');
+  }
+}
+
+/**
+ * 🚀 Token Bucket Rate Limiter (Better Performance)
+ *
+ * Allows bursts while maintaining rate limit
+ * More efficient than fixed delay
+ */
+class TokenBucketRateLimiter {
+  private tokens: number;
+  private maxTokens: number;
+  private refillRate: number; // tokens per second
+  private lastRefill: number;
+  private queue: Array<() => Promise<any>> = [];
+  private processing = false;
+
+  constructor(maxTokens: number, refillRate: number) {
+    this.maxTokens = maxTokens;
+    this.tokens = maxTokens; // Start with full bucket
+    this.refillRate = refillRate;
+    this.lastRefill = Date.now();
+  }
+
+  private refill() {
+    const now = Date.now();
+    const timePassed = (now - this.lastRefill) / 1000; // seconds
+    const tokensToAdd = timePassed * this.refillRate;
+
+    this.tokens = Math.min(this.maxTokens, this.tokens + tokensToAdd);
+    this.lastRefill = now;
+  }
+
+  async add<T>(fn: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      this.queue.push(async () => {
+        try {
+          const result = await fn();
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      this.process();
+    });
+  }
+
+  private async process() {
+    if (this.processing || this.queue.length === 0) return;
+
+    this.processing = true;
+
+    while (this.queue.length > 0) {
+      this.refill();
+
+      // Wait if not enough tokens
+      while (this.tokens < 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        this.refill();
+      }
+
+      const fn = this.queue.shift();
+      if (fn) {
+        this.tokens -= 1;
+        await fn();
+      }
+    }
+
+    this.processing = false;
+  }
+
+  getStatus() {
+    this.refill();
+    return {
+      tokens: this.tokens,
+      maxTokens: this.maxTokens,
+      queueLength: this.queue.length,
+      refillRate: this.refillRate,
+    };
   }
 }
 
 /**
  * Global rate limiter for OpenAI API calls
  *
- * Default: 10 requests per minute (safe for free tier)
- * Paid tier can increase to 60+ requests per minute
+ * 10 requests per minute = 0.167 tokens/second
+ * Token bucket allows bursts when tokens available
  */
-export const openaiRateLimiter = new RateLimiter(10);
+export const openaiRateLimiter = new TokenBucketRateLimiter(10, 0.167);
 
 /**
- * Higher rate limiter for paid OpenAI accounts
- *
- * Use this if you have a paid OpenAI account with higher limits
- * Uncomment and export to use instead of the default limiter
+ * Legacy fixed-delay limiter (kept for backward compatibility)
  */
-// export const openaiRateLimiterPaid = new RateLimiter(60);
+export const openaiRateLimiterLegacy = new RateLimiter(10);
 
 /**
  * Utility: Wait for a specified duration
@@ -178,7 +257,7 @@ export async function retryWithBackoff<T>(
 
       // Exponential backoff: 1s, 2s, 4s, 8s...
       const delay = baseDelay * Math.pow(2, attempt);
-      console.log(`🔄 Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms`);
+      simpleLogger.info(`🔄 Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms`);
       await wait(delay);
     }
   }

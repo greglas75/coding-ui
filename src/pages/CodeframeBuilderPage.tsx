@@ -103,7 +103,7 @@ export function CodeframeBuilderPage() {
       // Step3Processing component will handle the transition to step 4
       toast.success('Codeframe generation started successfully');
     } catch (err) {
-      console.error('Generation failed:', err);
+      simpleLogger.error('Generation failed:', err);
 
       const errorMessage = getErrorMessage(err);
       toast.error(errorMessage, {
@@ -171,7 +171,7 @@ export function CodeframeBuilderPage() {
             generation={generation}
             onComplete={() => setCurrentStep(4)}
             onError={(error) => {
-              console.error('Processing error:', error);
+              simpleLogger.error('Processing error:', error);
               const errorMessage = getErrorMessage(error);
               toast.error(errorMessage, {
                 duration: 6000,

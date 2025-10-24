@@ -17,7 +17,7 @@ export class TrainingDataExporter {
     categoryId?: number,
     _minConfidence: number = 0 // TODO: Apply confidence filtering during export
   ): Promise<{ data: TrainingExample[]; count: number; filename: string }> {
-    console.log(`📦 Exporting training data for category: ${categoryId || 'all'}`);
+    simpleLogger.info(`📦 Exporting training data for category: ${categoryId || 'all'}`);
 
     try {
       // Fetch all coded answers with codes
@@ -34,16 +34,16 @@ export class TrainingDataExporter {
       const { data: answers, error } = await query.limit(5000);
 
       if (error) {
-        console.error('Error fetching answers:', error);
+        simpleLogger.error('Error fetching answers:', error);
         throw error;
       }
 
       if (!answers || answers.length === 0) {
-        console.log('⚠️ No coded answers found');
+        simpleLogger.info('⚠️ No coded answers found');
         return { data: [], count: 0, filename: '' };
       }
 
-      console.log(`✅ Found ${answers.length} coded answers`);
+      simpleLogger.info(`✅ Found ${answers.length} coded answers`);
 
       // Convert to OpenAI fine-tuning format
       const trainingData: TrainingExample[] = answers.map(answer => {
@@ -77,12 +77,12 @@ export class TrainingDataExporter {
       // Validate training data
       const validation = await this.validateTrainingData(trainingData);
       if (!validation.isValid) {
-        console.error('❌ Validation errors:', validation.errors);
-        console.error(`Training data invalid: ${validation.errors.join(', ')}`);
+        simpleLogger.error('❌ Validation errors:', validation.errors);
+        simpleLogger.error(`Training data invalid: ${validation.errors.join(', ')}`);
         return { data: [], count: 0, filename: '' };
       }
 
-      console.log(`✅ Training data validated: ${trainingData.length} examples`);
+      simpleLogger.info(`✅ Training data validated: ${trainingData.length} examples`);
 
       // Convert to JSONL
       const jsonl = trainingData
@@ -100,7 +100,7 @@ export class TrainingDataExporter {
       link.click();
       URL.revokeObjectURL(url);
 
-      console.log(`✅ Training data exported: ${filename}`);
+      simpleLogger.info(`✅ Training data exported: ${filename}`);
 
       return {
         data: trainingData,
@@ -108,7 +108,7 @@ export class TrainingDataExporter {
         filename
       };
     } catch (error) {
-      console.error('❌ Export failed:', error);
+      simpleLogger.error('❌ Export failed:', error);
       throw error;
     }
   }

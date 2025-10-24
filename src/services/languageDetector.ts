@@ -119,7 +119,7 @@ export async function translateCategoryName(
     const apiKey = localStorage.getItem('google_cse_api_key');
 
     if (!apiKey) {
-      console.warn('⚠️ No Google API key - skipping translation');
+      simpleLogger.warn('⚠️ No Google API key - skipping translation');
       return categoryName; // Return original if no API key
     }
 
@@ -138,19 +138,19 @@ export async function translateCategoryName(
     });
 
     if (!response.ok) {
-      console.warn('⚠️ Translation API error:', response.status);
+      simpleLogger.warn('⚠️ Translation API error:', response.status);
       return categoryName;
     }
 
     const data = await response.json();
     const translated = data.data?.translations?.[0]?.translatedText || categoryName;
 
-    console.log(`🌍 Translated "${categoryName}" → "${translated}" (${targetLanguage})`);
+    simpleLogger.info(`🌍 Translated "${categoryName}" → "${translated}" (${targetLanguage})`);
 
     return translated;
 
   } catch (error) {
-    console.warn('⚠️ Translation failed:', error);
+    simpleLogger.warn('⚠️ Translation failed:', error);
     return categoryName; // Return original on error
   }
 }
@@ -166,7 +166,7 @@ export async function buildLocalizedSearchQuery(
   try {
     const language = detectLanguage(userAnswer);
 
-    console.log(`🌍 Detected language: ${language} for answer: "${userAnswer.substring(0, 50)}..."`);
+    simpleLogger.info(`🌍 Detected language: ${language} for answer: "${userAnswer.substring(0, 50)}..."`);
 
     // Translate category name to detected language
     const translatedCategory = await translateCategoryName(categoryName, language);
@@ -177,7 +177,7 @@ export async function buildLocalizedSearchQuery(
     return { query, language };
 
   } catch (error) {
-    console.warn('⚠️ Localized search query failed, using original:', error);
+    simpleLogger.warn('⚠️ Localized search query failed, using original:', error);
     // Fallback: return original answer without category name
     return {
       query: userAnswer.trim(),

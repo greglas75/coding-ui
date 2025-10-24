@@ -10,16 +10,25 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AddCategoryModal } from '../components/AddCategoryModal';
-import { CategoryDetails } from '../components/CategoryDetails';
-import { EditCategoryModal } from '../components/EditCategoryModal';
 import { MainLayout } from '../components/layout/MainLayout';
 import { optimisticArrayUpdate } from '../lib/optimisticUpdate';
 import { supabase } from '../lib/supabase';
 import type { Category } from '../types';
+import { simpleLogger } from '../utils/logger';
+
+// 🚀 PERFORMANCE: Lazy load heavy modals
+const AddCategoryModal = lazy(() =>
+  import('../components/AddCategoryModal').then(m => ({ default: m.AddCategoryModal }))
+);
+const EditCategoryModal = lazy(() =>
+  import('../components/EditCategoryModal').then(m => ({ default: m.EditCategoryModal }))
+);
+const CategoryDetails = lazy(() =>
+  import('../components/CategoryDetails').then(m => ({ default: m.CategoryDetails }))
+);
 
 interface CategoryWithStats extends Category {
   whitelisted: number;
@@ -52,7 +61,7 @@ export function CategoriesPage() {
   // Fetch categories with statistics
   async function fetchCategories() {
     try {
-      console.log('Fetching categories with statistics...');
+      simpleLogger.info('Fetching categories with statistics...');
       setLoading(true);
 
       // Get categories (including new multi-provider model columns)
@@ -64,7 +73,7 @@ export function CategoriesPage() {
         .order('name');
 
       if (categoriesError) {
-        console.error('Error fetching categories:', categoriesError);
+        simpleLogger.error('Error fetching categories:', categoriesError);
         setError(`Failed to fetch categories: ${categoriesError.message}`);
         setLoading(false);
         return;
@@ -82,7 +91,7 @@ export function CategoriesPage() {
       const { data: statsData, error: statsError } = await supabase.rpc('get_category_stats');
 
       if (statsError) {
-        console.error('Error fetching category stats via RPC:', statsError);
+        simpleLogger.error('Error fetching category stats via RPC:', statsError);
       }
 
       const statsMap = new Map<number, any>((statsData || []).map((s: any) => [s.category_id, s]));
@@ -111,7 +120,7 @@ export function CategoriesPage() {
       setCategories(categoriesWithStats);
       setLoading(false);
     } catch (error) {
-      console.error('Error in fetchCategories:', error);
+      simpleLogger.error('Error in fetchCategories:', error);
       setError('Failed to fetch categories');
       setLoading(false);
     }
@@ -123,16 +132,16 @@ export function CategoriesPage() {
       setLoading(true);
 
       // First, test if categories table exists
-      console.log('Testing categories table...');
+      simpleLogger.info('Testing categories table...');
       const { data: testData, error: testError } = await supabase
         .from('categories')
         .select('count')
         .limit(1);
 
-      console.log('Table test result:', { testData, testError });
+      simpleLogger.info('Table test result:', { testData, testError });
 
       if (testError) {
-        console.error('Categories table test failed:', testError);
+        simpleLogger.error('Categories table test failed:', testError);
         setError(`Categories table not found. Please run the SQL migration: ${testError.message}`);
         setLoading(false);
         return;
@@ -202,7 +211,7 @@ export function CategoriesPage() {
 
       setModalOpen(false);
     } catch (error) {
-      console.error('Error adding category:', error);
+      simpleLogger.error('Error adding category:', error);
     }
   }
 
@@ -264,7 +273,7 @@ export function CategoriesPage() {
       // Close dialog
       setDeleteConfirm({ show: false, categoryId: null, categoryName: '' });
     } catch (error) {
-      console.error('Error deleting category:', error);
+      simpleLogger.error('Error deleting category:', error);
       toast.error('Failed to delete category');
     }
   }
@@ -377,8 +386,8 @@ export function CategoriesPage() {
         updatePayload.sentiment_mode = data.sentimentMode;
       }
 
-      console.log('📤 Saving category payload:', updatePayload);
-      console.log('🔍 Editing category ID:', editingCategory.id);
+      simpleLogger.info('📤 Saving category payload:', updatePayload);
+      simpleLogger.info('🔍 Editing category ID:', editingCategory.id);
 
       const { data: updateResult, error } = await supabase
         .from('categories')
@@ -387,13 +396,13 @@ export function CategoriesPage() {
         .select();
 
       if (error) {
-        console.error('❌ Supabase error:', error);
-        console.error('❌ Error details:', JSON.stringify(error, null, 2));
+        simpleLogger.error('❌ Supabase error:', error);
+        simpleLogger.error('❌ Error details:', JSON.stringify(error, null, 2));
         toast.error(`Failed to update category: ${error.message}`);
         return;
       }
 
-      console.log('✅ Update successful:', updateResult);
+      simpleLogger.info('✅ Update successful:', updateResult);
 
       toast.success('✅ Category settings updated successfully');
 
@@ -434,7 +443,7 @@ export function CategoriesPage() {
         setActiveCategory(prev => (prev ? { ...prev, name: data.name } : null));
       }
     } catch (error) {
-      console.error('❌ Unexpected error saving category settings:', error);
+      simpleLogger.error('❌ Unexpected error saving category settings:', error);
       toast.error('Failed to save category settings');
     }
   }
@@ -699,11 +708,19 @@ export function CategoriesPage() {
           {/* Category Details - Codes List */}
           {activeCategory && (
             <div className="border border-gray-200 dark:border-neutral-700 rounded-md overflow-hidden bg-white dark:bg-neutral-900">
-              <CategoryDetails
-                selectedCategory={activeCategory}
-                onCodesChanged={fetchCategories}
-                onEditCategory={openEditModal}
-              />
+              <Suspense
+                fallback={
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                  </div>
+                }
+              >
+                <CategoryDetails
+                  selectedCategory={activeCategory}
+                  onCodesChanged={fetchCategories}
+                  onEditCategory={openEditModal}
+                />
+              </Suspense>
             </div>
           )}
         </div>
@@ -723,16 +740,24 @@ export function CategoriesPage() {
         </div>
       )}
 
-      <AddCategoryModal open={modalOpen} onClose={() => setModalOpen(false)} onSave={addCategory} />
+      <Suspense fallback={null}>
+        <AddCategoryModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onSave={addCategory}
+        />
+      </Suspense>
 
       {editingCategory && (
-        <EditCategoryModal
-          category={editingCategory}
-          onClose={() => {
-            setEditingCategory(null);
-          }}
-          onSave={saveCategorySettings}
-        />
+        <Suspense fallback={null}>
+          <EditCategoryModal
+            category={editingCategory}
+            onClose={() => {
+              setEditingCategory(null);
+            }}
+            onSave={saveCategorySettings}
+          />
+        </Suspense>
       )}
 
       {/* Delete Confirmation Dialog */}

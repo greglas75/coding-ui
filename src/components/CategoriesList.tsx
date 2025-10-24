@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Category } from '../types';
+import { simpleLogger } from '../utils/logger';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface CategoryWithCount extends Category {
@@ -69,7 +70,7 @@ export function CategoriesList({
         });
       }, 1000);
     } catch (error) {
-      console.error('Error saving category:', error);
+      simpleLogger.error('Error saving category:', error);
     } finally {
       setSaving(false);
     }

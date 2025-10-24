@@ -4,6 +4,7 @@
 
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { simpleLogger } from '../utils/logger';
 
 // ───────────────────────────────────────────────────────────────
 // Types
@@ -136,7 +137,7 @@ export const useAIQueueStore = create<AIQueueState>()(
           queue: [...state.queue, ...newTasks]
         }), false, 'aiQueue/addTask');
 
-        console.log(`✅ Added ${newTasks.length} tasks to AI queue`);
+        simpleLogger.info(`✅ Added ${newTasks.length} tasks to AI queue`);
         get().refreshStats();
       },
 
@@ -156,7 +157,7 @@ export const useAIQueueStore = create<AIQueueState>()(
           queue: [...state.queue, task]
         }), false, 'aiQueue/addSingleTask');
 
-        console.log('✅ Added task to AI queue:', task.id);
+        simpleLogger.info('✅ Added task to AI queue:', task.id);
         get().refreshStats();
       },
 
@@ -177,7 +178,7 @@ export const useAIQueueStore = create<AIQueueState>()(
           processing: [],
         }, false, 'aiQueue/clearQueue');
 
-        console.log('🧹 Queue cleared');
+        simpleLogger.info('🧹 Queue cleared');
         get().refreshStats();
       },
 
@@ -196,19 +197,19 @@ export const useAIQueueStore = create<AIQueueState>()(
       // Start processing queue
       startProcessing: async () => {
         if (get().isProcessing) {
-          console.warn('⚠️ Processing already in progress');
+          simpleLogger.warn('⚠️ Processing already in progress');
           return;
         }
 
         set({ isProcessing: true, isPaused: false }, false, 'aiQueue/startProcessing');
-        console.log('🚀 Starting AI queue processing');
+        simpleLogger.info('🚀 Starting AI queue processing');
 
         const processNext = async () => {
           const state = get();
 
           if (state.isPaused || state.queue.length === 0) {
             set({ isProcessing: false }, false, 'aiQueue/processingComplete');
-            console.log('✅ Queue processing complete');
+            simpleLogger.info('✅ Queue processing complete');
             return;
           }
 
@@ -279,13 +280,13 @@ export const useAIQueueStore = create<AIQueueState>()(
       // Pause processing
       pauseProcessing: () => {
         set({ isPaused: true }, false, 'aiQueue/pauseProcessing');
-        console.log('⏸️ Queue processing paused');
+        simpleLogger.info('⏸️ Queue processing paused');
       },
 
       // Resume processing
       resumeProcessing: () => {
         set({ isPaused: false }, false, 'aiQueue/resumeProcessing');
-        console.log('▶️ Queue processing resumed');
+        simpleLogger.info('▶️ Queue processing resumed');
         get().startProcessing();
       },
 
@@ -303,7 +304,7 @@ export const useAIQueueStore = create<AIQueueState>()(
           failed: [],
         }), false, 'aiQueue/retryFailed');
 
-        console.log(`🔄 Retrying ${failedTasks.length} failed tasks`);
+        simpleLogger.info(`🔄 Retrying ${failedTasks.length} failed tasks`);
         get().refreshStats();
       },
 
@@ -350,7 +351,7 @@ export const useAIQueueStore = create<AIQueueState>()(
           }],
         }), false, 'aiQueue/moveToCompleted');
 
-        console.log('✅ Task completed:', taskId);
+        simpleLogger.info('✅ Task completed:', taskId);
         get().refreshStats();
       },
 
@@ -369,7 +370,7 @@ export const useAIQueueStore = create<AIQueueState>()(
           }],
         }), false, 'aiQueue/moveToFailed');
 
-        console.error('❌ Task failed:', taskId, error);
+        simpleLogger.error('❌ Task failed:', taskId, error);
         get().refreshStats();
       },
 

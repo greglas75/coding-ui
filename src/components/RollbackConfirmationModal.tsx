@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "../lib/supabase";
 import { useQueryClient } from "@tanstack/react-query";
+import { simpleLogger } from '../utils/logger';
 
 interface RollbackConfirmationModalProps {
   open: boolean;
@@ -49,16 +50,16 @@ export function RollbackConfirmationModal({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        console.log("ESC pressed → closing modal");
+        simpleLogger.info("ESC pressed → closing modal");
         onCloseRef.current();
       }
     };
 
-    console.log("✅ ESC listener added (RollbackConfirmationModal)");
+    simpleLogger.info("✅ ESC listener added (RollbackConfirmationModal)");
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      console.log("🧹 ESC listener removed (RollbackConfirmationModal)");
+      simpleLogger.info("🧹 ESC listener removed (RollbackConfirmationModal)");
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [open]); // Tylko open w dependencies - handler jest wewnątrz useEffect
@@ -78,7 +79,7 @@ export function RollbackConfirmationModal({
       const allIds = [record.id, ...(duplicates?.map(d => d.id) || [])];
       const totalCount = allIds.length;
 
-      console.log(`🔄 Rolling back ${totalCount} identical answer(s)...`);
+      simpleLogger.info(`🔄 Rolling back ${totalCount} identical answer(s)...`);
 
       const { error } = await supabase
         .from("answers")
@@ -105,7 +106,7 @@ export function RollbackConfirmationModal({
       onRollback();
       onClose();
     } catch (err: any) {
-      console.error("❌ Error rolling back:", err);
+      simpleLogger.error("❌ Error rolling back:", err);
       toast.error("Failed to rollback record");
     } finally {
       setRollingBack(false);
@@ -127,7 +128,7 @@ export function RollbackConfirmationModal({
       const allIds = [record.id, ...(duplicates?.map(d => d.id) || [])];
       const totalCount = allIds.length;
 
-      console.log(`🔄 Rolling back ${totalCount} identical answer(s) for editing...`);
+      simpleLogger.info(`🔄 Rolling back ${totalCount} identical answer(s) for editing...`);
 
       const { error } = await supabase
         .from("answers")
@@ -153,7 +154,7 @@ export function RollbackConfirmationModal({
       onRollbackAndEdit?.();
       onClose();
     } catch (err: any) {
-      console.error("❌ Error rolling back:", err);
+      simpleLogger.error("❌ Error rolling back:", err);
       toast.error("Failed to rollback record");
     } finally {
       setRollingBack(false);

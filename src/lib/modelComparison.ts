@@ -31,7 +31,7 @@ export class ModelComparison {
     correctCodes: string[],
     availableCodes: any[]
   ): Promise<ModelComparisonResult> {
-    console.log('🔬 Comparing models for answer...');
+    simpleLogger.info('🔬 Comparing models for answer...');
 
     try {
       // Get predictions from generic model (GPT-4)
@@ -65,7 +65,7 @@ export class ModelComparison {
 
       const improvement = customAccuracy - genericAccuracy;
 
-      console.log(`📊 Generic: ${genericAccuracy}%, Custom: ${customAccuracy}%, Improvement: ${improvement}%`);
+      simpleLogger.info(`📊 Generic: ${genericAccuracy}%, Custom: ${customAccuracy}%, Improvement: ${improvement}%`);
 
       return {
         generic: {
@@ -81,7 +81,7 @@ export class ModelComparison {
         improvement
       };
     } catch (error) {
-      console.error('❌ Model comparison failed:', error);
+      simpleLogger.error('❌ Model comparison failed:', error);
       throw error;
     }
   }
@@ -123,7 +123,7 @@ export class ModelComparison {
     improvement: number;
     results: ModelComparisonResult[];
   }> {
-    console.log(`🧪 Running A/B test on ${testSet.length} answers`);
+    simpleLogger.info(`🧪 Running A/B test on ${testSet.length} answers`);
 
     const results: ModelComparisonResult[] = [];
 
@@ -146,7 +146,7 @@ export class ModelComparison {
     const customAvgAccuracy = results.reduce((acc, r) => acc + r.custom.accuracy, 0) / results.length;
     const improvement = customAvgAccuracy - genericAvgAccuracy;
 
-    console.log(`📊 A/B Test Results: Generic ${genericAvgAccuracy.toFixed(1)}%, Custom ${customAvgAccuracy.toFixed(1)}%, Improvement ${improvement.toFixed(1)}%`);
+    simpleLogger.info(`📊 A/B Test Results: Generic ${genericAvgAccuracy.toFixed(1)}%, Custom ${customAvgAccuracy.toFixed(1)}%, Improvement ${improvement.toFixed(1)}%`);
 
     return {
       genericAvgAccuracy,
@@ -169,7 +169,7 @@ export class ModelComparison {
   setCustomModel(modelId: string): void {
     this.customModelId = modelId;
     localStorage.setItem('customModel', modelId);
-    console.log(`✅ Custom model set: ${modelId}`);
+    simpleLogger.info(`✅ Custom model set: ${modelId}`);
   }
 
   /**
@@ -178,6 +178,6 @@ export class ModelComparison {
   clearCustomModel(): void {
     this.customModelId = null;
     localStorage.removeItem('customModel');
-    console.log('🔄 Reverted to generic model');
+    simpleLogger.info('🔄 Reverted to generic model');
   }
 }

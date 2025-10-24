@@ -1,13 +1,16 @@
-import { useState } from 'react';
 import { useCostDetailed } from '@/hooks/useCostDetailed';
-import { Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import axios from 'axios';
+import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { useState } from 'react';
+import { simpleLogger } from '../../utils/logger';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3020';
 
 export function DetailedTable() {
   const [currentPage, setCurrentPage] = useState(1);
-  const [featureFilter, setFeatureFilter] = useState<'all' | 'answer_coding' | 'codeframe_generation'>('all');
+  const [featureFilter, setFeatureFilter] = useState<
+    'all' | 'answer_coding' | 'codeframe_generation'
+  >('all');
   const [isExporting, setIsExporting] = useState(false);
 
   const { data, isLoading } = useCostDetailed({
@@ -36,7 +39,7 @@ export function DetailedTable() {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Failed to export CSV:', error);
+      simpleLogger.error('Failed to export CSV:', error);
       alert('Failed to export CSV. Please try again.');
     } finally {
       setIsExporting(false);
@@ -75,13 +78,15 @@ export function DetailedTable() {
       {/* Header with filters and export */}
       <div className="p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Detailed Cost Breakdown</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Detailed Cost Breakdown
+          </h3>
 
           <div className="flex gap-3">
             {/* Feature filter */}
             <select
               value={featureFilter}
-              onChange={(e) => {
+              onChange={e => {
                 setFeatureFilter(e.target.value as typeof featureFilter);
                 setCurrentPage(1); // Reset to first page when filter changes
               }}
@@ -139,7 +144,7 @@ export function DetailedTable() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {items.map((item) => (
+              {items.map(item => (
                 <tr
                   key={item.id}
                   className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
@@ -167,7 +172,8 @@ export function DetailedTable() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-right font-mono">
                     {(item.input_tokens + item.output_tokens).toLocaleString()}
                     <div className="text-xs text-gray-500 dark:text-gray-500">
-                      {item.input_tokens.toLocaleString()} in / {item.output_tokens.toLocaleString()} out
+                      {item.input_tokens.toLocaleString()} in /{' '}
+                      {item.output_tokens.toLocaleString()} out
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white text-right">
@@ -192,7 +198,7 @@ export function DetailedTable() {
 
             <div className="flex gap-2">
               <button
-                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                 disabled={pagination.current_page === 1}
                 className="flex items-center gap-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
@@ -205,7 +211,7 @@ export function DetailedTable() {
               </div>
 
               <button
-                onClick={() => setCurrentPage((prev) => Math.min(pagination.total_pages, prev + 1))}
+                onClick={() => setCurrentPage(prev => Math.min(pagination.total_pages, prev + 1))}
                 disabled={pagination.current_page === pagination.total_pages}
                 className="flex items-center gap-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >

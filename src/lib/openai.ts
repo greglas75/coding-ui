@@ -6,11 +6,12 @@
  */
 
 import OpenAI from 'openai';
-import type { AiCodeSuggestion, AiSuggestions } from '../types';
-import { openaiRateLimiter, retryWithBackoff } from './rateLimit';
-import { getOpenAIAPIKey } from '../utils/apiKeys';
-import { buildWebContextSection, googleImageSearch } from '../services/webContextProvider';
 import { getTemplate, type TemplatePreset } from '../config/DefaultTemplates';
+import { buildWebContextSection, googleImageSearch } from '../services/webContextProvider';
+import type { AiCodeSuggestion, AiSuggestions } from '../types';
+import { getAnthropicAPIKey, getGoogleGeminiAPIKey, getOpenAIAPIKey } from '../utils/apiKeys';
+import { simpleLogger } from '../utils/logger';
+import { openaiRateLimiter, retryWithBackoff } from './rateLimit';
 
 // ✅ SECURITY: OpenAI client initialized dynamically from Settings page (localStorage)
 // Keys are obfuscated in browser storage and never exposed in .env files
@@ -25,7 +26,7 @@ export interface CategorizeRequest {
   presetName: string; // Template preset name (e.g., "LLM Proper Name", "LLM Brand List")
   customTemplate?: string; // Custom template (overrides preset if provided)
   model?: string; // OpenAI model (defaults to 'gpt-4o-mini' if not provided)
-  visionModel?: string; // Gemini vision model for image analysis (e.g., "gemini-2.5-flash-lite")
+  visionModel?: string; // Gemini vision model for image analysis (e.g., "gemini-2.0-pro-exp")
   codes: Array<{ id: string; name: string }>;
   context: {
     language?: string;
@@ -86,303 +87,433 @@ export interface CategorizeResponse {
  * });
  * ```
  */
-export async function categorizeAnswer(
-  request: CategorizeRequest
-): Promise<CategorizeResponse> {
-  // Get API key from Settings page (localStorage)
-  const apiKey = getOpenAIAPIKey();
+export async function categorizeAnswer(request: CategorizeRequest): Promise<CategorizeResponse> {
+  const { model = 'gpt-4o-mini' } = request;
 
-  if (!apiKey) {
-    const error = new Error('OpenAI API key not configured. Please add your API key in Settings page.');
-    console.error('❌ Configuration error:', error.message);
+  // ✅ Detect provider from model name
+  let provider: 'openai' | 'anthropic' | 'google' = 'openai';
+  if (model.startsWith('claude-')) {
+    provider = 'anthropic';
+  } else if (model.startsWith('gemini-')) {
+    provider = 'google';
+  }
+
+  simpleLogger.info(`🔍 Detected provider: ${provider} for model: ${model}`);
+
+  // ✅ Multi-provider support: OpenAI, Anthropic (Claude), Google (Gemini)
+  let apiKey: string | null = null;
+
+  if (provider === 'anthropic') {
+    apiKey = getAnthropicAPIKey();
+    if (!apiKey) {
+      throw new Error('Anthropic API key not configured. Please add it in Settings page.');
+    }
+  } else if (provider === 'google') {
+    apiKey = getGoogleGeminiAPIKey();
+    if (!apiKey) {
+      throw new Error('Google Gemini API key not configured. Please add it in Settings page.');
+    }
+  } else {
+    // OpenAI (default)
+    apiKey = getOpenAIAPIKey();
+  }
+
+  // Verify API key for OpenAI (Claude and Gemini checked above)
+  if (provider === 'openai' && !apiKey) {
+    const error = new Error(
+      'OpenAI API key not configured. Please add your API key in Settings page.'
+    );
+    simpleLogger.error('❌ Configuration error:', error.message);
     throw error;
   }
 
-  // Create OpenAI client with key from Settings
-  const openai = new OpenAI({
-    apiKey: apiKey,
-    dangerouslyAllowBrowser: true,
-  });
+  // Create OpenAI client (only needed for OpenAI provider)
+  const openai =
+    provider === 'openai'
+      ? new OpenAI({
+          apiKey: apiKey!,
+          dangerouslyAllowBrowser: true,
+        })
+      : null;
 
   // Add to rate limiter queue and retry with exponential backoff
-  return openaiRateLimiter.add(() =>
-    retryWithBackoff(async () => {
-      try {
-        // ═══════════════════════════════════════════════════════════
-        // Step 1: Fetch Web Context (Google Search)
-        // ═══════════════════════════════════════════════════════════
-        let webContext: WebContext[] = [];
-        let images: ImageResult[] = [];
-        let visionResult: any = null; // Store vision analysis result
-        // 🌍 Build localized search query with category name for better results
-        // Format: "CategoryName keyword" (e.g., "Toothpaste crest", "Brand sensodyne")
-        // ✅ Use English translation for better Google Search results (if available)
-        const searchText = request.answerTranslation || request.answer;
+  return openaiRateLimiter.add(
+    () =>
+      retryWithBackoff(
+        async () => {
+          try {
+            // ═══════════════════════════════════════════════════════════
+            // Step 1: Fetch Web Context (Google Search)
+            // ═══════════════════════════════════════════════════════════
+            let webContext: WebContext[] = [];
+            let images: ImageResult[] = [];
+            let visionResult: any = null; // Store vision analysis result
+            // 🌍 Build localized search query with category name for better results
+            // Format: "CategoryName keyword" (e.g., "Toothpaste crest", "Brand sensodyne")
+            // ✅ Use English translation for better Google Search results (if available)
+            const searchText = request.answerTranslation || request.answer;
 
-        // ✅ Avoid duplication if translation already includes category name
-        // e.g., "toothpaste ps" → use as-is, don't prepend "Toothpaste" again
-        const searchLower = searchText.toLowerCase().trim();
-        const categoryLower = request.categoryName.toLowerCase().trim();
-        const alreadyIncludesCategory = searchLower.startsWith(categoryLower);
+            // ✅ Avoid duplication if translation already includes category name
+            // e.g., "toothpaste ps" → use as-is, don't prepend "Toothpaste" again
+            const searchLower = searchText.toLowerCase().trim();
+            const categoryLower = request.categoryName.toLowerCase().trim();
+            const alreadyIncludesCategory = searchLower.startsWith(categoryLower);
 
-        const localizedQuery = alreadyIncludesCategory
-          ? searchText.trim()
-          : `${request.categoryName} ${searchText}`.trim();
+            const localizedQuery = alreadyIncludesCategory
+              ? searchText.trim()
+              : `${request.categoryName} ${searchText}`.trim();
 
-        try {
-          console.log(`🌐 Fetching web context for: "${request.answer.substring(0, 50)}..."`);
-          console.log(`🔍 Search query: "${localizedQuery}"`);
-
-          // Build web context section (returns formatted string)
-          const webContextText = await buildWebContextSection(localizedQuery, {
-            enabled: true,
-            numResults: 3,
-          });
-
-          // Also get raw results for the modal
-          const { googleSearch } = await import('../services/webContextProvider');
-          webContext = await googleSearch(localizedQuery, 3);
-
-          console.log(`✅ Found ${webContext.length} web results:`, webContext);
-
-          // Fetch related images
-          console.log(`🖼️ Fetching related images...`);
-          images = await googleImageSearch(localizedQuery, 6);
-          console.log(`✅ Found ${images.length} images:`, images);
-
-          // 👁️ Analyze images with vision AI (if vision_model configured)
-          if (images.length > 0 && request.visionModel) {
-            console.log(`👁️ Analyzing images with ${request.visionModel}...`);
             try {
-              const { analyzeImagesWithGemini, calculateVisionBoost } = await import('../services/geminiVision');
+              simpleLogger.info(
+                `🌐 Fetching web context for: "${request.answer.substring(0, 50)}..."`
+              );
+              simpleLogger.info(`🔍 Search query: "${localizedQuery}"`);
 
-              // Pass original image URLs - geminiVision.ts will handle proxy internally
-              const brandNames = request.codes.map((c: any) => c.name);
-              visionResult = await analyzeImagesWithGemini(
-                images, // Pass original URLs, geminiVision.ts handles proxy
-                request.answer,
-                brandNames,
-                request.visionModel
+              // Build web context section (returns formatted string)
+              const _webContextText = await buildWebContextSection(localizedQuery, {
+                enabled: true,
+                numResults: 6, // Increased from 3 to 6 for better brand consistency analysis
+              });
+
+              // Also get raw results for the modal
+              const { googleSearch } = await import('../services/webContextProvider');
+              webContext = await googleSearch(localizedQuery, { numResults: 6 }); // Increased from 3 to 6
+
+              simpleLogger.info(`✅ Found ${webContext.length} web results:`, webContext);
+
+              // Fetch related images
+              simpleLogger.info(`🖼️ Fetching related images...`);
+              images = await googleImageSearch(localizedQuery, 6);
+              simpleLogger.info(`✅ Found ${images.length} images:`, images);
+
+              // 👁️ Analyze images with vision AI (if vision_model configured)
+              if (images.length > 0 && request.visionModel) {
+                simpleLogger.info(`👁️ Analyzing images with ${request.visionModel}...`);
+                try {
+                  const { analyzeImagesWithGemini, calculateVisionBoost: _calculateVisionBoost } =
+                    await import('../services/geminiVision');
+
+                  // Pass original image URLs - geminiVision.ts will handle proxy internally
+                  const brandNames = request.codes.map((c: any) => c.name);
+                  visionResult = await analyzeImagesWithGemini(
+                    images, // Pass original URLs, geminiVision.ts handles proxy
+                    request.answer,
+                    brandNames,
+                    request.visionModel
+                  );
+
+                  simpleLogger.info('✅ Vision analysis result:', visionResult);
+                } catch (visionError) {
+                  simpleLogger.warn('⚠️ Vision analysis failed:', visionError);
+                }
+              }
+            } catch (error) {
+              simpleLogger.warn('⚠️ Web context fetch failed, continuing without it:', error);
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            // Step 2: Build the system prompt with web context
+            // ═══════════════════════════════════════════════════════════
+            const systemPrompt = buildSystemPrompt(request);
+
+            // Use model from request or default to gpt-4o-mini
+            const modelToUse = request.model || 'gpt-4o-mini';
+
+            simpleLogger.info(`🤖 Calling OpenAI API for categorization (model: ${modelToUse})...`);
+
+            // GPT-5 and some other models don't support custom temperature
+            const supportsCustomTemperature = !modelToUse.toLowerCase().startsWith('gpt-5');
+
+            // Build user message with PRIORITY for user text meaning
+            let userMessage = `User's response: "${request.answer}"`;
+
+            // ⚠️ CRITICAL: Check if user text is generic BEFORE adding Vision AI
+            const isGenericText =
+              request.answer.toLowerCase().includes('multiple') ||
+              request.answer.toLowerCase().includes('various') ||
+              request.answer.toLowerCase().includes('more than one') ||
+              request.answerTranslation?.toLowerCase().includes('multiple') ||
+              request.answerTranslation?.toLowerCase().includes('various') ||
+              request.answerTranslation?.toLowerCase().includes('more than one');
+
+            // 🔍 Check for mixed brands in web context (even if not generic text)
+            const hasMixedBrands = webContext.length > 0 && webContext.length >= 3;
+            let mixedBrandsWarning = '';
+            if (hasMixedBrands) {
+              const uniqueDomains = new Set(webContext.map(r => r.url.split('/')[2]).slice(0, 3));
+              if (uniqueDomains.size >= 2) {
+                mixedBrandsWarning = `\n\n⚠️ MIXED BRANDS DETECTED: Web results show ${uniqueDomains.size} different brands. This suggests generic/multiple brand response rather than specific brand.`;
+              }
+            }
+
+            if (isGenericText) {
+              userMessage += `\n\n⚠️ IMPORTANT: User text indicates GENERIC response (multiple brands/various options). IGNORE specific brand detections and choose GENERIC codes instead.`;
+            } else if (mixedBrandsWarning) {
+              userMessage += mixedBrandsWarning;
+            }
+
+            // Add web context summary for better matching
+            if (webContext.length > 0) {
+              userMessage += `\n\n🌐 WEB SEARCH CONTEXT (${webContext.length} results found):`;
+              webContext.forEach((result, idx) => {
+                userMessage += `\n${idx + 1}. ${result.title} - ${result.snippet.substring(0, 100)}...`;
+              });
+            }
+
+            // Add Vision AI context ONLY if not generic text
+            if (visionResult?.brandDetected && !isGenericText) {
+              userMessage += `\n\n🎯 VISION AI DETECTED: "${visionResult.brandName}" (${(visionResult.confidence * 100).toFixed(0)}% confidence)`;
+              userMessage += `\nVision Analysis: ${visionResult.reasoning}`;
+              if (visionResult.objectsDetected?.length > 0) {
+                userMessage += `\nObjects in images: ${visionResult.objectsDetected.join(', ')}`;
+              }
+            } else if (visionResult?.brandDetected && isGenericText) {
+              userMessage += `\n\n🎯 VISION AI DETECTED: "${visionResult.brandName}" (${(visionResult.confidence * 100).toFixed(0)}% confidence) - IGNORED due to generic user text`;
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            // Step 3: Call appropriate AI provider
+            // ═══════════════════════════════════════════════════════════
+
+            let content: string;
+
+            if (provider === 'anthropic') {
+              // Call Claude API
+              content = await callClaudeAPI(modelToUse, systemPrompt, userMessage);
+              simpleLogger.info('📄 Raw Claude response:', content.substring(0, 500));
+            } else if (provider === 'google') {
+              // Call Gemini API
+              content = await callGeminiAPI(modelToUse, systemPrompt, userMessage);
+              simpleLogger.info('📄 Raw Gemini response:', content.substring(0, 500));
+            } else {
+              // Call OpenAI API (default)
+              const requestParams: any = {
+                model: modelToUse,
+                messages: [
+                  {
+                    role: 'system',
+                    content: systemPrompt,
+                  },
+                  {
+                    role: 'user',
+                    content: userMessage,
+                  },
+                ],
+                response_format: { type: 'json_object' }, // Enforce JSON output
+              };
+
+              // Only add temperature if the model supports it
+              if (supportsCustomTemperature) {
+                requestParams.temperature = 0.3; // Low temperature for consistent, focused responses
+              }
+
+              const response = await openai!.chat.completions.create(requestParams);
+              content = response.choices[0].message.content || '';
+
+              if (!content) {
+                throw new Error('Empty response from OpenAI');
+              }
+
+              simpleLogger.info('📄 Raw OpenAI response:', content.substring(0, 500));
+            }
+
+            // Extract JSON from Claude responses (handle markdown + extra text)
+            let cleanContent = content;
+
+            // Try to extract JSON from markdown code blocks
+            const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+            if (jsonMatch) {
+              cleanContent = jsonMatch[1].trim();
+            } else {
+              // Fallback: clean markdown formatting
+              cleanContent = content
+                .replace(/```json\s*/g, '')
+                .replace(/```\s*$/g, '')
+                .trim();
+            }
+
+            let result: CategorizeResponse;
+            try {
+              result = JSON.parse(cleanContent);
+            } catch (parseError) {
+              const errorMessage =
+                parseError instanceof Error ? parseError.message : String(parseError);
+              simpleLogger.error('❌ JSON Parse Error:', {
+                originalContent: content.substring(0, 200),
+                cleanContent: cleanContent.substring(0, 200),
+                error: errorMessage,
+              });
+              throw new Error(`Invalid JSON response from AI: ${errorMessage}`);
+            }
+
+            // Validate response structure
+            if (!result.suggestions || !Array.isArray(result.suggestions)) {
+              simpleLogger.error('❌ Invalid response structure:', JSON.stringify(result, null, 2));
+              simpleLogger.error('Expected format: { suggestions: [...] }');
+              throw new Error('Invalid response format from OpenAI - missing suggestions array');
+            }
+
+            // Validate each suggestion
+            const validatedSuggestions = result.suggestions.map(suggestion => ({
+              code_id: String(suggestion.code_id || 'unknown'),
+              code_name: String(suggestion.code_name || 'Unknown'),
+              confidence: Math.max(0, Math.min(1, Number(suggestion.confidence) || 0)), // Clamp between 0-1
+              reasoning: String(suggestion.reasoning || 'No reasoning provided'),
+            }));
+
+            simpleLogger.info(`✅ OpenAI returned ${validatedSuggestions.length} suggestions`);
+
+            // ═══════════════════════════════════════════════════════════
+            // Step 2.4: FILTER OUT NEGATIVE CONFIDENCE SUGGESTIONS
+            // ═══════════════════════════════════════════════════════════
+            const filteredSuggestions = validatedSuggestions.filter(
+              suggestion => suggestion.confidence > 0
+            );
+
+            if (filteredSuggestions.length !== validatedSuggestions.length) {
+              const hiddenCount = validatedSuggestions.length - filteredSuggestions.length;
+              simpleLogger.info(`🚫 Filtered out ${hiddenCount} suggestions with confidence ≤ 0`);
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            // Step 2.5: Vision AI Fallback - Use Vision AI if no OpenAI suggestions
+            // ═══════════════════════════════════════════════════════════
+            let suggestionsToBoost = filteredSuggestions;
+
+            if (
+              filteredSuggestions.length === 0 &&
+              visionResult?.brandDetected &&
+              visionResult.confidence > 0.7
+            ) {
+              // Vision AI detected a brand but OpenAI didn't match it
+              // Try to find this brand in available codes (fuzzy match)
+              const detectedBrand = visionResult.brandName.toLowerCase();
+              const matchingCode = request.codes.find(
+                code =>
+                  code.name.toLowerCase() === detectedBrand ||
+                  code.name.toLowerCase().includes(detectedBrand) ||
+                  detectedBrand.includes(code.name.toLowerCase())
               );
 
-              console.log('✅ Vision analysis result:', visionResult);
-
-            } catch (visionError) {
-              console.warn('⚠️ Vision analysis failed:', visionError);
+              if (matchingCode) {
+                simpleLogger.info(
+                  `🎯 Vision AI fallback: Using "${matchingCode.name}" from Vision AI (${(visionResult.confidence * 100).toFixed(0)}% confidence)`
+                );
+                suggestionsToBoost = [
+                  {
+                    code_id: matchingCode.id,
+                    code_name: matchingCode.name,
+                    confidence: Math.min(0.95, visionResult.confidence * 0.95), // High confidence for Vision AI matches
+                    reasoning: `Vision AI detected "${visionResult.brandName}" in product images with ${(visionResult.confidence * 100).toFixed(0)}% confidence. ${visionResult.reasoning}`,
+                  },
+                ];
+              }
             }
+
+            // ═══════════════════════════════════════════════════════════
+            // Step 3: Boost confidence with web evidence validation
+            // ═══════════════════════════════════════════════════════════
+            const boostedSuggestions = suggestionsToBoost.map(suggestion => {
+              const evidenceScore = calculateEvidenceScore(
+                suggestion.code_name,
+                webContext,
+                images,
+                visionResult
+              );
+
+              const originalConfidence = suggestion.confidence;
+              const boostedConfidence = Math.min(1.0, suggestion.confidence + evidenceScore.boost);
+
+              // Add evidence details to reasoning
+              let enhancedReasoning = suggestion.reasoning;
+              if (evidenceScore.boost > 0) {
+                enhancedReasoning += `\n\n🔍 Web Evidence (${evidenceScore.details}): Confidence boosted from ${(originalConfidence * 100).toFixed(0)}% to ${(boostedConfidence * 100).toFixed(0)}%`;
+              }
+
+              simpleLogger.info(
+                `📊 Evidence boost for "${suggestion.code_name}": ${(evidenceScore.boost * 100).toFixed(1)}% (${evidenceScore.details})`
+              );
+
+              return {
+                ...suggestion,
+                confidence: boostedConfidence,
+                reasoning: enhancedReasoning,
+              };
+            });
+
+            // Return suggestions with web context, images, and search query
+            const finalResult = {
+              suggestions: boostedSuggestions,
+              webContext: webContext.length > 0 ? webContext : undefined,
+              images: images.length > 0 ? images : undefined,
+              searchQuery: localizedQuery, // Add search phrase used in Google
+              visionResult: visionResult || undefined, // Gemini Vision API analysis
+              categoryName: request.categoryName, // Category name (e.g., "Toothpaste", "Brand")
+            };
+
+            simpleLogger.info('📊 Returning AI result:', {
+              suggestionsCount: finalResult.suggestions.length,
+              webContextCount: finalResult.webContext?.length || 0,
+              imagesCount: finalResult.images?.length || 0,
+              searchQuery: finalResult.searchQuery,
+            });
+
+            return finalResult;
+          } catch (error: any) {
+            // Enhanced error handling for common OpenAI errors
+            simpleLogger.error('❌ OpenAI API error:', error);
+
+            // Rate limit error (429)
+            if (error.status === 429) {
+              const errorMessage = 'Rate limit reached. Please wait a moment and try again.';
+              simpleLogger.error(`🚫 ${errorMessage}`);
+              throw new Error(errorMessage);
+            }
+
+            // Authentication error (401)
+            if (error.status === 401) {
+              const errorMessage =
+                'OpenAI API key is invalid. Please check your API key in Settings page.';
+              simpleLogger.error(`🔑 ${errorMessage}`);
+              throw new Error(errorMessage);
+            }
+
+            // Insufficient quota (403)
+            if (error.status === 403) {
+              const errorMessage = 'OpenAI account has insufficient quota. Please add credits.';
+              simpleLogger.error(`💳 ${errorMessage}`);
+              throw new Error(errorMessage);
+            }
+
+            // Bad request (400)
+            if (error.status === 400) {
+              const errorMessage = `Invalid request to OpenAI: ${error.message || 'Unknown error'}`;
+              simpleLogger.error(`⚠️ ${errorMessage}`);
+              throw new Error(errorMessage);
+            }
+
+            // Server error (500+)
+            if (error.status >= 500) {
+              const errorMessage =
+                'OpenAI service is temporarily unavailable. Please try again later.';
+              simpleLogger.error(`🔥 ${errorMessage}`);
+              throw new Error(errorMessage);
+            }
+
+            // Network or other errors
+            if (error.message?.includes('fetch')) {
+              const errorMessage = 'Network error. Please check your internet connection.';
+              simpleLogger.error(`📡 ${errorMessage}`);
+              throw new Error(errorMessage);
+            }
+
+            // Generic error
+            throw error;
           }
-
-        } catch (error) {
-          console.warn('⚠️ Web context fetch failed, continuing without it:', error);
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // Step 2: Build the system prompt with web context
-        // ═══════════════════════════════════════════════════════════
-        const systemPrompt = buildSystemPrompt(request);
-
-        // Use model from request or default to gpt-4o-mini
-        const modelToUse = request.model || 'gpt-4o-mini';
-
-        console.log(`🤖 Calling OpenAI API for categorization (model: ${modelToUse})...`);
-
-        // GPT-5 and some other models don't support custom temperature
-        const supportsCustomTemperature = !modelToUse.toLowerCase().startsWith('gpt-5');
-
-        // Build user message with Vision AI context and web context
-        let userMessage = `User's response: "${request.answer}"`;
-
-        if (visionResult?.brandDetected) {
-          userMessage += `\n\n🎯 VISION AI DETECTED: "${visionResult.brandName}" (${(visionResult.confidence * 100).toFixed(0)}% confidence)`;
-          userMessage += `\nVision Analysis: ${visionResult.reasoning}`;
-          if (visionResult.objectsDetected?.length > 0) {
-            userMessage += `\nObjects in images: ${visionResult.objectsDetected.join(', ')}`;
-          }
-        }
-
-        // Add web context summary for better matching
-        if (webContext.length > 0) {
-          userMessage += `\n\n🌐 WEB SEARCH CONTEXT (${webContext.length} results found):`;
-          webContext.forEach((result, idx) => {
-            userMessage += `\n${idx + 1}. ${result.title} - ${result.snippet.substring(0, 100)}...`;
-          });
-        }
-
-        // Build request parameters
-        const requestParams: any = {
-          model: modelToUse,
-          messages: [
-            {
-              role: 'system',
-              content: systemPrompt,
-            },
-            {
-              role: 'user',
-              content: userMessage,
-            },
-          ],
-          response_format: { type: 'json_object' }, // Enforce JSON output
-        };
-
-        // Only add temperature if the model supports it
-        if (supportsCustomTemperature) {
-          requestParams.temperature = 0.3; // Low temperature for consistent, focused responses
-        }
-
-        // Call OpenAI API
-        const response = await openai.chat.completions.create(requestParams);
-
-        // Parse the JSON response
-        const content = response.choices[0].message.content;
-        if (!content) {
-          throw new Error('Empty response from OpenAI');
-        }
-
-        console.log('📄 Raw OpenAI response:', content.substring(0, 500));
-
-        const result: CategorizeResponse = JSON.parse(content);
-
-        // Validate response structure
-        if (!result.suggestions || !Array.isArray(result.suggestions)) {
-          console.error('❌ Invalid response structure:', JSON.stringify(result, null, 2));
-          console.error('Expected format: { suggestions: [...] }');
-          throw new Error('Invalid response format from OpenAI - missing suggestions array');
-        }
-
-        // Validate each suggestion
-        const validatedSuggestions = result.suggestions.map(suggestion => ({
-          code_id: String(suggestion.code_id || 'unknown'),
-          code_name: String(suggestion.code_name || 'Unknown'),
-          confidence: Math.max(0, Math.min(1, Number(suggestion.confidence) || 0)), // Clamp between 0-1
-          reasoning: String(suggestion.reasoning || 'No reasoning provided'),
-        }));
-
-        console.log(`✅ OpenAI returned ${validatedSuggestions.length} suggestions`);
-
-        // ═══════════════════════════════════════════════════════════
-        // Step 2.5: Vision AI Fallback - Use Vision AI if no OpenAI suggestions
-        // ═══════════════════════════════════════════════════════════
-        let suggestionsToBoost = validatedSuggestions;
-
-        if (validatedSuggestions.length === 0 && visionResult?.brandDetected && visionResult.confidence > 0.7) {
-          // Vision AI detected a brand but OpenAI didn't match it
-          // Try to find this brand in available codes (fuzzy match)
-          const detectedBrand = visionResult.brandName.toLowerCase();
-          const matchingCode = request.codes.find(code =>
-            code.name.toLowerCase() === detectedBrand ||
-            code.name.toLowerCase().includes(detectedBrand) ||
-            detectedBrand.includes(code.name.toLowerCase())
-          );
-
-          if (matchingCode) {
-            console.log(`🎯 Vision AI fallback: Using "${matchingCode.name}" from Vision AI (${(visionResult.confidence * 100).toFixed(0)}% confidence)`);
-            suggestionsToBoost = [{
-              code_id: matchingCode.id,
-              code_name: matchingCode.name,
-              confidence: Math.min(0.95, visionResult.confidence * 0.95), // High confidence for Vision AI matches
-              reasoning: `Vision AI detected "${visionResult.brandName}" in product images with ${(visionResult.confidence * 100).toFixed(0)}% confidence. ${visionResult.reasoning}`,
-            }];
-          }
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // Step 3: Boost confidence with web evidence validation
-        // ═══════════════════════════════════════════════════════════
-        const boostedSuggestions = suggestionsToBoost.map(suggestion => {
-          const evidenceScore = calculateEvidenceScore(
-            suggestion.code_name,
-            webContext,
-            images,
-            visionResult
-          );
-
-          const originalConfidence = suggestion.confidence;
-          const boostedConfidence = Math.min(1.0, suggestion.confidence + evidenceScore.boost);
-
-          // Add evidence details to reasoning
-          let enhancedReasoning = suggestion.reasoning;
-          if (evidenceScore.boost > 0) {
-            enhancedReasoning += `\n\n🔍 Web Evidence (${evidenceScore.details}): Confidence boosted from ${(originalConfidence * 100).toFixed(0)}% to ${(boostedConfidence * 100).toFixed(0)}%`;
-          }
-
-          console.log(`📊 Evidence boost for "${suggestion.code_name}": ${(evidenceScore.boost * 100).toFixed(1)}% (${evidenceScore.details})`);
-
-          return {
-            ...suggestion,
-            confidence: boostedConfidence,
-            reasoning: enhancedReasoning,
-          };
-        });
-
-        // Return suggestions with web context, images, and search query
-        const finalResult = {
-          suggestions: boostedSuggestions,
-          webContext: webContext.length > 0 ? webContext : undefined,
-          images: images.length > 0 ? images : undefined,
-          searchQuery: localizedQuery, // Add search phrase used in Google
-          visionResult: visionResult || undefined, // Gemini Vision API analysis
-          categoryName: request.categoryName, // Category name (e.g., "Toothpaste", "Brand")
-        };
-
-        console.log('📊 Returning AI result:', {
-          suggestionsCount: finalResult.suggestions.length,
-          webContextCount: finalResult.webContext?.length || 0,
-          imagesCount: finalResult.images?.length || 0,
-          searchQuery: finalResult.searchQuery,
-        });
-
-        return finalResult;
-
-      } catch (error: any) {
-        // Enhanced error handling for common OpenAI errors
-        console.error('❌ OpenAI API error:', error);
-
-        // Rate limit error (429)
-        if (error.status === 429) {
-          const errorMessage = 'Rate limit reached. Please wait a moment and try again.';
-          console.error(`🚫 ${errorMessage}`);
-          throw new Error(errorMessage);
-        }
-
-        // Authentication error (401)
-        if (error.status === 401) {
-          const errorMessage = 'OpenAI API key is invalid. Please check your API key in Settings page.';
-          console.error(`🔑 ${errorMessage}`);
-          throw new Error(errorMessage);
-        }
-
-        // Insufficient quota (403)
-        if (error.status === 403) {
-          const errorMessage = 'OpenAI account has insufficient quota. Please add credits.';
-          console.error(`💳 ${errorMessage}`);
-          throw new Error(errorMessage);
-        }
-
-        // Bad request (400)
-        if (error.status === 400) {
-          const errorMessage = `Invalid request to OpenAI: ${error.message || 'Unknown error'}`;
-          console.error(`⚠️ ${errorMessage}`);
-          throw new Error(errorMessage);
-        }
-
-        // Server error (500+)
-        if (error.status >= 500) {
-          const errorMessage = 'OpenAI service is temporarily unavailable. Please try again later.';
-          console.error(`🔥 ${errorMessage}`);
-          throw new Error(errorMessage);
-        }
-
-        // Network or other errors
-        if (error.message?.includes('fetch')) {
-          const errorMessage = 'Network error. Please check your internet connection.';
-          console.error(`📡 ${errorMessage}`);
-          throw new Error(errorMessage);
-        }
-
-        // Generic error
-        throw error;
-      }
-    }, 3, 1000) // Retry up to 3 times with exponential backoff starting at 1s
+        },
+        3,
+        1000
+      ) // Retry up to 3 times with exponential backoff starting at 1s
   );
 }
 
@@ -417,6 +548,8 @@ function calculateEvidenceScore(
     let hasOfficialSite = false;
     let hasRetailSite = false;
     let brandMentions = 0;
+    let brandConsistency = 0;
+    const totalResults = webContext.length;
 
     for (const result of webContext) {
       const url = result.url.toLowerCase();
@@ -426,6 +559,7 @@ function calculateEvidenceScore(
       // Check if brand name appears in URL (strong evidence)
       if (url.includes(normalizedBrand)) {
         brandMentions++;
+        brandConsistency++;
 
         // Check for official website (domain matches brand)
         if (url.includes(`.${normalizedBrand}.com`) || url.includes(`//${normalizedBrand}.`)) {
@@ -436,10 +570,19 @@ function calculateEvidenceScore(
       // Check if brand appears in title or snippet
       if (title.includes(normalizedBrand) || snippet.includes(normalizedBrand)) {
         brandMentions++;
+        brandConsistency++;
       }
 
       // Check for e-commerce/retail sites
-      const retailDomains = ['amazon', 'walmart', 'target', 'ebay', 'shopify', 'carrefour', 'allegro'];
+      const retailDomains = [
+        'amazon',
+        'walmart',
+        'target',
+        'ebay',
+        'shopify',
+        'carrefour',
+        'allegro',
+      ];
       if (retailDomains.some(domain => url.includes(domain))) {
         hasRetailSite = true;
       }
@@ -447,7 +590,7 @@ function calculateEvidenceScore(
 
     // Calculate boost from web results
     if (hasOfficialSite) {
-      boost += 0.10; // +10% for official website
+      boost += 0.1; // +10% for official website
       evidenceItems.push('official site');
     }
 
@@ -460,13 +603,38 @@ function calculateEvidenceScore(
       boost += 0.03; // +3% for multiple mentions
       evidenceItems.push(`${brandMentions} mentions`);
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // Brand Consistency Check (AGGRESSIVE - penalize mixed results)
+    // ═══════════════════════════════════════════════════════════
+    const consistencyRatio = brandConsistency / totalResults;
+
+    if (consistencyRatio >= 0.8) {
+      // High consistency - most/all results about the same brand
+      boost += 0.15; // +15% for high brand consistency
+      evidenceItems.push('high brand consistency across results');
+    } else if (consistencyRatio >= 0.6) {
+      // Medium-high consistency - majority results about the brand
+      boost -= 0.1; // -10% for mixed brand results (penalty for 60-80%)
+      evidenceItems.push('medium brand consistency - reduced confidence');
+    } else if (consistencyRatio >= 0.4) {
+      // Medium-low consistency - mixed results (like current case)
+      boost -= 0.1; // -10% for mixed brand results
+      evidenceItems.push('mixed brand results - reduced confidence');
+    } else {
+      // Low consistency - different brands dominate
+      boost -= 0.2; // -20% for low brand consistency
+      evidenceItems.push('multiple different brands dominate results');
+    }
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 2. Check Image Search Results
+  // 2. Check Image Search Results with BRAND CONSISTENCY
   // ═══════════════════════════════════════════════════════════
   if (images.length > 0) {
     let productImagesFound = 0;
+    let brandConsistencyImages = 0;
+    const totalImages = images.length;
 
     for (const image of images) {
       const imageUrl = image.link.toLowerCase();
@@ -475,15 +643,39 @@ function calculateEvidenceScore(
       // Check if brand name appears in image URL or title
       if (imageUrl.includes(normalizedBrand) || imageTitle.includes(normalizedBrand)) {
         productImagesFound++;
+        brandConsistencyImages++;
       }
     }
 
-    // Boost confidence based on number of product images
+    // ═══════════════════════════════════════════════════════════
+    // Image Brand Consistency Analysis (same logic as Web Context)
+    // ═══════════════════════════════════════════════════════════
+    const imageConsistencyRatio = brandConsistencyImages / totalImages;
+
+    if (imageConsistencyRatio >= 0.8) {
+      // High consistency - most/all images about the same brand
+      boost += 0.15; // +15% for high image brand consistency
+      evidenceItems.push('high image brand consistency');
+    } else if (imageConsistencyRatio >= 0.6) {
+      // Medium-high consistency - majority images about the brand
+      boost -= 0.1; // -10% for mixed brand images (penalty for 60-80%)
+      evidenceItems.push('medium image brand consistency - reduced confidence');
+    } else if (imageConsistencyRatio >= 0.4) {
+      // Medium-low consistency - mixed brand images (like current case)
+      boost -= 0.1; // -10% for mixed brand images
+      evidenceItems.push('mixed brand images - reduced confidence');
+    } else if (imageConsistencyRatio < 0.4) {
+      // Low consistency - different brands dominate images
+      boost -= 0.2; // -20% for low image brand consistency
+      evidenceItems.push('multiple different brands in images');
+    }
+
+    // Traditional boost for product images (reduced impact)
     if (productImagesFound >= 4) {
-      boost += 0.10; // +10% for many product images
+      boost += 0.05; // +5% for many product images (reduced from +10%)
       evidenceItems.push('many product images');
     } else if (productImagesFound >= 2) {
-      boost += 0.05; // +5% for some product images
+      boost += 0.02; // +2% for some product images (reduced from +5%)
       evidenceItems.push('product images');
     }
   }
@@ -492,7 +684,7 @@ function calculateEvidenceScore(
   // 3. Penalty for lack of evidence
   // ═══════════════════════════════════════════════════════════
   if (webContext.length === 0 && images.length === 0) {
-    boost = -0.10; // -10% if no web evidence at all
+    boost = -0.1; // -10% if no web evidence at all
     evidenceItems.push('no web evidence found');
   } else if (webContext.length === 0) {
     boost -= 0.05; // -5% if no search results
@@ -502,28 +694,75 @@ function calculateEvidenceScore(
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 4. Vision AI Analysis (Gemini) 👁️
+  // 4. Vision AI Analysis (Gemini) with BRAND CONSISTENCY 👁️
   // ═══════════════════════════════════════════════════════════
   if (visionResult) {
     const visionBrandMatch = visionResult.brandName.toLowerCase() === brandName.toLowerCase();
 
     if (visionResult.brandDetected && visionBrandMatch) {
-      // Vision AI detected the correct brand!
-      if (visionResult.confidence >= 0.8) {
-        boost += 0.15; // +15% for high confidence vision match
-        evidenceItems.push('strong visual confirmation');
-      } else if (visionResult.confidence >= 0.6) {
-        boost += 0.10; // +10% for medium confidence
-        evidenceItems.push('visual match detected');
-      } else if (visionResult.confidence >= 0.4) {
-        boost += 0.05; // +5% for weak match
-        evidenceItems.push('possible visual match');
+      // ✅ FIRST: Check for mixed brands BEFORE adding any boost
+      let hasMixedBrands = false;
+      const detectedBrands = new Set();
+
+      if (visionResult.objectsDetected && visionResult.objectsDetected.length > 0) {
+        visionResult.objectsDetected.forEach((obj: string) => {
+          const objLower = obj.toLowerCase();
+          if (objLower.includes('sensodyne')) detectedBrands.add('sensodyne');
+          if (objLower.includes('oral-b') || objLower.includes('oralb'))
+            detectedBrands.add('oral-b');
+          if (objLower.includes('parodontax')) detectedBrands.add('parodontax');
+          if (objLower.includes('crest')) detectedBrands.add('crest');
+          if (objLower.includes('colgate')) detectedBrands.add('colgate');
+          if (objLower.includes('burts') || objLower.includes("burt's"))
+            detectedBrands.add('burts');
+        });
+
+        if (detectedBrands.size > 1) {
+          hasMixedBrands = true;
+        }
       }
 
-      // Bonus for multiple objects detected
-      if (visionResult.objectsDetected && visionResult.objectsDetected.length >= 3) {
-        boost += 0.03; // +3% for detailed visual analysis
-        evidenceItems.push('multiple elements');
+      // ✅ If mixed brands detected - IGNORE Vision AI completely
+      if (hasMixedBrands) {
+        boost -= 0.15; // -15% penalty for mixed brands in Vision AI
+        evidenceItems.push(
+          `vision AI ignored due to ${detectedBrands.size} different brands detected (mixed results)`
+        );
+      } else {
+        // ✅ Calculate Vision AI consistency threshold
+        const totalObjects = visionResult.objectsDetected?.length || 0;
+        const brandObjects =
+          visionResult.objectsDetected?.filter((obj: string) =>
+            obj.toLowerCase().includes(brandName.toLowerCase())
+          ).length || 0;
+
+        const consistencyRatio = totalObjects > 0 ? brandObjects / totalObjects : 0;
+
+        // ✅ Only if Vision AI is consistent (80%+ same brand) - add boost
+        if (consistencyRatio >= 0.8) {
+          if (visionResult.confidence >= 0.8) {
+            boost += 0.15; // +15% for high confidence vision match
+            evidenceItems.push('strong visual confirmation');
+          } else if (visionResult.confidence >= 0.6) {
+            boost += 0.1; // +10% for medium confidence
+            evidenceItems.push('visual match detected');
+          } else if (visionResult.confidence >= 0.4) {
+            boost += 0.05; // +5% for weak match
+            evidenceItems.push('possible visual match');
+          }
+
+          // Bonus for multiple objects detected (only if consistent)
+          if (visionResult.objectsDetected && visionResult.objectsDetected.length >= 3) {
+            boost += 0.03; // +3% for detailed visual analysis
+            evidenceItems.push('multiple elements');
+          }
+        } else {
+          // ✅ Low consistency - ignore Vision AI
+          boost -= 0.1; // -10% penalty for low consistency
+          evidenceItems.push(
+            `vision AI ignored - low consistency (${Math.round(consistencyRatio * 100)}% same brand)`
+          );
+        }
       }
     } else if (visionResult.brandDetected && !visionBrandMatch) {
       // Vision detected different brand - penalty
@@ -551,7 +790,7 @@ export async function batchCategorizeAnswers(
   requests: CategorizeRequest[]
 ): Promise<AiSuggestions[]> {
   const results = await Promise.all(
-    requests.map(async (request) => {
+    requests.map(async request => {
       try {
         const result = await categorizeAnswer(request);
 
@@ -566,7 +805,7 @@ export async function batchCategorizeAnswers(
 
         return aiSuggestions;
       } catch (error) {
-        console.error(`Failed to categorize answer: ${request.answer}`, error);
+        simpleLogger.error(`Failed to categorize answer: ${request.answer}`, error);
         // Return empty suggestions on error
         return {
           suggestions: [],
@@ -591,17 +830,19 @@ function buildSystemPrompt(request: CategorizeRequest): string {
   if (request.customTemplate) {
     // Use custom template from category
     prompt = request.customTemplate;
-    console.log(`📝 Using custom template from category`);
+    simpleLogger.info(`📝 Using custom template from category`);
   } else {
     // Use preset template from DefaultTemplates
     const presetTemplate = getTemplate(request.presetName as TemplatePreset);
     if (presetTemplate) {
       prompt = presetTemplate;
-      console.log(`📝 Using preset template: "${request.presetName}"`);
+      simpleLogger.info(`📝 Using preset template: "${request.presetName}"`);
     } else {
       // Fallback to default if preset not found
       prompt = DEFAULT_CATEGORIZATION_TEMPLATE;
-      console.warn(`⚠️ Preset "${request.presetName}" not found, using DEFAULT_CATEGORIZATION_TEMPLATE`);
+      simpleLogger.warn(
+        `⚠️ Preset "${request.presetName}" not found, using DEFAULT_CATEGORIZATION_TEMPLATE`
+      );
     }
   }
 
@@ -728,12 +969,162 @@ Additional context:
 You will receive:
 1. The ORIGINAL answer in the user's language
 2. An ENGLISH TRANSLATION (if available)
+3. VISION AI ANALYSIS (if available) - This shows what brands/objects were detected in images
+4. WEB SEARCH CONTEXT (if available) - This shows relevant search results
+
+CRITICAL INSTRUCTIONS:
+- ALWAYS prioritize the MEANING of the user's text over Vision AI results
+- If user says "multiple brands" or "various brands" → choose generic codes, NOT specific brands
+- If user says "more than one brand" → this is NOT a specific brand name
+- Vision AI is only helpful when user mentions a SPECIFIC brand name
+- If user text is generic (like "multiple brands"), ignore Vision AI brand detection
+- Only use Vision AI when user explicitly mentions a brand or when text is unclear
+- If user says "اكثر من ماركة" (more than one brand) → this is NOT "Sensodyne"
 
 Use BOTH versions to make the best categorization decision. The original may contain brand names in local spelling, while the translation provides context. When both languages confirm the same brand or category, use higher confidence scores.`;
 
 /**
  * Validate OpenAI API key is configured in Settings
  */
+/**
+ * Map friendly model names to actual Anthropic API model IDs
+ * ALL Anthropic models use HYPHENS everywhere (no dots!)
+ * Example: claude-3-5-haiku-20241022 (NOT claude-3.5-haiku)
+ */
+function getAnthropicModelId(friendlyName: string): string {
+  const modelMap: Record<string, string> = {
+    // Haiku models
+    'claude-haiku-4.5': 'claude-haiku-4-5', // ✅ Latest (Oct 15, 2025)
+    'claude-haiku-4-5': 'claude-haiku-4-5',
+    'claude-3-5-haiku': 'claude-3-5-haiku-20241022',
+    'claude-3-haiku': 'claude-3-haiku-20240307',
+
+    // Sonnet models
+    'claude-sonnet-4.5': 'claude-sonnet-4-5',
+    'claude-sonnet-4-5': 'claude-sonnet-4-5',
+    'claude-3-5-sonnet': 'claude-3-5-sonnet-20241022',
+    'claude-sonnet-4': 'claude-sonnet-4-20241022',
+    'claude-3-sonnet': 'claude-3-sonnet-20240229',
+
+    // Opus models
+    'claude-opus-4.1': 'claude-opus-4-1',
+    'claude-opus-4-1': 'claude-opus-4-1',
+    'claude-opus-4': 'claude-opus-4-20250522',
+    'claude-3-opus': 'claude-3-opus-20240229',
+  };
+
+  return modelMap[friendlyName] || friendlyName;
+}
+
+/**
+ * Call Anthropic Claude API via backend proxy (bypasses CORS)
+ */
+async function callClaudeAPI(
+  model: string,
+  systemPrompt: string,
+  userMessage: string
+): Promise<string> {
+  const apiKey = getAnthropicAPIKey();
+
+  if (!apiKey) {
+    throw new Error('Anthropic API key not configured. Please add it in Settings page.');
+  }
+
+  // Map friendly name to actual API model ID
+  const actualModelId = getAnthropicModelId(model);
+
+  simpleLogger.info(`🤖 Calling Anthropic API via proxy (model: ${model} → ${actualModelId})...`);
+
+  // Call backend proxy instead of direct API
+  const response = await fetch('http://localhost:3020/api/ai-proxy/claude', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: actualModelId, // ✅ Use mapped model ID (claude-haiku-4.5 → claude-haiku-4-5)
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }],
+      temperature: 0.3,
+      max_tokens: 4096,
+      apiKey, // Send API key to backend proxy
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    simpleLogger.error(
+      `❌ Anthropic API error: ${response.status} ${response.statusText}`,
+      errorText
+    );
+    throw new Error(`Anthropic API error: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data?.content?.[0]?.text;
+
+  if (!content) {
+    throw new Error('Empty response from Anthropic API');
+  }
+
+  return content;
+}
+
+/**
+ * Call Google Gemini API via backend proxy (bypasses CORS)
+ */
+async function callGeminiAPI(
+  model: string,
+  systemPrompt: string,
+  userMessage: string
+): Promise<string> {
+  const apiKey = getGoogleGeminiAPIKey();
+
+  if (!apiKey) {
+    throw new Error('Google Gemini API key not configured. Please add it in Settings page.');
+  }
+
+  simpleLogger.info(`🤖 Calling Google Gemini API via proxy (model: ${model})...`);
+
+  // Call backend proxy instead of direct API
+  const response = await fetch('http://localhost:3020/api/ai-proxy/gemini', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model, // Gemini models don't need mapping (they use different naming)
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: `${systemPrompt}\n\n${userMessage}` }],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 4096,
+        responseMimeType: 'application/json',
+      },
+      apiKey, // Send API key to backend proxy
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    simpleLogger.error(`❌ Gemini API error: ${response.status} ${response.statusText}`, errorText);
+    throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!content) {
+    throw new Error('Empty response from Gemini API');
+  }
+
+  return content;
+}
+
 export function validateOpenAIConfig(): boolean {
   const apiKey = getOpenAIAPIKey();
   return !!apiKey && apiKey.trim().length > 0;

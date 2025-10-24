@@ -1,5 +1,5 @@
 import { memo } from 'react';
-// @ts-ignore - react-window types may not be perfect
+// @ts-expect-error - react-window types may not be perfect
 import clsx from 'clsx';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { FixedSizeList } from 'react-window';

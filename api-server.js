@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { randomUUID } from 'crypto';
 import 'dotenv/config';
+import ExcelJS from 'exceljs';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import fs from 'fs';
@@ -11,14 +12,13 @@ import multer from 'multer';
 import OpenAI from 'openai';
 import Papa from 'papaparse';
 import path from 'path';
-import ExcelJS from 'exceljs';
 import { z } from 'zod';
-import pricingFetcher from './server/pricing/pricingFetcher.js';
 import codeframeRoutes from './routes/codeframe.js';
+import codesRoutes from './routes/codes.js';
 import costDashboardRoutes from './routes/costDashboard.js';
 import sentimentRoutes from './routes/sentiment.js';
-import codesRoutes from './routes/codes.js';
 import testImageSearchRoutes from './routes/test-image-search.js';
+import pricingFetcher from './server/pricing/pricingFetcher.js';
 
 const app = express();
 const port = 3020;
@@ -26,15 +26,27 @@ const isProd = process.env.NODE_ENV === 'production';
 
 // Structured logger (JSON) and request id middleware
 const log = {
-  info: (msg, meta) => console.log(JSON.stringify({ level: 'info', time: new Date().toISOString(), msg, ...meta })),
-  warn: (msg, meta) => console.warn(JSON.stringify({ level: 'warn', time: new Date().toISOString(), msg, ...meta })),
+  info: (msg, meta) =>
+    console.log(JSON.stringify({ level: 'info', time: new Date().toISOString(), msg, ...meta })),
+  warn: (msg, meta) =>
+    console.warn(JSON.stringify({ level: 'warn', time: new Date().toISOString(), msg, ...meta })),
   error: (msg, meta, err) => {
-    const safeErr = err ? {
-      name: err.name,
-      message: err.message,
-      stack: isProd ? undefined : err.stack?.split('\n').slice(0, 2).join('\n'),
-    } : undefined;
-    console.error(JSON.stringify({ level: 'error', time: new Date().toISOString(), msg, ...meta, error: safeErr }));
+    const safeErr = err
+      ? {
+          name: err.name,
+          message: err.message,
+          stack: isProd ? undefined : err.stack?.split('\n').slice(0, 2).join('\n'),
+        }
+      : undefined;
+    console.error(
+      JSON.stringify({
+        level: 'error',
+        time: new Date().toISOString(),
+        msg,
+        ...meta,
+        error: safeErr,
+      })
+    );
   },
 };
 
@@ -45,11 +57,16 @@ function pushLog(entry) {
   ringLogs.push(entry);
   if (ringLogs.length > MAX_LOGS) ringLogs.shift();
 }
-['log','info','warn','error'].forEach((m) => {
-  const orig = console[m] instanceof Function ? console[m].bind(console) : console.log.bind(console);
+['log', 'info', 'warn', 'error'].forEach(m => {
+  const orig =
+    console[m] instanceof Function ? console[m].bind(console) : console.log.bind(console);
   console[m] = (...args) => {
     try {
-      pushLog({ level: m === 'log' ? 'info' : m, time: new Date().toISOString(), text: args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ') });
+      pushLog({
+        level: m === 'log' ? 'info' : m,
+        time: new Date().toISOString(),
+        text: args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '),
+      });
     } catch (_) {}
     return orig(...args);
   };
@@ -74,7 +91,7 @@ const upload = multer({
     const allowedMime = [
       'text/csv',
       'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     ];
     const ext = path.extname(file.originalname).toLowerCase();
     if (strictUpload) {
@@ -87,7 +104,7 @@ const upload = multer({
       return cb(new Error('Invalid file type. Only CSV and Excel files are allowed.'));
     }
     cb(null, true);
-  }
+  },
 });
 
 // ✅ SECURITY: Walidacja magic bytes (zawartości pliku, nie tylko rozszerzenia)
@@ -99,7 +116,7 @@ async function validateFileContent(filePath) {
     const allowedMimeTypes = [
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/zip' // .xlsx to ZIP z XML
+      'application/zip', // .xlsx to ZIP z XML
     ];
 
     // CSV nie ma magic bytes, więc jeśli fileType jest null, sprawdzamy rozszerzenie
@@ -125,24 +142,32 @@ async function validateFileContent(filePath) {
 // Middleware
 // Security headers (ENABLE_CSP or auto-on in production)
 const enableCsp = process.env.ENABLE_CSP === 'true' || isProd;
-app.use(helmet({
-  contentSecurityPolicy: enableCsp ? {
-    useDefaults: true,
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:'],
-      connectSrc: ["'self'", `http://localhost:${port}`],
-      objectSrc: ["'none'"],
-      baseUri: ["'self'"],
-      frameAncestors: ["'none'"],
-    }
-  } : false
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy: enableCsp
+      ? {
+          useDefaults: true,
+          directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", 'data:'],
+            connectSrc: ["'self'", `http://localhost:${port}`],
+            objectSrc: ["'none'"],
+            baseUri: ["'self'"],
+            frameAncestors: ["'none'"],
+          },
+        }
+      : false,
+  })
+);
 
 // CORS - in prod require explicit list (fail-fast if missing)
-const corsOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean) : undefined;
+const corsOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+  : undefined;
 if (isProd && (!corsOrigins || corsOrigins.length === 0)) {
   throw new Error('CORS_ORIGINS must be set in production');
 }
@@ -155,9 +180,14 @@ if (process.env.JSON_LIMIT) {
   app.use(express.json());
 }
 
-// ✅ SECURITY: CSRF protection - TEMPORARILY DISABLED FOR TESTING
-console.log('DEBUG CSRF:', { isProd, ENABLE_CSRF: process.env.ENABLE_CSRF, result: isProd || process.env.ENABLE_CSRF !== 'false' });
-if (false) { // Temporarily disabled for testing
+// ✅ SECURITY: CSRF protection
+const enableCsrf = isProd || process.env.ENABLE_CSRF !== 'false';
+log.info('CSRF protection status', {
+  enabled: enableCsrf,
+  isProd,
+  envVar: process.env.ENABLE_CSRF,
+});
+if (enableCsrf) {
   app.use(cookieParser());
   try {
     const { doubleCsrf } = await import('csrf-csrf');
@@ -168,10 +198,10 @@ if (false) { // Temporarily disabled for testing
         httpOnly: true,
         sameSite: isProd ? 'strict' : 'lax',
         secure: isProd,
-        path: '/'
+        path: '/',
       },
       size: 64,
-      ignoredMethods: ['GET', 'HEAD', 'OPTIONS']
+      ignoredMethods: ['GET', 'HEAD', 'OPTIONS'],
     });
     app.use(doubleCsrfProtection);
     log.info('✅ CSRF protection enabled');
@@ -190,7 +220,7 @@ const globalLimiter = rateLimit({
   max: isProd ? 100 : 300, // Bardziej restrykcyjne w produkcji
   standardHeaders: true,
   legacyHeaders: false,
-  message: 'Too many requests. Please try again later.'
+  message: 'Too many requests. Please try again later.',
 });
 app.use(globalLimiter);
 log.info(`✅ Rate limiting enabled: ${isProd ? 100 : 300} req/min`);
@@ -199,13 +229,13 @@ log.info(`✅ Rate limiting enabled: ${isProd ? 100 : 300} req/min`);
 const uploadRateLimitMiddleware = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minut
   max: 20,
-  message: 'Upload rate limit exceeded. Please wait before uploading again.'
+  message: 'Upload rate limit exceeded. Please wait before uploading again.',
 });
 
 const aiRateLimitMiddleware = rateLimit({
   windowMs: 60 * 1000, // 1 minuta
   max: 10, // Tylko 10 AI requestów na minutę
-  message: 'AI rate limit exceeded. Please wait before trying again.'
+  message: 'AI rate limit exceeded. Please wait before trying again.',
 });
 
 // Optional API auth - gated
@@ -219,19 +249,17 @@ function authenticate(req, res, next) {
   req.user = { id: 'service-user' };
   next();
 }
-// ✅ SECURITY: ZAWSZE wymuszaj autentykację w produkcji
-if (isProd) {
+// ✅ SECURITY: API authentication
+const enableApiAuth = isProd || process.env.ENABLE_API_AUTH === 'true';
+if (enableApiAuth) {
   app.use('/api', authenticate);
-  log.info('🔒 API authentication REQUIRED (production mode)');
-} else {
-  // TEMPORARILY DISABLED FOR TESTING
-  console.log('DEBUG API_AUTH:', { isProd, ENABLE_API_AUTH: process.env.ENABLE_API_AUTH });
-  if (false) { // Temporarily disabled for testing
-    app.use('/api', authenticate);
-    log.warn('🔓 API authentication enabled (development mode)');
+  if (isProd) {
+    log.info('🔒 API authentication REQUIRED (production mode)');
   } else {
-    log.warn('⚠️  API authentication DISABLED (development only!)');
+    log.info('🔓 API authentication enabled (development mode)');
   }
+} else {
+  log.warn('⚠️  API authentication DISABLED (development only!)');
 }
 
 // ✅ SECURITY: Debug logs endpoint TYLKO w development
@@ -254,6 +282,146 @@ const supabase = createClient(
   process.env.VITE_SUPABASE_ANON_KEY || ''
 );
 
+// ═══════════════════════════════════════════════════════════
+// Multi-Provider AI Proxy Endpoints
+// ═══════════════════════════════════════════════════════════
+
+// Claude API Proxy (bypasses CORS)
+app.post('/api/ai-proxy/claude', aiRateLimitMiddleware, async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    const { model, system, messages, temperature, max_tokens, apiKey } = req.body;
+
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key required' });
+    }
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Messages array required' });
+    }
+
+    log.info('[Claude Proxy] Request', {
+      id: req.requestId,
+      model,
+      messageCount: messages.length,
+    });
+
+    // Call Anthropic API
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        system,
+        messages,
+        temperature: temperature || 0.3,
+        max_tokens: max_tokens || 4096,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      log.error('[Claude Proxy] API Error', {
+        id: req.requestId,
+        status: response.status,
+        error: errorText,
+      });
+      return res.status(response.status).json({
+        error: `Claude API error: ${response.status} ${response.statusText}`,
+        details: errorText,
+      });
+    }
+
+    const data = await response.json();
+    const elapsed = Date.now() - startTime;
+
+    log.info('[Claude Proxy] Success', {
+      id: req.requestId,
+      timeMs: elapsed,
+    });
+
+    res.status(200).json(data);
+  } catch (error) {
+    const elapsed = Date.now() - startTime;
+    log.error('[Claude Proxy] Failed', { id: req.requestId, timeMs: elapsed }, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Gemini API Proxy (bypasses CORS)
+app.post('/api/ai-proxy/gemini', aiRateLimitMiddleware, async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    const { model, contents, generationConfig, apiKey } = req.body;
+
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key required' });
+    }
+
+    if (!contents || !Array.isArray(contents)) {
+      return res.status(400).json({ error: 'Contents array required' });
+    }
+
+    log.info('[Gemini Proxy] Request', {
+      id: req.requestId,
+      model,
+      contentCount: contents.length,
+    });
+
+    // Call Google Gemini API
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents,
+          generationConfig: generationConfig || {
+            temperature: 0.3,
+            maxOutputTokens: 4096,
+            responseMimeType: 'application/json',
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      log.error('[Gemini Proxy] API Error', {
+        id: req.requestId,
+        status: response.status,
+        error: errorText,
+      });
+      return res.status(response.status).json({
+        error: `Gemini API error: ${response.status} ${response.statusText}`,
+        details: errorText,
+      });
+    }
+
+    const data = await response.json();
+    const elapsed = Date.now() - startTime;
+
+    log.info('[Gemini Proxy] Success', {
+      id: req.requestId,
+      timeMs: elapsed,
+    });
+
+    res.status(200).json(data);
+  } catch (error) {
+    const elapsed = Date.now() - startTime;
+    log.error('[Gemini Proxy] Failed', { id: req.requestId, timeMs: elapsed }, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GPT Test endpoint - z AI rate limiting
 app.post('/api/gpt-test', aiRateLimitMiddleware, async (req, res) => {
   const startTime = Date.now();
@@ -264,7 +432,7 @@ app.post('/api/gpt-test', aiRateLimitMiddleware, async (req, res) => {
     // Validate request
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({
-        error: 'Invalid request: messages array is required'
+        error: 'Invalid request: messages array is required',
       });
     }
 
@@ -276,7 +444,7 @@ app.post('/api/gpt-test', aiRateLimitMiddleware, async (req, res) => {
       messageCount: messages.length,
       maxTokens: max_completion_tokens || 500,
       temperature: temperature ?? 0,
-      topP: top_p ?? 0.1
+      topP: top_p ?? 0.1,
     });
 
     // Demo mode - return mock response
@@ -284,27 +452,33 @@ app.post('/api/gpt-test', aiRateLimitMiddleware, async (req, res) => {
       log.info('[GPT Test] Running in DEMO mode (no API key)', { id: req.requestId });
 
       const mockResponse = {
-        id: "chatcmpl-demo",
-        object: "chat.completion",
+        id: 'chatcmpl-demo',
+        object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
         model: requestedModel,
-        choices: [{
-          index: 0,
-          message: {
-            role: "assistant",
-            content: JSON.stringify({
-              brand: "Demo Brand",
-              confidence: 0.95,
-              note: "This is a DEMO response. Set OPENAI_API_KEY environment variable for real GPT responses."
-            }, null, 2)
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: JSON.stringify(
+                {
+                  brand: 'Demo Brand',
+                  confidence: 0.95,
+                  note: 'This is a DEMO response. Set OPENAI_API_KEY environment variable for real GPT responses.',
+                },
+                null,
+                2
+              ),
+            },
+            finish_reason: 'stop',
           },
-          finish_reason: "stop"
-        }],
+        ],
         usage: {
           prompt_tokens: 50,
           completion_tokens: 25,
-          total_tokens: 75
-        }
+          total_tokens: 75,
+        },
       };
 
       // Simulate API delay
@@ -337,7 +511,7 @@ app.post('/api/gpt-test', aiRateLimitMiddleware, async (req, res) => {
       promptTokens: completion.usage?.prompt_tokens,
       completionTokens: completion.usage?.completion_tokens,
       totalTokens: completion.usage?.total_tokens,
-      timeMs: elapsed
+      timeMs: elapsed,
     });
 
     res.status(200).json(completion);
@@ -345,7 +519,9 @@ app.post('/api/gpt-test', aiRateLimitMiddleware, async (req, res) => {
     const elapsed = Date.now() - startTime;
 
     log.error('[GPT Test] Failed', { id: req.requestId, timeMs: elapsed }, error);
-    const safe = isProd ? { error: 'Internal server error', id: req.requestId } : { error: error.message, type: error.constructor.name, timeMs: elapsed, id: req.requestId };
+    const safe = isProd
+      ? { error: 'Internal server error', id: req.requestId }
+      : { error: error.message, type: error.constructor.name, timeMs: elapsed, id: req.requestId };
     res.status(500).json(safe);
   }
 });
@@ -365,7 +541,9 @@ app.post('/api/answers/filter', async (req, res) => {
 
     const parseResult = filterSchema.safeParse(req.body);
     if (!parseResult.success) {
-      return res.status(400).json({ success: false, error: 'Invalid filter parameters', id: req.requestId });
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid filter parameters', id: req.requestId });
     }
 
     const { search, types, status, codes, language, country, categoryId } = parseResult.data;
@@ -380,7 +558,7 @@ app.post('/api/answers/filter', async (req, res) => {
         hasLanguage: Boolean(language),
         hasCountry: Boolean(country),
         hasCategoryId: Boolean(categoryId),
-      }
+      },
     });
 
     // Check if Supabase is configured
@@ -431,7 +609,7 @@ app.post('/api/answers/filter', async (req, res) => {
         },
       ];
 
-      const filtered = mockData.filter((item) => {
+      const filtered = mockData.filter(item => {
         if (search && !item.answer_text.toLowerCase().includes(search.toLowerCase())) return false;
         if (types?.length && !types.includes(item.general_status)) return false;
         if (status && item.quick_status !== status) return false;
@@ -454,7 +632,9 @@ app.post('/api/answers/filter', async (req, res) => {
     // Build Supabase query
     let query = supabase
       .from('answers')
-      .select('id, answer_text, translation, translation_en, language, country, quick_status, general_status, selected_code, ai_suggested_code, category_id, coding_date, created_at, updated_at')
+      .select(
+        'id, answer_text, translation, translation_en, language, country, quick_status, general_status, selected_code, ai_suggested_code, category_id, coding_date, created_at, updated_at'
+      )
       .order('id', { ascending: false })
       .limit(100);
 
@@ -496,13 +676,15 @@ app.post('/api/answers/filter', async (req, res) => {
     if (codes && Array.isArray(codes) && codes.length > 0) {
       results = results.filter(item => {
         if (!item.selected_code) return false;
-        return codes.some(code =>
-          item.selected_code.toLowerCase().includes(code.toLowerCase())
-        );
+        return codes.some(code => item.selected_code.toLowerCase().includes(code.toLowerCase()));
       });
     }
 
-    log.info('[Filter] Results', { id: req.requestId, filtered: results.length, total: data?.length || 0 });
+    log.info('[Filter] Results', {
+      id: req.requestId,
+      filtered: results.length,
+      total: data?.length || 0,
+    });
 
     res.status(200).json({
       success: true,
@@ -510,10 +692,11 @@ app.post('/api/answers/filter', async (req, res) => {
       results: results,
       mode: 'supabase',
     });
-
   } catch (err) {
     log.error('Filter endpoint error', { id: req.requestId }, err);
-    const safe = isProd ? { success: false, error: 'Internal server error', id: req.requestId } : { success: false, error: err.message, id: req.requestId };
+    const safe = isProd
+      ? { success: false, error: 'Internal server error', id: req.requestId }
+      : { success: false, error: err.message, id: req.requestId };
     res.status(500).json(safe);
   }
 });
@@ -530,7 +713,7 @@ app.post('/api/file-upload', uploadRateLimitMiddleware, upload.single('file'), a
     if (!req.file) {
       return res.status(400).json({
         status: 'error',
-        error: 'No file uploaded'
+        error: 'No file uploaded',
       });
     }
 
@@ -548,7 +731,7 @@ app.post('/api/file-upload', uploadRateLimitMiddleware, upload.single('file'), a
       }
       return res.status(400).json({
         status: 'error',
-        error: `File validation failed: ${validationError.message}`
+        error: `File validation failed: ${validationError.message}`,
       });
     }
     const originalName = path.basename(req.file.originalname).replace(/[\\/]/g, '');
@@ -560,14 +743,14 @@ app.post('/api/file-upload', uploadRateLimitMiddleware, upload.single('file'), a
       name: originalName,
       sizeKB: Number((req.file.size / 1024).toFixed(2)),
       extension: fileExtension,
-      hasCategoryId: Boolean(categoryId)
+      hasCategoryId: Boolean(categoryId),
     });
 
     // Validate category
     if (!categoryId) {
       return res.status(400).json({
         status: 'error',
-        error: 'Category ID is required'
+        error: 'Category ID is required',
       });
     }
 
@@ -591,19 +774,21 @@ app.post('/api/file-upload', uploadRateLimitMiddleware, upload.single('file'), a
         });
       }
 
-      parsedRows = parseResult.data.map((row, index) => {
-        if (!Array.isArray(row) || row.length < 2) {
-          errors.push(`Row ${index + 1}: Invalid format (need at least 2 columns)`);
-          return null;
-        }
+      parsedRows = parseResult.data
+        .map((row, index) => {
+          if (!Array.isArray(row) || row.length < 2) {
+            errors.push(`Row ${index + 1}: Invalid format (need at least 2 columns)`);
+            return null;
+          }
 
-        return {
-          external_id: String(row[0] || '').trim(),
-          answer_text: String(row[1] || '').trim(),
-          language: row[2] ? String(row[2]).trim() : null,
-          country: row[3] ? String(row[3]).trim() : null,
-        };
-      }).filter(Boolean);
+          return {
+            external_id: String(row[0] || '').trim(),
+            answer_text: String(row[1] || '').trim(),
+            language: row[2] ? String(row[2]).trim() : null,
+            country: row[3] ? String(row[3]).trim() : null,
+          };
+        })
+        .filter(Boolean);
     }
     // Parse Excel
     else if (['.xlsx', '.xls'].includes(fileExtension)) {
@@ -622,23 +807,25 @@ app.post('/api/file-upload', uploadRateLimitMiddleware, upload.single('file'), a
         jsonData.push(row.values.slice(1));
       });
 
-      parsedRows = jsonData.map((row, index) => {
-        if (!Array.isArray(row) || row.length < 2) {
-          errors.push(`Row ${index + 1}: Invalid format (need at least 2 columns)`);
-          return null;
-        }
+      parsedRows = jsonData
+        .map((row, index) => {
+          if (!Array.isArray(row) || row.length < 2) {
+            errors.push(`Row ${index + 1}: Invalid format (need at least 2 columns)`);
+            return null;
+          }
 
-        return {
-          external_id: String(row[0] || '').trim(),
-          answer_text: String(row[1] || '').trim(),
-          language: row[2] ? String(row[2]).trim() : null,
-          country: row[3] ? String(row[3]).trim() : null,
-        };
-      }).filter(Boolean);
+          return {
+            external_id: String(row[0] || '').trim(),
+            answer_text: String(row[1] || '').trim(),
+            language: row[2] ? String(row[2]).trim() : null,
+            country: row[3] ? String(row[3]).trim() : null,
+          };
+        })
+        .filter(Boolean);
     } else {
       return res.status(415).json({
         status: 'error',
-        error: 'Unsupported file format. Only CSV and Excel (.xlsx, .xls) are supported.'
+        error: 'Unsupported file format. Only CSV and Excel (.xlsx, .xls) are supported.',
       });
     }
 
@@ -658,7 +845,7 @@ app.post('/api/file-upload', uploadRateLimitMiddleware, upload.single('file'), a
       total: parsedRows.length,
       valid: validRows.length,
       skipped,
-      errors: errors.length
+      errors: errors.length,
     });
 
     // Check if any valid rows
@@ -668,7 +855,7 @@ app.post('/api/file-upload', uploadRateLimitMiddleware, upload.single('file'), a
         error: 'No valid rows found in file',
         imported: 0,
         skipped: parsedRows.length,
-        errors
+        errors,
       });
     }
 
@@ -697,7 +884,11 @@ app.post('/api/file-upload', uploadRateLimitMiddleware, upload.single('file'), a
     }
 
     const elapsed = Date.now() - startTime;
-    log.info('[File Upload] Success', { id: req.requestId, inserted: insertedData.length, timeMs: elapsed });
+    log.info('[File Upload] Success', {
+      id: req.requestId,
+      inserted: insertedData.length,
+      timeMs: elapsed,
+    });
 
     // Log import to history table
     try {
@@ -710,11 +901,14 @@ app.post('/api/file-upload', uploadRateLimitMiddleware, upload.single('file'), a
         status: skipped === 0 ? 'success' : 'partial',
         file_size_kb: (req.file.size / 1024).toFixed(2),
         processing_time_ms: elapsed,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       });
 
       if (historyError) {
-        log.warn('[File Upload] Failed to log import history', { id: req.requestId, error: historyError.message });
+        log.warn('[File Upload] Failed to log import history', {
+          id: req.requestId,
+          error: historyError.message,
+        });
       } else {
         log.info('[File Upload] Import logged to history', { id: req.requestId });
       }
@@ -734,9 +928,8 @@ app.post('/api/file-upload', uploadRateLimitMiddleware, upload.single('file'), a
       skipped,
       errors: errors.length > 0 ? errors.slice(0, 10) : [], // Return max 10 errors
       totalErrors: errors.length,
-      timeMs: elapsed
+      timeMs: elapsed,
     });
-
   } catch (error) {
     log.error('[File Upload] Error', { id: req.requestId }, error);
 
@@ -753,7 +946,7 @@ app.post('/api/file-upload', uploadRateLimitMiddleware, upload.single('file'), a
         error_message: error.message || 'Unknown error',
         file_size_kb: req.file ? (req.file.size / 1024).toFixed(2) : null,
         processing_time_ms: elapsed,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       });
       log.info('[File Upload] Failed import logged to history', { id: req.requestId });
     } catch (historyErr) {
@@ -774,7 +967,7 @@ app.post('/api/file-upload', uploadRateLimitMiddleware, upload.single('file'), a
       error: error.message || 'Internal server error',
       imported: 0,
       skipped: 0,
-      errors: [error.message]
+      errors: [error.message],
     });
   }
 });
@@ -787,7 +980,9 @@ app.get('/api/health', (req, res) => {
     id: req.requestId,
   };
   if (!isProd) {
-    payload.supabaseConfigured = !!(process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY);
+    payload.supabaseConfigured = !!(
+      process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY
+    );
   }
   res.json(payload);
 });
@@ -876,7 +1071,11 @@ app.listen(port, () => {
   console.log(`   - GET  http://localhost:${port}/api/ai-pricing (AI pricing)`);
   console.log(`   - POST http://localhost:${port}/api/ai-pricing/refresh (Refresh pricing)`);
   console.log(`   - GET  http://localhost:${port}/api/health (Health check)`);
-  console.log(`   - POST http://localhost:${port}/api/v1/codeframe/generate (AI Codeframe generation)`);
+  console.log(
+    `   - POST http://localhost:${port}/api/v1/codeframe/generate (AI Codeframe generation)`
+  );
   console.log(`   - GET  http://localhost:${port}/api/v1/codeframe/:id/status (Codeframe status)`);
-  console.log(`   - GET  http://localhost:${port}/api/v1/codeframe/:id/hierarchy (Codeframe hierarchy)`);
+  console.log(
+    `   - GET  http://localhost:${port}/api/v1/codeframe/:id/hierarchy (Codeframe hierarchy)`
+  );
 });

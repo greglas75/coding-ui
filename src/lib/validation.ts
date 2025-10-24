@@ -17,6 +17,7 @@
 
 import DOMPurify from 'isomorphic-dompurify';
 import { z } from 'zod';
+import { simpleLogger } from '../utils/logger';
 
 // ═══════════════════════════════════════════════════════════════
 // 📋 VALIDATION SCHEMAS
@@ -243,7 +244,7 @@ class RateLimiter {
 
     // Check if limit exceeded
     if (keyAttempts.length >= config.maxAttempts) {
-      console.warn(`⚠️ Rate limit exceeded for: ${key}`);
+      simpleLogger.warn(`⚠️ Rate limit exceeded for: ${key}`);
       return false;
     }
 
@@ -365,7 +366,7 @@ export function getFriendlyErrorMessage(error: unknown): string {
  * Log security event (for monitoring)
  */
 export function logSecurityEvent(event: string, details?: Record<string, any>) {
-  console.warn(`🔒 Security Event: ${event}`, details);
+  simpleLogger.warn(`🔒 Security Event: ${event}`, details);
 
   // TODO: Send to monitoring service (Sentry, etc.)
   // sentrySDK.captureMessage(event, { level: 'warning', extra: details });

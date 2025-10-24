@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getSupabaseClient } from '../../lib/supabase';
 import type { Category } from '../../types';
+import { simpleLogger } from '../../utils/logger';
 import { CategoryCard } from './CategoryCard';
 import { CategoryTableRow } from './CategoryTableRow';
 
@@ -43,7 +44,7 @@ export function CategoriesList({
           .select('category_id');
 
         if (error) {
-          console.error('Error fetching codes counts:', error);
+          simpleLogger.error('Error fetching codes counts:', error);
           return;
         }
 
@@ -62,7 +63,7 @@ export function CategoriesList({
 
         setCategoriesWithCount(withCounts);
       } catch (error) {
-        console.error('Error fetching codes counts:', error);
+        simpleLogger.error('Error fetching codes counts:', error);
         // Fallback: set all counts to 0
         setCategoriesWithCount(
           categories.map((cat) => ({ ...cat, codes_count: 0 }))

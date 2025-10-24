@@ -1,5 +1,6 @@
 import { getStatusLabel, normalizeStatus } from '../../../lib/statusNormalization';
 import type { FiltersType } from '../types';
+import { simpleLogger } from '../../../utils/logger';
 
 /**
  * Oczyszcza nazwę statusu (usuwa prefix FIXED_, zamienia _ na spacje, capitalize)
@@ -104,7 +105,7 @@ export function mergeStatusOptions(
       const displayLabel = getStatusLabel(canonicalKey);
       optionMap.set(canonicalKey, { key: canonicalKey, label: displayLabel });
     } catch (e) {
-      console.warn('Unknown status:', option.key);
+      simpleLogger.warn('Unknown status:', option.key);
       optionMap.set(option.key, { key: option.key, label: option.label });
     }
   });
@@ -117,7 +118,7 @@ export function mergeStatusOptions(
         optionMap.set(canonicalKey, { key: canonicalKey, label: displayLabel });
       }
     } catch (e) {
-      console.warn('Unknown status:', status);
+      simpleLogger.warn('Unknown status:', status);
       if (!optionMap.has(status)) {
         optionMap.set(status, { key: status, label: cleanStatusName(status) });
       }

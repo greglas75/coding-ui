@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { getSupabaseClient } from './supabase';
+import { simpleLogger } from '../utils/logger';
 
 const supabase = getSupabaseClient();
 
@@ -18,7 +19,7 @@ export class ExportEngine {
   async export(options: ExportOptions) {
     const data: any = {};
 
-    console.log('📦 Starting export with options:', options);
+    simpleLogger.info('📦 Starting export with options:', options);
 
     try {
       // Export Categories
@@ -30,7 +31,7 @@ export class ExportEngine {
 
         if (error) throw error;
         data.categories = categories || [];
-        console.log(`✅ Exported ${data.categories.length} categories`);
+        simpleLogger.info(`✅ Exported ${data.categories.length} categories`);
       }
 
       // Export Codes
@@ -60,7 +61,7 @@ export class ExportEngine {
           data.codes = codes || [];
         }
 
-        console.log(`✅ Exported ${data.codes.length} codes`);
+        simpleLogger.info(`✅ Exported ${data.codes.length} codes`);
       }
 
       // Export Answers
@@ -76,7 +77,7 @@ export class ExportEngine {
         const { data: answers, error } = await query.limit(1000);
         if (error) throw error;
         data.answers = answers || [];
-        console.log(`✅ Exported ${data.answers.length} answers`);
+        simpleLogger.info(`✅ Exported ${data.answers.length} answers`);
       }
 
       // Export Coded Answers (answer-code relationships)
@@ -93,7 +94,7 @@ export class ExportEngine {
         const { data: codedAnswers, error } = await query.limit(1000);
         if (error) throw error;
         data.codedAnswers = codedAnswers || [];
-        console.log(`✅ Exported ${data.codedAnswers.length} coded answers`);
+        simpleLogger.info(`✅ Exported ${data.codedAnswers.length} coded answers`);
       }
 
       // Generate file based on format
@@ -106,7 +107,7 @@ export class ExportEngine {
           return this.generateJSON(data);
       }
     } catch (error) {
-      console.error('❌ Export error:', error);
+      simpleLogger.error('❌ Export error:', error);
       throw error;
     }
   }
@@ -183,7 +184,7 @@ export class ExportEngine {
     link.click();
     URL.revokeObjectURL(url);
 
-    console.log(`✅ Excel export complete: ${filename}`);
+    simpleLogger.info(`✅ Excel export complete: ${filename}`);
     return { success: true, filename };
   }
 
@@ -214,7 +215,7 @@ export class ExportEngine {
     link.click();
     URL.revokeObjectURL(url);
 
-    console.log(`✅ CSV export complete: ${filename}`);
+    simpleLogger.info(`✅ CSV export complete: ${filename}`);
     return { success: true, filename };
   }
 
@@ -231,7 +232,7 @@ export class ExportEngine {
     link.click();
     URL.revokeObjectURL(url);
 
-    console.log(`✅ JSON export complete: ${filename}`);
+    simpleLogger.info(`✅ JSON export complete: ${filename}`);
     return { success: true, filename };
   }
 }

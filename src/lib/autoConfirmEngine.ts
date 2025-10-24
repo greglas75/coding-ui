@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabase';
+import { simpleLogger } from '../utils/logger';
 
 const supabase = getSupabaseClient();
 
@@ -59,29 +60,29 @@ export class AutoConfirmEngine {
       return results;
     }
 
-    console.log(`🤖 Processing ${suggestions.length} AI suggestions for answer ${answerId}`);
+    simpleLogger.info(`🤖 Processing ${suggestions.length} AI suggestions for answer ${answerId}`);
 
     for (const suggestion of suggestions) {
-      console.log(`📊 Suggestion: ${suggestion.codeName} (${suggestion.confidence}% confidence)`);
+      simpleLogger.info(`📊 Suggestion: ${suggestion.codeName} (${suggestion.confidence}% confidence)`);
 
       if (suggestion.confidence >= this.settings.highConfidenceThreshold) {
         // High confidence - auto-confirm
         if (this.settings.autoConfirmHighConfidence) {
           await this.confirmCode(answerId, suggestion, 'auto-confirmed');
           results.autoConfirmed.push(suggestion.codeId);
-          console.log(`✅ Auto-confirmed: ${suggestion.codeName} (${suggestion.confidence}%)`);
+          simpleLogger.info(`✅ Auto-confirmed: ${suggestion.codeName} (${suggestion.confidence}%)`);
         } else {
           results.needsReview.push(suggestion.codeId);
-          console.log(`👀 High confidence but auto-confirm disabled: ${suggestion.codeName}`);
+          simpleLogger.info(`👀 High confidence but auto-confirm disabled: ${suggestion.codeName}`);
         }
       } else if (suggestion.confidence >= this.settings.mediumConfidenceThreshold) {
         // Medium confidence - queue for review
         results.needsReview.push(suggestion.codeId);
-        console.log(`⚠️ Needs review: ${suggestion.codeName} (${suggestion.confidence}%)`);
+        simpleLogger.info(`⚠️ Needs review: ${suggestion.codeName} (${suggestion.confidence}%)`);
       } else {
         // Low confidence - reject
         results.rejected.push(suggestion.codeId);
-        console.log(`❌ Rejected: ${suggestion.codeName} (${suggestion.confidence}%)`);
+        simpleLogger.info(`❌ Rejected: ${suggestion.codeName} (${suggestion.confidence}%)`);
 
         // Track rejection for learning
         if (this.settings.trackRejections) {
@@ -90,7 +91,7 @@ export class AutoConfirmEngine {
       }
     }
 
-    console.log(`📊 Results: ${results.autoConfirmed.length} auto-confirmed, ${results.needsReview.length} need review, ${results.rejected.length} rejected`);
+    simpleLogger.info(`📊 Results: ${results.autoConfirmed.length} auto-confirmed, ${results.needsReview.length} need review, ${results.rejected.length} rejected`);
     return results;
   }
 
@@ -115,13 +116,13 @@ export class AutoConfirmEngine {
         .eq('id', answerId);
 
       if (error) {
-        console.error('Error confirming code:', error);
+        simpleLogger.error('Error confirming code:', error);
         throw error;
       }
 
-      console.log(`✅ Code confirmed: ${suggestion.codeName} for answer ${answerId}`);
+      simpleLogger.info(`✅ Code confirmed: ${suggestion.codeName} for answer ${answerId}`);
     } catch (error) {
-      console.error('Failed to confirm code:', error);
+      simpleLogger.error('Failed to confirm code:', error);
       throw error;
     }
   }
@@ -136,12 +137,12 @@ export class AutoConfirmEngine {
     try {
       // Store rejection data for analysis
       // This could be used to improve AI in the future
-      console.log(`📝 Tracking rejection: ${suggestion.codeName} (${suggestion.confidence}%)`);
+      simpleLogger.info(`📝 Tracking rejection: ${suggestion.codeName} (${suggestion.confidence}%)`);
 
       // Could store in a rejections table or in answer metadata
       // For now, just log it
     } catch (error) {
-      console.error('Failed to track rejection:', error);
+      simpleLogger.error('Failed to track rejection:', error);
     }
   }
 
@@ -153,7 +154,7 @@ export class AutoConfirmEngine {
 
     // Persist to localStorage
     localStorage.setItem('autoConfirmSettings', JSON.stringify(this.settings));
-    console.log('💾 Auto-confirm settings saved:', this.settings);
+    simpleLogger.info('💾 Auto-confirm settings saved:', this.settings);
   }
 
   /**
@@ -164,9 +165,9 @@ export class AutoConfirmEngine {
     if (saved) {
       try {
         this.settings = JSON.parse(saved);
-        console.log('✅ Auto-confirm settings loaded:', this.settings);
+        simpleLogger.info('✅ Auto-confirm settings loaded:', this.settings);
       } catch (error) {
-        console.error('Failed to load auto-confirm settings:', error);
+        simpleLogger.error('Failed to load auto-confirm settings:', error);
       }
     }
   }
@@ -191,7 +192,7 @@ export class AutoConfirmEngine {
       trackRejections: true
     };
     localStorage.setItem('autoConfirmSettings', JSON.stringify(this.settings));
-    console.log('🔄 Auto-confirm settings reset to defaults');
+    simpleLogger.info('🔄 Auto-confirm settings reset to defaults');
   }
 
   /**

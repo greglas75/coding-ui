@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { simpleLogger } from '../utils/logger';
 
 // ═══════════════════════════════════════════════════════════════
 // 🎯 OPTIMIZED SUPABASE QUERIES
@@ -44,7 +45,7 @@ export async function paginatedQuery<T = any>(
   const { data, error, count } = await query;
 
   if (error) {
-    console.error(`❌ [Supabase] Paginated query failed:`, error);
+    simpleLogger.error(`❌ [Supabase] Paginated query failed:`, error);
     throw error;
   }
 
@@ -123,7 +124,7 @@ export async function fetchCategoriesOptimized(forceRefresh = false) {
   if (!forceRefresh) {
     const cached = cache.get<any[]>(cacheKey);
     if (cached) {
-      console.log('✅ [Supabase] Categories from cache');
+      simpleLogger.info('✅ [Supabase] Categories from cache');
       return { success: true, data: cached, source: 'cache' };
     }
   }
@@ -139,10 +140,10 @@ export async function fetchCategoriesOptimized(forceRefresh = false) {
     // Cache for 5 minutes
     cache.set(cacheKey, data, 5 * 60 * 1000);
 
-    console.log(`✅ [Supabase] Fetched ${data?.length || 0} categories`);
+    simpleLogger.info(`✅ [Supabase] Fetched ${data?.length || 0} categories`);
     return { success: true, data: data || [], source: 'database' };
   } catch (error) {
-    console.error('❌ [Supabase] Error fetching categories:', error);
+    simpleLogger.error('❌ [Supabase] Error fetching categories:', error);
     return { success: false, data: [], error };
   }
 }
@@ -181,7 +182,7 @@ export async function fetchCodesOptimized(
   const { data: codes, error, count } = await query;
 
   if (error) {
-    console.error('❌ [Supabase] Error fetching codes:', error);
+    simpleLogger.error('❌ [Supabase] Error fetching codes:', error);
     throw error;
   }
 
@@ -256,10 +257,10 @@ export async function optimisticUpdate<T extends { id: number }>(
 
     if (error) throw error;
 
-    console.log(`✅ [Supabase] Optimistic update succeeded for ${table}:${id}`);
+    simpleLogger.info(`✅ [Supabase] Optimistic update succeeded for ${table}:${id}`);
     return { success: true };
   } catch (error) {
-    console.error(`❌ [Supabase] Optimistic update failed:`, error);
+    simpleLogger.error(`❌ [Supabase] Optimistic update failed:`, error);
 
     // Revert optimistic update on error
     setLocalState(localState);
@@ -287,10 +288,10 @@ export async function batchUpdate(
 
     if (error) throw error;
 
-    console.log(`✅ [Supabase] Batch updated ${count} rows in ${table}`);
+    simpleLogger.info(`✅ [Supabase] Batch updated ${count} rows in ${table}`);
     return { success: true, count: count || 0 };
   } catch (error) {
-    console.error(`❌ [Supabase] Batch update failed:`, error);
+    simpleLogger.error(`❌ [Supabase] Batch update failed:`, error);
     return { success: false, error, count: 0 };
   }
 }
@@ -313,7 +314,7 @@ export async function searchWithCache<T = any>(
   // Check cache
   const cached = cache.get<T[]>(cacheKey);
   if (cached) {
-    console.log(`✅ [Supabase] Search from cache: "${query}"`);
+    simpleLogger.info(`✅ [Supabase] Search from cache: "${query}"`);
     return cached;
   }
 
@@ -333,14 +334,14 @@ export async function searchWithCache<T = any>(
   const { data, error } = await supabaseQuery;
 
   if (error) {
-    console.error('❌ [Supabase] Search failed:', error);
+    simpleLogger.error('❌ [Supabase] Search failed:', error);
     return [];
   }
 
   // Cache results
   cache.set(cacheKey, data || [], ttl);
 
-  console.log(`✅ [Supabase] Search found ${data?.length || 0} results for "${query}"`);
+  simpleLogger.info(`✅ [Supabase] Search found ${data?.length || 0} results for "${query}"`);
   return data as T[] || [];
 }
 
@@ -360,11 +361,11 @@ export async function prefetchData(
     if (error) throw error;
 
     cache.set(cacheKey, data, ttl);
-    console.log(`✅ [Supabase] Prefetched ${table} (${data?.length || 0} rows)`);
+    simpleLogger.info(`✅ [Supabase] Prefetched ${table} (${data?.length || 0} rows)`);
 
     return data;
   } catch (error) {
-    console.error(`❌ [Supabase] Prefetch failed for ${table}:`, error);
+    simpleLogger.error(`❌ [Supabase] Prefetch failed for ${table}:`, error);
     return null;
   }
 }
@@ -396,7 +397,7 @@ export async function fastCount(
   const { count, error } = await query;
 
   if (error) {
-    console.error('❌ [Supabase] Count failed:', error);
+    simpleLogger.error('❌ [Supabase] Count failed:', error);
     return 0;
   }
 
@@ -430,11 +431,11 @@ export async function updateSingleRow<T extends Record<string, any>>(
       .single();
 
     if (error) {
-      console.error(`❌ [Supabase] Update failed for ${table}:${id}:`, error);
+      simpleLogger.error(`❌ [Supabase] Update failed for ${table}:${id}:`, error);
       return { success: false, error };
     }
 
-    console.log(`✅ [Supabase] Updated ${table}:${id}`);
+    simpleLogger.info(`✅ [Supabase] Updated ${table}:${id}`);
     return { success: true, data };
   } else {
     const { error } = await supabase
@@ -443,11 +444,11 @@ export async function updateSingleRow<T extends Record<string, any>>(
       .eq('id', id);
 
     if (error) {
-      console.error(`❌ [Supabase] Update failed for ${table}:${id}:`, error);
+      simpleLogger.error(`❌ [Supabase] Update failed for ${table}:${id}:`, error);
       return { success: false, error };
     }
 
-    console.log(`✅ [Supabase] Updated ${table}:${id}`);
+    simpleLogger.info(`✅ [Supabase] Updated ${table}:${id}`);
     return { success: true };
   }
 }
@@ -471,11 +472,11 @@ export async function upsertRow<T extends Record<string, any>>(
     .single();
 
   if (error) {
-    console.error(`❌ [Supabase] Upsert failed for ${table}:`, error);
+    simpleLogger.error(`❌ [Supabase] Upsert failed for ${table}:`, error);
     return { success: false, error };
   }
 
-  console.log(`✅ [Supabase] Upserted ${table}`);
+  simpleLogger.info(`✅ [Supabase] Upserted ${table}`);
   return { success: true, data: result };
 }
 
@@ -565,7 +566,7 @@ class PerformanceMonitor {
 
     // Log slow queries
     if (metric.duration > 1000 && !metric.cached) {
-      console.warn(`⚠️ [Performance] Slow query detected:`, metric);
+      simpleLogger.warn(`⚠️ [Performance] Slow query detected:`, metric);
     }
   }
 
@@ -664,6 +665,6 @@ const { data, hasMore } = await loader.loadNext();
 const { data: moreData } = await loader.loadNext();
 
 // Example 6: Performance stats
-console.log(performanceMonitor.getStats());
+simpleLogger.info(performanceMonitor.getStats());
 // { totalQueries: 45, cacheHitRate: '67.5%', avgDuration: '125ms' }
 */

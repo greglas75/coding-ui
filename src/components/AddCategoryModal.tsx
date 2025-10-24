@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { RATE_LIMITS, containsSuspiciousContent, logSecurityEvent, rateLimiter, validateCategoryName } from '../lib/validation';
+import { simpleLogger } from '../utils/logger';
 import { FormModal } from './BaseModal';
 
 interface AddCategoryModalProps {
@@ -59,7 +60,7 @@ export function AddCategoryModal({ open, onClose, onSave }: AddCategoryModalProp
       toast.success('Category added successfully!');
     } catch (err: any) {
       // 🔧 FIX: Show error and stop loading
-      console.error('Error saving category:', err);
+      simpleLogger.error('Error saving category:', err);
       setError(err.message || 'Failed to save category. Please check your connection and try again.');
       toast.error(err.message || 'Failed to save category');
       setLoading(false);

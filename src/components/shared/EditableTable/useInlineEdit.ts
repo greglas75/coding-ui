@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { simpleLogger } from '../../../utils/logger';
 
 export function useInlineEdit<T extends { id: number; name: string }>(
   onSave: (id: number, value: string) => Promise<void>
@@ -37,7 +38,7 @@ export function useInlineEdit<T extends { id: number; name: string }>(
         });
       }, 1000);
     } catch (error) {
-      console.error('Error saving:', error);
+      simpleLogger.error('Error saving:', error);
     } finally {
       setSaving(false);
     }

@@ -99,7 +99,7 @@ function createTimeoutController(timeout: number): AbortController {
  */
 function logError(error: ApiError, context: string, attempt?: number): void {
   const prefix = attempt ? `[Attempt ${attempt}]` : '';
-  console.error(`❌ ${prefix} API Error in ${context}:`, {
+  simpleLogger.error(`❌ ${prefix} API Error in ${context}:`, {
     message: error.message,
     status: error.status,
     statusText: error.statusText,
@@ -207,9 +207,9 @@ export class ApiClient {
         if (schema) {
           try {
             data = schema.parse(data) as T;
-            console.log('✅ Data validated with Zod schema');
+            simpleLogger.info('✅ Data validated with Zod schema');
           } catch (validationError) {
-            console.error('❌ Zod validation failed:', validationError);
+            simpleLogger.error('❌ Zod validation failed:', validationError);
             const error: ApiError = new Error(`Data validation failed: ${validationError}`);
             error.status = 500;
             error.statusText = 'Validation Error';
@@ -498,14 +498,14 @@ export async function fetchFilteredAnswers(
     categoryId: categoryId,
   };
 
-  console.log('🔍 Fetching filtered answers:', requestBody);
+  simpleLogger.info('🔍 Fetching filtered answers:', requestBody);
 
   try {
     const data = await post<FilterResponse>('/api/answers/filter', requestBody);
-    console.log(`✅ Received ${data.count} results (mode: ${data.mode})`);
+    simpleLogger.info(`✅ Received ${data.count} results (mode: ${data.mode})`);
     return data;
   } catch (error) {
-    console.error('❌ Filter API error:', error);
+    simpleLogger.error('❌ Filter API error:', error);
     throw error;
   }
 }
@@ -517,7 +517,7 @@ export async function checkAPIHealth(): Promise<HealthResponse> {
   try {
     return await get<HealthResponse>('/api/health');
   } catch (error) {
-    console.error('❌ Health check failed:', error);
+    simpleLogger.error('❌ Health check failed:', error);
     throw error;
   }
 }
@@ -538,7 +538,7 @@ export async function testGPT(
       top_p: 0.1,
     });
   } catch (error) {
-    console.error('❌ GPT test failed:', error);
+    simpleLogger.error('❌ GPT test failed:', error);
     throw error;
   }
 }
@@ -560,7 +560,7 @@ export async function uploadFile(file: File, categoryId: number): Promise<FileUp
       schema: FileUploadResponseSchema,
     });
   } catch (error) {
-    console.error('❌ File upload failed:', error);
+    simpleLogger.error('❌ File upload failed:', error);
     throw error;
   }
 }

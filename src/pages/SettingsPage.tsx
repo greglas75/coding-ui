@@ -5,14 +5,31 @@
  */
 
 import { Tab } from '@headlessui/react';
-import { AlertCircle, CheckCircle, Cloud, Cpu, Home, Info, Key, Search, Settings, Thermometer, Shield } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCircle,
+  Cloud,
+  Cpu,
+  Database,
+  Home,
+  Info,
+  Key,
+  Search,
+  Settings,
+  Shield,
+  Thermometer,
+} from 'lucide-react';
 import { Fragment, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { MainLayout } from '../components/layout/MainLayout';
 import { PricingDashboard } from '../components/PricingDashboard';
+import { MainLayout } from '../components/layout/MainLayout';
 import { useAIPricing } from '../hooks/useAIPricing';
 import type { ModelPricing } from '../types/pricing';
-import { getSessionOnlyMode, enableSessionOnlyMode, disableSessionOnlyMode } from '../utils/apiKeys';
+import {
+  disableSessionOnlyMode,
+  enableSessionOnlyMode,
+  getSessionOnlyMode,
+} from '../utils/apiKeys';
 
 export function SettingsPage() {
   const [selectedTab, setSelectedTab] = useState(0);
@@ -43,15 +60,13 @@ export function SettingsPage() {
     <MainLayout
       breadcrumbs={[
         { label: 'Home', href: '/', icon: <Home size={14} /> },
-        { label: 'Settings', icon: <Settings size={14} /> }
+        { label: 'Settings', icon: <Settings size={14} /> },
       ]}
       maxWidth="default"
     >
       <div className="p-6">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">
-            AI Settings
-          </h1>
+          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">AI Settings</h1>
           <p className="text-zinc-600 dark:text-zinc-400">
             Configure API keys and settings for AI providers and search services
           </p>
@@ -68,19 +83,30 @@ export function SettingsPage() {
               <ul className="text-xs text-blue-800 dark:text-blue-200 space-y-1.5">
                 <li className="flex items-start gap-2">
                   <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-                  <span><strong>Protected:</strong> Keys are obfuscated (XOR + Base64) in browser storage</span>
+                  <span>
+                    <strong>Protected:</strong> Keys are obfuscated (XOR + Base64) in browser
+                    storage
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-                  <span><strong>Private:</strong> Never sent to external servers (only to your local backend)</span>
+                  <span>
+                    <strong>Private:</strong> Never sent to external servers (only to your local
+                    backend)
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <AlertCircle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                  <span><strong>Limitation:</strong> Still accessible to JavaScript running on this page</span>
+                  <span>
+                    <strong>Limitation:</strong> Still accessible to JavaScript running on this page
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Info className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                  <span><strong>Production:</strong> For production apps, store keys on backend server only</span>
+                  <span>
+                    <strong>Production:</strong> For production apps, store keys on backend server
+                    only
+                  </span>
                 </li>
               </ul>
 
@@ -91,7 +117,7 @@ export function SettingsPage() {
                     <input
                       type="checkbox"
                       checked={sessionOnlyMode}
-                      onChange={(e) => handleSessionOnlyToggle(e.target.checked)}
+                      onChange={e => handleSessionOnlyToggle(e.target.checked)}
                       className="h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-2 focus:ring-blue-500 dark:border-blue-600 dark:bg-blue-900"
                     />
                     <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
@@ -103,7 +129,8 @@ export function SettingsPage() {
                   </span>
                 </label>
                 <p className="text-xs text-blue-700 dark:text-blue-300 mt-1.5 ml-6">
-                  When enabled, API keys are stored in session storage and automatically cleared when you close this tab.
+                  When enabled, API keys are stored in session storage and automatically cleared
+                  when you close this tab.
                 </p>
               </div>
             </div>
@@ -119,9 +146,10 @@ export function SettingsPage() {
                   className={`
                     w-full rounded-lg py-2.5 text-sm font-medium leading-5 transition-all
                     ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2
-                    ${selected
-                      ? 'bg-white dark:bg-zinc-800 text-blue-700 dark:text-blue-400 shadow'
-                      : 'text-zinc-700 dark:text-zinc-400 hover:bg-white/[0.12] hover:text-zinc-900 dark:hover:text-zinc-200'
+                    ${
+                      selected
+                        ? 'bg-white dark:bg-zinc-800 text-blue-700 dark:text-blue-400 shadow'
+                        : 'text-zinc-700 dark:text-zinc-400 hover:bg-white/[0.12] hover:text-zinc-900 dark:hover:text-zinc-200'
                     }
                   `}
                 >
@@ -138,9 +166,10 @@ export function SettingsPage() {
                   className={`
                     w-full rounded-lg py-2.5 text-sm font-medium leading-5 transition-all
                     ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2
-                    ${selected
-                      ? 'bg-white dark:bg-zinc-800 text-blue-700 dark:text-blue-400 shadow'
-                      : 'text-zinc-700 dark:text-zinc-400 hover:bg-white/[0.12] hover:text-zinc-900 dark:hover:text-zinc-200'
+                    ${
+                      selected
+                        ? 'bg-white dark:bg-zinc-800 text-blue-700 dark:text-blue-400 shadow'
+                        : 'text-zinc-700 dark:text-zinc-400 hover:bg-white/[0.12] hover:text-zinc-900 dark:hover:text-zinc-200'
                     }
                   `}
                 >
@@ -157,9 +186,10 @@ export function SettingsPage() {
                   className={`
                     w-full rounded-lg py-2.5 text-sm font-medium leading-5 transition-all
                     ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2
-                    ${selected
-                      ? 'bg-white dark:bg-zinc-800 text-blue-700 dark:text-blue-400 shadow'
-                      : 'text-zinc-700 dark:text-zinc-400 hover:bg-white/[0.12] hover:text-zinc-900 dark:hover:text-zinc-200'
+                    ${
+                      selected
+                        ? 'bg-white dark:bg-zinc-800 text-blue-700 dark:text-blue-400 shadow'
+                        : 'text-zinc-700 dark:text-zinc-400 hover:bg-white/[0.12] hover:text-zinc-900 dark:hover:text-zinc-200'
                     }
                   `}
                 >
@@ -176,15 +206,36 @@ export function SettingsPage() {
                   className={`
                     w-full rounded-lg py-2.5 text-sm font-medium leading-5 transition-all
                     ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2
-                    ${selected
-                      ? 'bg-white dark:bg-zinc-800 text-blue-700 dark:text-blue-400 shadow'
-                      : 'text-zinc-700 dark:text-zinc-400 hover:bg-white/[0.12] hover:text-zinc-900 dark:hover:text-zinc-200'
+                    ${
+                      selected
+                        ? 'bg-white dark:bg-zinc-800 text-blue-700 dark:text-blue-400 shadow'
+                        : 'text-zinc-700 dark:text-zinc-400 hover:bg-white/[0.12] hover:text-zinc-900 dark:hover:text-zinc-200'
                     }
                   `}
                 >
                   <div className="flex items-center justify-center gap-2">
                     <Search className="w-4 h-4" />
                     <span>Google Search</span>
+                  </div>
+                </button>
+              )}
+            </Tab>
+            <Tab as={Fragment}>
+              {({ selected }) => (
+                <button
+                  className={`
+                    w-full rounded-lg py-2.5 text-sm font-medium leading-5 transition-all
+                    ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2
+                    ${
+                      selected
+                        ? 'bg-white dark:bg-zinc-800 text-blue-700 dark:text-blue-400 shadow'
+                        : 'text-zinc-700 dark:text-zinc-400 hover:bg-white/[0.12] hover:text-zinc-900 dark:hover:text-zinc-200'
+                    }
+                  `}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <Database className="w-4 h-4" />
+                    <span>Pinecone</span>
                   </div>
                 </button>
               )}
@@ -204,11 +255,14 @@ export function SettingsPage() {
             <Tab.Panel>
               <GoogleSearchSettings />
             </Tab.Panel>
+            <Tab.Panel>
+              <PineconeSettings />
+            </Tab.Panel>
           </Tab.Panels>
         </Tab.Group>
 
-        {/* Pricing Dashboard - Hide on Google Search tab */}
-        {selectedTab !== 3 && (
+        {/* Pricing Dashboard - Hide on Google Search and Pinecone tabs */}
+        {selectedTab !== 3 && selectedTab !== 4 && (
           <div className="mt-6">
             <PricingDashboard filterProvider={getProviderForTab(selectedTab)} />
           </div>
@@ -223,8 +277,8 @@ export function SettingsPage() {
                 🤖 Automatyczna Aktualizacja Cen i Modeli
               </h3>
               <p className="text-xs text-purple-800 dark:text-purple-200">
-                Ceny i lista modeli są z <strong>października 2025</strong>. Chcesz automatycznie aktualizować ceny
-                i wykrywać nowe modele? Zobacz{' '}
+                Ceny i lista modeli są z <strong>października 2025</strong>. Chcesz automatycznie
+                aktualizować ceny i wykrywać nowe modele? Zobacz{' '}
                 <a
                   href="https://github.com/yourusername/coding-ui/blob/main/docs/AI_PRICING_AUTO_UPDATE.md"
                   target="_blank"
@@ -232,8 +286,8 @@ export function SettingsPage() {
                   className="underline hover:text-purple-600 dark:hover:text-purple-300 font-medium"
                 >
                   dokumentację automatyzacji
-                </a>
-                {' '}(JSON config, API endpoints, GitHub Actions).
+                </a>{' '}
+                (JSON config, API endpoints, GitHub Actions).
               </p>
             </div>
           </div>
@@ -307,11 +361,13 @@ function OpenAISettings({ models }: ProviderSettingsProps) {
   return (
     <div>
       {/* Status Banner */}
-      <div className={`mb-6 p-4 rounded-lg border ${
-        isValid
-          ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'
-          : 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800'
-      }`}>
+      <div
+        className={`mb-6 p-4 rounded-lg border ${
+          isValid
+            ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'
+            : 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800'
+        }`}
+      >
         <div className="flex items-start gap-3">
           {isValid ? (
             <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
@@ -319,18 +375,25 @@ function OpenAISettings({ models }: ProviderSettingsProps) {
             <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
           )}
           <div>
-            <p className={`font-medium ${
-              isValid ? 'text-green-800 dark:text-green-200' : 'text-yellow-800 dark:text-yellow-200'
-            }`}>
+            <p
+              className={`font-medium ${
+                isValid
+                  ? 'text-green-800 dark:text-green-200'
+                  : 'text-yellow-800 dark:text-yellow-200'
+              }`}
+            >
               {isValid ? 'OpenAI Configured' : 'OpenAI Not Configured'}
             </p>
-            <p className={`text-sm mt-1 ${
-              isValid ? 'text-green-700 dark:text-green-300' : 'text-yellow-700 dark:text-yellow-300'
-            }`}>
+            <p
+              className={`text-sm mt-1 ${
+                isValid
+                  ? 'text-green-700 dark:text-green-300'
+                  : 'text-yellow-700 dark:text-yellow-300'
+              }`}
+            >
               {isValid
                 ? 'Ready to use. GPT-5 is the latest and most powerful model.'
-                : 'Configure your OpenAI API key to enable AI features.'
-              }
+                : 'Configure your OpenAI API key to enable AI features.'}
             </p>
           </div>
         </div>
@@ -349,7 +412,7 @@ function OpenAISettings({ models }: ProviderSettingsProps) {
               <input
                 type={showApiKey ? 'text' : 'password'}
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                onChange={e => setApiKey(e.target.value)}
                 placeholder="sk-proj-xxxxxxxxxxxxxxxxxxxxxxxx"
                 className="w-full border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -389,7 +452,7 @@ function OpenAISettings({ models }: ProviderSettingsProps) {
               max="1"
               step="0.1"
               value={temperature}
-              onChange={(e) => setTemperature(parseFloat(e.target.value))}
+              onChange={e => setTemperature(parseFloat(e.target.value))}
               className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
             />
             <div className="flex justify-between mt-1">
@@ -397,9 +460,9 @@ function OpenAISettings({ models }: ProviderSettingsProps) {
               <span className="text-xs text-zinc-500 dark:text-zinc-400">1.0 (Creative)</span>
             </div>
             <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-              <strong>Co to jest temperatura?</strong> Kontroluje losowość odpowiedzi AI. Niskie wartości (0.0-0.3) =
-              deterministyczne, spójne odpowiedzi (idealne do kategoryzacji). Wysokie wartości (0.7-1.0) =
-              bardziej kreatywne, zróżnicowane odpowiedzi.
+              <strong>Co to jest temperatura?</strong> Kontroluje losowość odpowiedzi AI. Niskie
+              wartości (0.0-0.3) = deterministyczne, spójne odpowiedzi (idealne do kategoryzacji).
+              Wysokie wartości (0.7-1.0) = bardziej kreatywne, zróżnicowane odpowiedzi.
             </p>
           </div>
 
@@ -412,9 +475,10 @@ function OpenAISettings({ models }: ProviderSettingsProps) {
                   🔒 Gdzie są zapisane klucze API?
                 </h3>
                 <p className="text-xs text-amber-800 dark:text-amber-200">
-                  Twoje klucze API są przechowywane <strong>lokalnie w przeglądarce</strong> (localStorage).
-                  Nigdy nie są wysyłane na żaden zewnętrzny serwer - pozostają tylko w Twojej przeglądarce.
-                  Dla produkcji zalecamy przeniesienie integracji AI na backend.
+                  Twoje klucze API są przechowywane <strong>lokalnie w przeglądarce</strong>{' '}
+                  (localStorage). Nigdy nie są wysyłane na żaden zewnętrzny serwer - pozostają tylko
+                  w Twojej przeglądarce. Dla produkcji zalecamy przeniesienie integracji AI na
+                  backend.
                 </p>
               </div>
             </div>
@@ -429,7 +493,7 @@ function OpenAISettings({ models }: ProviderSettingsProps) {
               {models.length > 0 ? (
                 models
                   .sort((a, b) => a.costPer1000Responses - b.costPer1000Responses) // Sort by cost ascending
-                  .map((m) => (
+                  .map(m => (
                     <p key={m.id} className="flex justify-between items-center py-1">
                       <span>• {m.name}</span>
                       <span className="font-bold">${m.costPer1000Responses.toFixed(4)}</span>
@@ -460,15 +524,16 @@ function OpenAISettings({ models }: ProviderSettingsProps) {
             </label>
             <select
               value={model}
-              onChange={(e) => setModel(e.target.value)}
+              onChange={e => setModel(e.target.value)}
               className="w-full border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               {models.length > 0 ? (
                 models
                   .sort((a, b) => b.quality - a.quality) // Sort by quality descending
-                  .map((m) => (
+                  .map(m => (
                     <option key={m.id} value={m.id}>
-                      {m.name} {m.description ? `- ${m.description}` : ''} (${m.costPer1000Responses.toFixed(4)}/1k)
+                      {m.name} {m.description ? `- ${m.description}` : ''} ($
+                      {m.costPer1000Responses.toFixed(4)}/1k)
                     </option>
                   ))
               ) : (
@@ -568,11 +633,13 @@ function ClaudeSettings({ models }: ProviderSettingsProps) {
   return (
     <div>
       {/* Status Banner */}
-      <div className={`mb-6 p-4 rounded-lg border ${
-        isValid
-          ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'
-          : 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800'
-      }`}>
+      <div
+        className={`mb-6 p-4 rounded-lg border ${
+          isValid
+            ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'
+            : 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800'
+        }`}
+      >
         <div className="flex items-start gap-3">
           {isValid ? (
             <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
@@ -580,18 +647,25 @@ function ClaudeSettings({ models }: ProviderSettingsProps) {
             <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
           )}
           <div>
-            <p className={`font-medium ${
-              isValid ? 'text-green-800 dark:text-green-200' : 'text-yellow-800 dark:text-yellow-200'
-            }`}>
+            <p
+              className={`font-medium ${
+                isValid
+                  ? 'text-green-800 dark:text-green-200'
+                  : 'text-yellow-800 dark:text-yellow-200'
+              }`}
+            >
               {isValid ? 'Claude Configured' : 'Claude Not Configured'}
             </p>
-            <p className={`text-sm mt-1 ${
-              isValid ? 'text-green-700 dark:text-green-300' : 'text-yellow-700 dark:text-yellow-300'
-            }`}>
+            <p
+              className={`text-sm mt-1 ${
+                isValid
+                  ? 'text-green-700 dark:text-green-300'
+                  : 'text-yellow-700 dark:text-yellow-300'
+              }`}
+            >
               {isValid
                 ? 'Ready to use. Claude Sonnet 4.5 is the best coding model available.'
-                : 'Configure your Anthropic API key to enable Claude features.'
-              }
+                : 'Configure your Anthropic API key to enable Claude features.'}
             </p>
           </div>
         </div>
@@ -610,7 +684,7 @@ function ClaudeSettings({ models }: ProviderSettingsProps) {
               <input
                 type={showApiKey ? 'text' : 'password'}
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                onChange={e => setApiKey(e.target.value)}
                 placeholder="sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx"
                 className="w-full border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -650,7 +724,7 @@ function ClaudeSettings({ models }: ProviderSettingsProps) {
               max="1"
               step="0.1"
               value={temperature}
-              onChange={(e) => setTemperature(parseFloat(e.target.value))}
+              onChange={e => setTemperature(parseFloat(e.target.value))}
               className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
             />
             <div className="flex justify-between mt-1">
@@ -658,9 +732,9 @@ function ClaudeSettings({ models }: ProviderSettingsProps) {
               <span className="text-xs text-zinc-500 dark:text-zinc-400">1.0 (Creative)</span>
             </div>
             <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-              <strong>Co to jest temperatura?</strong> Kontroluje losowość odpowiedzi AI. Niskie wartości (0.0-0.3) =
-              deterministyczne, spójne odpowiedzi (idealne do kategoryzacji). Wysokie wartości (0.7-1.0) =
-              bardziej kreatywne, zróżnicowane odpowiedzi.
+              <strong>Co to jest temperatura?</strong> Kontroluje losowość odpowiedzi AI. Niskie
+              wartości (0.0-0.3) = deterministyczne, spójne odpowiedzi (idealne do kategoryzacji).
+              Wysokie wartości (0.7-1.0) = bardziej kreatywne, zróżnicowane odpowiedzi.
             </p>
           </div>
 
@@ -673,9 +747,10 @@ function ClaudeSettings({ models }: ProviderSettingsProps) {
                   🔒 Gdzie są zapisane klucze API?
                 </h3>
                 <p className="text-xs text-amber-800 dark:text-amber-200">
-                  Twoje klucze API są przechowywane <strong>lokalnie w przeglądarce</strong> (localStorage).
-                  Nigdy nie są wysyłane na żaden zewnętrzny serwer - pozostają tylko w Twojej przeglądarce.
-                  Dla produkcji zalecamy przeniesienie integracji AI na backend.
+                  Twoje klucze API są przechowywane <strong>lokalnie w przeglądarce</strong>{' '}
+                  (localStorage). Nigdy nie są wysyłane na żaden zewnętrzny serwer - pozostają tylko
+                  w Twojej przeglądarce. Dla produkcji zalecamy przeniesienie integracji AI na
+                  backend.
                 </p>
               </div>
             </div>
@@ -690,7 +765,7 @@ function ClaudeSettings({ models }: ProviderSettingsProps) {
               {models.length > 0 ? (
                 models
                   .sort((a, b) => a.costPer1000Responses - b.costPer1000Responses) // Sort by cost ascending
-                  .map((m) => (
+                  .map(m => (
                     <p key={m.id} className="flex justify-between items-center py-1">
                       <span>• {m.name}</span>
                       <span className="font-bold">${m.costPer1000Responses.toFixed(4)}</span>
@@ -721,15 +796,16 @@ function ClaudeSettings({ models }: ProviderSettingsProps) {
             </label>
             <select
               value={model}
-              onChange={(e) => setModel(e.target.value)}
+              onChange={e => setModel(e.target.value)}
               className="w-full border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               {models.length > 0 ? (
                 models
                   .sort((a, b) => b.quality - a.quality) // Sort by quality descending
-                  .map((m) => (
+                  .map(m => (
                     <option key={m.id} value={m.id}>
-                      {m.name} {m.description ? `- ${m.description}` : ''} (${m.costPer1000Responses.toFixed(4)}/1k)
+                      {m.name} {m.description ? `- ${m.description}` : ''} ($
+                      {m.costPer1000Responses.toFixed(4)}/1k)
                     </option>
                   ))
               ) : (
@@ -825,11 +901,13 @@ function GeminiSettings({ models }: ProviderSettingsProps) {
   return (
     <div>
       {/* Status Banner */}
-      <div className={`mb-6 p-4 rounded-lg border ${
-        isValid
-          ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'
-          : 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800'
-      }`}>
+      <div
+        className={`mb-6 p-4 rounded-lg border ${
+          isValid
+            ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'
+            : 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800'
+        }`}
+      >
         <div className="flex items-start gap-3">
           {isValid ? (
             <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
@@ -837,18 +915,25 @@ function GeminiSettings({ models }: ProviderSettingsProps) {
             <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
           )}
           <div>
-            <p className={`font-medium ${
-              isValid ? 'text-green-800 dark:text-green-200' : 'text-yellow-800 dark:text-yellow-200'
-            }`}>
+            <p
+              className={`font-medium ${
+                isValid
+                  ? 'text-green-800 dark:text-green-200'
+                  : 'text-yellow-800 dark:text-yellow-200'
+              }`}
+            >
               {isValid ? 'Gemini Configured' : 'Gemini Not Configured'}
             </p>
-            <p className={`text-sm mt-1 ${
-              isValid ? 'text-green-700 dark:text-green-300' : 'text-yellow-700 dark:text-yellow-300'
-            }`}>
+            <p
+              className={`text-sm mt-1 ${
+                isValid
+                  ? 'text-green-700 dark:text-green-300'
+                  : 'text-yellow-700 dark:text-yellow-300'
+              }`}
+            >
               {isValid
                 ? 'Ready to use. Gemini 2.0 Pro has 2M token context window.'
-                : 'Configure your Google AI API key to enable Gemini features.'
-              }
+                : 'Configure your Google AI API key to enable Gemini features.'}
             </p>
           </div>
         </div>
@@ -867,7 +952,7 @@ function GeminiSettings({ models }: ProviderSettingsProps) {
               <input
                 type={showApiKey ? 'text' : 'password'}
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                onChange={e => setApiKey(e.target.value)}
                 placeholder="AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                 className="w-full border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -907,7 +992,7 @@ function GeminiSettings({ models }: ProviderSettingsProps) {
               max="1"
               step="0.1"
               value={temperature}
-              onChange={(e) => setTemperature(parseFloat(e.target.value))}
+              onChange={e => setTemperature(parseFloat(e.target.value))}
               className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
             />
             <div className="flex justify-between mt-1">
@@ -915,9 +1000,9 @@ function GeminiSettings({ models }: ProviderSettingsProps) {
               <span className="text-xs text-zinc-500 dark:text-zinc-400">1.0 (Creative)</span>
             </div>
             <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-              <strong>Co to jest temperatura?</strong> Kontroluje losowość odpowiedzi AI. Niskie wartości (0.0-0.3) =
-              deterministyczne, spójne odpowiedzi (idealne do kategoryzacji). Wysokie wartości (0.7-1.0) =
-              bardziej kreatywne, zróżnicowane odpowiedzi.
+              <strong>Co to jest temperatura?</strong> Kontroluje losowość odpowiedzi AI. Niskie
+              wartości (0.0-0.3) = deterministyczne, spójne odpowiedzi (idealne do kategoryzacji).
+              Wysokie wartości (0.7-1.0) = bardziej kreatywne, zróżnicowane odpowiedzi.
             </p>
           </div>
 
@@ -930,9 +1015,10 @@ function GeminiSettings({ models }: ProviderSettingsProps) {
                   🔒 Gdzie są zapisane klucze API?
                 </h3>
                 <p className="text-xs text-amber-800 dark:text-amber-200">
-                  Twoje klucze API są przechowywane <strong>lokalnie w przeglądarce</strong> (localStorage).
-                  Nigdy nie są wysyłane na żaden zewnętrzny serwer - pozostają tylko w Twojej przeglądarce.
-                  Dla produkcji zalecamy przeniesienie integracji AI na backend.
+                  Twoje klucze API są przechowywane <strong>lokalnie w przeglądarce</strong>{' '}
+                  (localStorage). Nigdy nie są wysyłane na żaden zewnętrzny serwer - pozostają tylko
+                  w Twojej przeglądarce. Dla produkcji zalecamy przeniesienie integracji AI na
+                  backend.
                 </p>
               </div>
             </div>
@@ -947,7 +1033,7 @@ function GeminiSettings({ models }: ProviderSettingsProps) {
               {models.length > 0 ? (
                 models
                   .sort((a, b) => a.costPer1000Responses - b.costPer1000Responses) // Sort by cost ascending
-                  .map((m) => (
+                  .map(m => (
                     <p key={m.id} className="flex justify-between items-center py-1">
                       <span>• {m.name}</span>
                       <span className="font-bold">${m.costPer1000Responses.toFixed(4)}</span>
@@ -978,15 +1064,16 @@ function GeminiSettings({ models }: ProviderSettingsProps) {
             </label>
             <select
               value={model}
-              onChange={(e) => setModel(e.target.value)}
+              onChange={e => setModel(e.target.value)}
               className="w-full border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               {models.length > 0 ? (
                 models
                   .sort((a, b) => b.quality - a.quality) // Sort by quality descending
-                  .map((m) => (
+                  .map(m => (
                     <option key={m.id} value={m.id}>
-                      {m.name} {m.description ? `- ${m.description}` : ''} (${m.costPer1000Responses.toFixed(4)}/1k)
+                      {m.name} {m.description ? `- ${m.description}` : ''} ($
+                      {m.costPer1000Responses.toFixed(4)}/1k)
                     </option>
                   ))
               ) : (
@@ -1077,11 +1164,13 @@ function GoogleSearchSettings() {
   return (
     <div>
       {/* Status Banner */}
-      <div className={`mb-6 p-4 rounded-lg border ${
-        isValid
-          ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'
-          : 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800'
-      }`}>
+      <div
+        className={`mb-6 p-4 rounded-lg border ${
+          isValid
+            ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'
+            : 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800'
+        }`}
+      >
         <div className="flex items-start gap-3">
           {isValid ? (
             <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
@@ -1089,18 +1178,25 @@ function GoogleSearchSettings() {
             <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
           )}
           <div>
-            <p className={`font-medium ${
-              isValid ? 'text-green-800 dark:text-green-200' : 'text-yellow-800 dark:text-yellow-200'
-            }`}>
+            <p
+              className={`font-medium ${
+                isValid
+                  ? 'text-green-800 dark:text-green-200'
+                  : 'text-yellow-800 dark:text-yellow-200'
+              }`}
+            >
               {isValid ? 'Google Search Configured' : 'Google Search Not Configured'}
             </p>
-            <p className={`text-sm mt-1 ${
-              isValid ? 'text-green-700 dark:text-green-300' : 'text-yellow-700 dark:text-yellow-300'
-            }`}>
+            <p
+              className={`text-sm mt-1 ${
+                isValid
+                  ? 'text-green-700 dark:text-green-300'
+                  : 'text-yellow-700 dark:text-yellow-300'
+              }`}
+            >
               {isValid
                 ? 'Web context enrichment is enabled for AI categorization.'
-                : 'Configure Google Custom Search to enable web context features.'
-              }
+                : 'Configure Google Custom Search to enable web context features.'}
             </p>
           </div>
         </div>
@@ -1119,7 +1215,7 @@ function GoogleSearchSettings() {
               <input
                 type={showApiKey ? 'text' : 'password'}
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                onChange={e => setApiKey(e.target.value)}
                 placeholder="AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                 className="w-full border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -1143,7 +1239,7 @@ function GoogleSearchSettings() {
               <input
                 type={showCxId ? 'text' : 'password'}
                 value={cxId}
-                onChange={(e) => setCxId(e.target.value)}
+                onChange={e => setCxId(e.target.value)}
                 placeholder="xxxxxxxxxxxxxxxxx:xxxxxxxxx"
                 className="w-full border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -1226,8 +1322,8 @@ function GoogleSearchSettings() {
             </h3>
             <p className="text-sm text-amber-800 dark:text-amber-200">
               Google Custom Search enriches AI categorization by providing real-time web context.
-              This helps identify brands, products, and entities more accurately. The service has
-              a free tier with 100 queries per day.
+              This helps identify brands, products, and entities more accurately. The service has a
+              free tier with 100 queries per day.
             </p>
           </div>
         </div>

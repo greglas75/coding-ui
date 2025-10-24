@@ -1,3 +1,5 @@
+import { simpleLogger } from '../utils/logger';
+
 export interface Filter {
   id: string;
   field: 'code' | 'status' | 'text' | 'date' | 'category' | 'assignedBy';
@@ -29,7 +31,7 @@ export class FilterEngine {
       return answers;
     }
 
-    console.log(`🔍 Applying ${filterGroup.filters.length} filters with ${filterGroup.logic} logic`);
+    simpleLogger.info(`🔍 Applying ${filterGroup.filters.length} filters with ${filterGroup.logic} logic`);
 
     return answers.filter(answer => {
       const results = filterGroup.filters.map(filter =>

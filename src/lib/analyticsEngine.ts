@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabase';
+import { simpleLogger } from '../utils/logger';
 
 const supabase = getSupabaseClient();
 
@@ -53,7 +54,7 @@ export class AnalyticsEngine {
     };
     const range = dateRange || defaultRange;
 
-    console.log('📊 Generating analytics for date range:', range);
+    simpleLogger.info('📊 Generating analytics for date range:', range);
 
     try {
       // Fetch all coded answers in date range
@@ -71,16 +72,16 @@ export class AnalyticsEngine {
       const { data: codedAnswers, error: answersError } = await answersQuery.order('coding_date', { ascending: true });
 
       if (answersError) {
-        console.error('Error fetching coded answers:', answersError);
+        simpleLogger.error('Error fetching coded answers:', answersError);
         return this.getEmptyAnalytics();
       }
 
       if (!codedAnswers || codedAnswers.length === 0) {
-        console.log('⚠️ No coded answers found in date range');
+        simpleLogger.info('⚠️ No coded answers found in date range');
         return this.getEmptyAnalytics();
       }
 
-      console.log(`✅ Found ${codedAnswers.length} coded answers`);
+      simpleLogger.info(`✅ Found ${codedAnswers.length} coded answers`);
 
       // 1. Coding Progress Over Time
       const progressByDate = new Map<string, number>();
@@ -214,7 +215,7 @@ export class AnalyticsEngine {
           codingRate: totalAnswers ? (codedAnswers.length / totalAnswers) * 100 : 0
         };
 
-        console.log('✅ Analytics generated successfully');
+        simpleLogger.info('✅ Analytics generated successfully');
 
         return {
           codingProgress,
@@ -247,7 +248,7 @@ export class AnalyticsEngine {
         };
       }
     } catch (error) {
-      console.error('❌ Error generating analytics:', error);
+      simpleLogger.error('❌ Error generating analytics:', error);
       return this.getEmptyAnalytics();
     }
   }

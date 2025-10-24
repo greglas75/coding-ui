@@ -2,6 +2,7 @@
 // HYBRID VERSION - Combines similarity + frequency + co-occurrence + keywords
 
 import { getSupabaseClient, supabase } from './supabase';
+import { simpleLogger } from '../utils/logger';
 
 const supabaseClient = getSupabaseClient();
 
@@ -41,10 +42,10 @@ export class CodeSuggestionEngine {
    */
   async initialize(categoryId?: number): Promise<void> {
     try {
-      console.log('🔧 Initializing HYBRID code suggestion engine...');
+      simpleLogger.info('🔧 Initializing HYBRID code suggestion engine...');
 
       if (!categoryId || categoryId <= 0) {
-        console.warn('⚠️ Invalid or missing category ID for code suggestions');
+        simpleLogger.warn('⚠️ Invalid or missing category ID for code suggestions');
         this.isInitialized = false;
         return;
       }
@@ -56,13 +57,13 @@ export class CodeSuggestionEngine {
         .eq('category_id', categoryId);
 
       if (codesError) {
-        console.error('Error loading codes:', codesError);
+        simpleLogger.error('Error loading codes:', codesError);
         this.isInitialized = false;
         return;
       }
 
       if (!codes || codes.length === 0) {
-        console.warn(`⚠️ No codes found for category ${categoryId}`);
+        simpleLogger.warn(`⚠️ No codes found for category ${categoryId}`);
         this.isInitialized = false;
         return;
       }
@@ -84,7 +85,7 @@ export class CodeSuggestionEngine {
         .limit(1000);
 
       if (historyError) {
-        console.error('Error loading history:', historyError);
+        simpleLogger.error('Error loading history:', historyError);
         return;
       }
 
@@ -103,7 +104,7 @@ export class CodeSuggestionEngine {
         }
       });
 
-      console.log(`✅ Loaded ${this.userHistory.size} codes from history`);
+      simpleLogger.info(`✅ Loaded ${this.userHistory.size} codes from history`);
 
       // Build co-occurrence matrix
       const answerGroups = new Map<string, string[]>();
@@ -148,11 +149,11 @@ export class CodeSuggestionEngine {
         }
       });
 
-      console.log(`✅ Built co-occurrence matrix with ${this.coOccurrences.size} entries`);
+      simpleLogger.info(`✅ Built co-occurrence matrix with ${this.coOccurrences.size} entries`);
       this.isInitialized = true;
 
     } catch (error) {
-      console.error('❌ Error initializing suggestion engine:', error);
+      simpleLogger.error('❌ Error initializing suggestion engine:', error);
     }
   }
 
@@ -174,7 +175,7 @@ export class CodeSuggestionEngine {
       });
 
       if (error) {
-        console.error('❌ Error fetching similarity suggestions:', error);
+        simpleLogger.error('❌ Error fetching similarity suggestions:', error);
         return [];
       }
 
@@ -191,7 +192,7 @@ export class CodeSuggestionEngine {
         similarAnswers: row.suggestion_similar_answers || []
       }));
     } catch (error) {
-      console.error('❌ Exception in similarity suggestions:', error);
+      simpleLogger.error('❌ Exception in similarity suggestions:', error);
       return [];
     }
   }
@@ -220,7 +221,7 @@ export class CodeSuggestionEngine {
     }>();
 
     try {
-      console.log('🎯 Generating HYBRID suggestions...');
+      simpleLogger.info('🎯 Generating HYBRID suggestions...');
 
       // ============================================================
       // 1. SIMILARITY SIGNAL (30% weight) - NEW!
@@ -232,7 +233,7 @@ export class CodeSuggestionEngine {
         language || null
       );
 
-      console.log(`📊 Similarity: Found ${similaritySuggestions.length} suggestions`);
+      simpleLogger.info(`📊 Similarity: Found ${similaritySuggestions.length} suggestions`);
 
       similaritySuggestions.forEach(sugg => {
         if (!allScores.has(sugg.codeId)) {
@@ -270,7 +271,7 @@ export class CodeSuggestionEngine {
         score.frequency = count / totalFrequency;
       });
 
-      console.log(`📊 Frequency: Top ${frequentCodes.length} codes`);
+      simpleLogger.info(`📊 Frequency: Top ${frequentCodes.length} codes`);
 
       // ============================================================
       // 3. CO-OCCURRENCE SIGNAL (20% weight) - EXISTING
@@ -305,7 +306,7 @@ export class CodeSuggestionEngine {
         score.coOccurrence = count / maxCoOccurrence;
       });
 
-      console.log(`📊 Co-occurrence: Found ${coOccurringCodes.size} related codes`);
+      simpleLogger.info(`📊 Co-occurrence: Found ${coOccurringCodes.size} related codes`);
 
       // ============================================================
       // 4. KEYWORD SIGNAL (20% weight) - EXISTING
@@ -348,7 +349,7 @@ export class CodeSuggestionEngine {
         score.keyword = matches / maxKeywordScore;
       });
 
-      console.log(`📊 Keywords: Found ${keywordMatches.size} matches`);
+      simpleLogger.info(`📊 Keywords: Found ${keywordMatches.size} matches`);
 
       // ============================================================
       // 5. COMBINE ALL SIGNALS with WEIGHTS
@@ -402,15 +403,15 @@ export class CodeSuggestionEngine {
         .sort((a, b) => b.confidence - a.confidence)
         .slice(0, 5);
 
-      console.log(`💡 Generated ${topSuggestions.length} HYBRID suggestions`);
+      simpleLogger.info(`💡 Generated ${topSuggestions.length} HYBRID suggestions`);
       topSuggestions.forEach(s => {
-        console.log(`  - ${s.codeName}: ${Math.round(s.confidence * 100)}% (sim:${Math.round((s.similarity || 0) * 100)}% freq:${s.frequency || 0}×)`);
+        simpleLogger.info(`  - ${s.codeName}: ${Math.round(s.confidence * 100)}% (sim:${Math.round((s.similarity || 0) * 100)}% freq:${s.frequency || 0}×)`);
       });
 
       return topSuggestions;
 
     } catch (error) {
-      console.error('❌ Error generating HYBRID suggestions:', error);
+      simpleLogger.error('❌ Error generating HYBRID suggestions:', error);
       return [];
     }
   }
@@ -421,7 +422,7 @@ export class CodeSuggestionEngine {
   async learnFromAction(codeId: number): Promise<void> {
     const count = this.userHistory.get(codeId) || 0;
     this.userHistory.set(codeId, count + 1);
-    console.log(`📚 Learned: Code ${codeId} used ${count + 1} times`);
+    simpleLogger.info(`📚 Learned: Code ${codeId} used ${count + 1} times`);
   }
 
   /**
@@ -452,7 +453,7 @@ export class CodeSuggestionEngine {
     this.coOccurrences.clear();
     this.allCodes.clear();
     this.isInitialized = false;
-    console.log('🔄 Suggestion engine reset');
+    simpleLogger.info('🔄 Suggestion engine reset');
   }
 
   /**

@@ -1,516 +1,375 @@
 /**
- * Performance Monitoring System
+ * ⚡ Performance Monitoring System
  *
- * Tracks key performance metrics using Web Vitals:
- * - LCP (Largest Contentful Paint) - Loading speed
- * - FID (First Input Delay) - Interactivity
- * - CLS (Cumulative Layout Shift) - Visual stability
- * - FCP (First Contentful Paint) - Initial render
- * - TTFB (Time to First Byte) - Server response
- *
- * Business Benefits:
- * - Identify slow pages/components
- * - Track improvements over time
- * - Data-driven optimization decisions
- * - Better user experience
+ * Tracks performance metrics and sends to Sentry/analytics
+ * Only active in development for debugging, silent in production
  */
+
+import * as Sentry from '@sentry/react';
+import { simpleLogger } from '../utils/logger';
 
 interface PerformanceMetric {
   name: string;
-  value: number;
-  rating: 'good' | 'needs-improvement' | 'poor';
+  duration: number;
   timestamp: number;
+  category: 'render' | 'api' | 'db' | 'ai' | 'import' | 'export' | 'other';
+  metadata?: Record<string, any>;
 }
 
-const metrics: PerformanceMetric[] = [];
+class PerformanceMonitorClass {
+  private metrics: PerformanceMetric[] = [];
+  private readonly MAX_METRICS = 1000;
 
-// Thresholds based on Google Web Vitals recommendations
-const THRESHOLDS = {
-  LCP: [2500, 4000] as [number, number], // Largest Contentful Paint (ms)
-  FID: [100, 300] as [number, number],    // First Input Delay (ms)
-  CLS: [0.1, 0.25] as [number, number],   // Cumulative Layout Shift (score)
-  FCP: [1800, 3000] as [number, number],  // First Contentful Paint (ms)
-  TTFB: [800, 1800] as [number, number],  // Time to First Byte (ms)
-};
+  /**
+   * Measure execution time of a function
+   *
+   * @example
+   * const measure = PerformanceMonitor.measure('AI Categorization');
+   * await categorizeAnswer(...);
+   * const duration = measure.end();
+   */
+  measure(
+    name: string,
+    category: PerformanceMetric['category'] = 'other',
+    metadata?: Record<string, any>
+  ) {
+    const start = performance.now();
+    const startMark = `${name}-start`;
 
-/**
- * Get performance rating based on value and thresholds
- */
-function getRating(
-  value: number,
-  thresholds: [number, number]
-): 'good' | 'needs-improvement' | 'poor' {
-  if (value <= thresholds[0]) return 'good';
-  if (value <= thresholds[1]) return 'needs-improvement';
-  return 'poor';
-}
+    // Use Performance API for precise timing
+    performance.mark(startMark);
 
-/**
- * Format value for display
- */
-function formatValue(name: string, value: number): string {
-  if (name === 'CLS') {
-    return value.toFixed(3);
-  }
-  return Math.round(value).toString() + 'ms';
-}
+    return {
+      end: () => {
+        const endMark = `${name}-end`;
+        performance.mark(endMark);
 
-/**
- * Log metric to console
- */
-function logMetric(metric: PerformanceMetric) {
-  const emoji = metric.rating === 'good' ? '✅' : metric.rating === 'needs-improvement' ? '⚠️' : '❌';
-  console.log(
-    `${emoji} ${metric.name}: ${formatValue(metric.name, metric.value)} (${metric.rating})`
-  );
-}
+        try {
+          performance.measure(name, startMark, endMark);
+        } catch {
+          // Measure might not exist
+        }
 
-/**
- * Initialize basic performance monitoring
- * Uses Performance API (no external dependencies needed!)
- */
-export function initPerformanceMonitoring() {
-  // Only run in browser
-  if (typeof window === 'undefined') return;
+        const duration = performance.now() - start;
 
-  console.log('📊 Performance monitoring initialized');
-
-  // Monitor navigation timing
-  if (window.performance && window.performance.timing) {
-    window.addEventListener('load', () => {
-      setTimeout(() => {
-        const timing = window.performance.timing;
-        const loadTime = timing.loadEventEnd - timing.navigationStart;
-        const domReady = timing.domContentLoadedEventEnd - timing.navigationStart;
-        const ttfb = timing.responseStart - timing.navigationStart;
-
-        console.log('📊 Performance Metrics:');
-        console.log(`  • Page Load: ${loadTime}ms`);
-        console.log(`  • DOM Ready: ${domReady}ms`);
-        console.log(`  • TTFB: ${ttfb}ms`);
-
-        // Track TTFB
-        const ttfbMetric: PerformanceMetric = {
-          name: 'TTFB',
-          value: ttfb,
-          rating: getRating(ttfb, THRESHOLDS.TTFB),
+        this.record({
+          name,
+          duration,
           timestamp: Date.now(),
-        };
-        metrics.push(ttfbMetric);
-        logMetric(ttfbMetric);
-      }, 0);
-    });
-  }
+          category,
+          metadata,
+        });
 
-  // Monitor layout shifts using PerformanceObserver
-  if ('PerformanceObserver' in window) {
-    try {
-      // Cumulative Layout Shift
-      let clsValue = 0;
-      const clsObserver = new PerformanceObserver((list) => {
-        for (const entry of list.getEntries() as any[]) {
-          if (!entry.hadRecentInput) {
-            clsValue += entry.value;
+        // Log in development
+        if (import.meta.env.DEV) {
+          const emoji = this.getCategoryEmoji(category);
+          simpleLogger.info(`${emoji} ${name}: ${duration.toFixed(2)}ms`, metadata || '');
+
+          // Warn if slow
+          if (duration > 1000) {
+            simpleLogger.warn(`⚠️ SLOW: ${name} took ${duration.toFixed(0)}ms`);
           }
         }
-      });
 
-      clsObserver.observe({ type: 'layout-shift', buffered: true });
-
-      // Log CLS after page load
-      window.addEventListener('load', () => {
-        setTimeout(() => {
-          const clsMetric: PerformanceMetric = {
-            name: 'CLS',
-            value: clsValue,
-            rating: getRating(clsValue, THRESHOLDS.CLS),
-            timestamp: Date.now(),
-          };
-          metrics.push(clsMetric);
-          logMetric(clsMetric);
-        }, 1000);
-      });
-
-      // Largest Contentful Paint
-      const lcpObserver = new PerformanceObserver((list) => {
-        const entries = list.getEntries();
-        const lastEntry = entries[entries.length - 1] as any;
-        if (lastEntry) {
-          const lcpMetric: PerformanceMetric = {
-            name: 'LCP',
-            value: lastEntry.renderTime || lastEntry.loadTime,
-            rating: getRating(lastEntry.renderTime || lastEntry.loadTime, THRESHOLDS.LCP),
-            timestamp: Date.now(),
-          };
-          metrics.push(lcpMetric);
-          logMetric(lcpMetric);
+        // Send to Sentry in production (only if > 1s)
+        if (import.meta.env.PROD && duration > 1000) {
+          Sentry.addBreadcrumb({
+            category: 'performance',
+            message: name,
+            level: 'warning',
+            data: {
+              duration,
+              category,
+              ...metadata,
+            },
+          });
         }
-      });
 
-      lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
+        return duration;
+      },
 
-      // First Contentful Paint
-      const fcpObserver = new PerformanceObserver((list) => {
-        const entries = list.getEntries();
-        if (entries.length > 0) {
-          const fcpEntry = entries[0] as any;
-          const fcpMetric: PerformanceMetric = {
-            name: 'FCP',
-            value: fcpEntry.startTime,
-            rating: getRating(fcpEntry.startTime, THRESHOLDS.FCP),
-            timestamp: Date.now(),
-          };
-          metrics.push(fcpMetric);
-          logMetric(fcpMetric);
-        }
-      });
+      fail: (error: Error) => {
+        const duration = performance.now() - start;
 
-      fcpObserver.observe({ type: 'paint', buffered: true });
+        this.record({
+          name: `${name} (FAILED)`,
+          duration,
+          timestamp: Date.now(),
+          category,
+          metadata: { ...metadata, error: error.message },
+        });
 
-      // First Input Delay
-      const fidObserver = new PerformanceObserver((list) => {
-        const entries = list.getEntries();
-        if (entries.length > 0) {
-          const fidEntry = entries[0] as any;
-          const fidMetric: PerformanceMetric = {
-            name: 'FID',
-            value: fidEntry.processingStart - fidEntry.startTime,
-            rating: getRating(fidEntry.processingStart - fidEntry.startTime, THRESHOLDS.FID),
-            timestamp: Date.now(),
-          };
-          metrics.push(fidMetric);
-          logMetric(fidMetric);
-        }
-      });
+        // Always log errors
+        simpleLogger.error(`❌ ${name} failed after ${duration.toFixed(0)}ms:`, error);
 
-      fidObserver.observe({ type: 'first-input', buffered: true });
+        return duration;
+      },
+    };
+  }
+
+  /**
+   * Measure async function execution
+   *
+   * @example
+   * const result = await PerformanceMonitor.measureAsync(
+   *   'Fetch Categories',
+   *   () => fetchCategories(),
+   *   'api'
+   * );
+   */
+  async measureAsync<T>(
+    name: string,
+    fn: () => Promise<T>,
+    category: PerformanceMetric['category'] = 'other',
+    metadata?: Record<string, any>
+  ): Promise<T> {
+    const measure = this.measure(name, category, metadata);
+
+    try {
+      const result = await fn();
+      measure.end();
+      return result;
     } catch (error) {
-      console.warn('Performance monitoring not fully supported:', error);
+      measure.fail(error instanceof Error ? error : new Error(String(error)));
+      throw error;
     }
   }
 
-  // Log report before page unload
-  window.addEventListener('beforeunload', () => {
-    const report = getPerformanceReport();
-    console.log('🎯 Final Performance Score:', report.score, report.summary);
-    console.table(report.metrics);
+  /**
+   * Record performance metric
+   */
+  private record(metric: PerformanceMetric) {
+    this.metrics.push(metric);
 
-    // Optional: Send to analytics
-    // sendToAnalytics(report);
-  });
-}
+    // Keep only last N metrics (prevent memory leak)
+    if (this.metrics.length > this.MAX_METRICS) {
+      this.metrics.shift();
+    }
+  }
 
-/**
- * Get current performance report
- */
-export function getPerformanceReport() {
-  const good = metrics.filter((m) => m.rating === 'good').length;
-  const total = metrics.length;
-  const score = total > 0 ? Math.round((good / total) * 100) : 0;
+  /**
+   * Get all recorded metrics
+   */
+  getMetrics(): PerformanceMetric[] {
+    return [...this.metrics];
+  }
 
-  const summary =
-    score >= 80 ? '✅ Excellent' : score >= 60 ? '⚠️ Needs improvement' : '❌ Poor';
+  /**
+   * Get metrics by category
+   */
+  getMetricsByCategory(category: PerformanceMetric['category']): PerformanceMetric[] {
+    return this.metrics.filter(m => m.category === category);
+  }
 
-  return {
-    score,
-    metrics: [...metrics],
-    summary,
-    timestamp: Date.now(),
-  };
-}
+  /**
+   * Get slow operations (> threshold ms)
+   */
+  getSlowOperations(thresholdMs: number = 1000): PerformanceMetric[] {
+    return this.metrics.filter(m => m.duration > thresholdMs);
+  }
 
-/**
- * Clear all metrics (useful for testing)
- */
-export function clearMetrics() {
-  metrics.length = 0;
-}
+  /**
+   * Calculate statistics for a metric name
+   */
+  getStats(name: string) {
+    const filtered = this.metrics.filter(m => m.name === name);
 
-/**
- * Track custom performance metric
- */
-export function trackCustomMetric(name: string, durationMs: number) {
-  console.log(`⏱️ ${name}: ${durationMs}ms`);
+    if (filtered.length === 0) {
+      return null;
+    }
 
-  // Store for later analysis
-  const customMetric: PerformanceMetric = {
-    name,
-    value: durationMs,
-    rating: durationMs < 100 ? 'good' : durationMs < 500 ? 'needs-improvement' : 'poor',
-    timestamp: Date.now(),
-  };
+    const durations = filtered.map(m => m.duration);
+    const sum = durations.reduce((a, b) => a + b, 0);
+    const avg = sum / durations.length;
+    const min = Math.min(...durations);
+    const max = Math.max(...durations);
 
-  metrics.push(customMetric);
-}
+    // Calculate median
+    const sorted = [...durations].sort((a, b) => a - b);
+    const median =
+      sorted.length % 2 === 0
+        ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+        : sorted[Math.floor(sorted.length / 2)];
 
-/**
- * Measure function execution time
- */
-export function measurePerformance<T>(
-  name: string,
-  fn: () => T
-): T {
-  const start = performance.now();
-  const result = fn();
-  const duration = performance.now() - start;
-  trackCustomMetric(name, duration);
-  return result;
-}
+    // Calculate p95 (95th percentile)
+    const p95Index = Math.floor(sorted.length * 0.95);
+    const p95 = sorted[p95Index] || max;
 
-/**
- * Measure async function execution time
- */
-export async function measurePerformanceAsync<T>(
-  name: string,
-  fn: () => Promise<T>
-): Promise<T> {
-  const start = performance.now();
-  const result = await fn();
-  const duration = performance.now() - start;
-  trackCustomMetric(name, duration);
-  return result;
-}
-
-/**
- * Get memory usage (if available)
- */
-export function getMemoryUsage() {
-  if ('memory' in performance) {
-    const memory = (performance as any).memory;
     return {
-      usedJSHeapSize: Math.round(memory.usedJSHeapSize / 1024 / 1024) + 'MB',
-      totalJSHeapSize: Math.round(memory.totalJSHeapSize / 1024 / 1024) + 'MB',
-      jsHeapSizeLimit: Math.round(memory.jsHeapSizeLimit / 1024 / 1024) + 'MB',
+      count: filtered.length,
+      avg: Number(avg.toFixed(2)),
+      min: Number(min.toFixed(2)),
+      max: Number(max.toFixed(2)),
+      median: Number(median.toFixed(2)),
+      p95: Number(p95.toFixed(2)),
+      total: Number(sum.toFixed(2)),
     };
   }
-  return null;
-}
 
-/**
- * Log current memory usage
- */
-export function logMemoryUsage() {
-  const memory = getMemoryUsage();
-  if (memory) {
-    console.log('💾 Memory Usage:', memory);
+  /**
+   * Get summary of all performance metrics
+   */
+  getSummary() {
+    const byCategory: Record<string, number> = {};
+    let totalDuration = 0;
+
+    for (const metric of this.metrics) {
+      byCategory[metric.category] = (byCategory[metric.category] || 0) + metric.duration;
+      totalDuration += metric.duration;
+    }
+
+    return {
+      totalMetrics: this.metrics.length,
+      totalDuration: Number(totalDuration.toFixed(2)),
+      byCategory,
+      slowOps: this.getSlowOperations().length,
+    };
+  }
+
+  /**
+   * Clear all metrics
+   */
+  clear() {
+    this.metrics = [];
+    performance.clearMarks();
+    performance.clearMeasures();
+  }
+
+  /**
+   * Export metrics as JSON
+   */
+  export(): string {
+    return JSON.stringify(this.metrics, null, 2);
+  }
+
+  /**
+   * Download metrics as file
+   */
+  download() {
+    const content = this.export();
+    const blob = new Blob([content], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `performance-metrics-${new Date().toISOString()}.json`;
+    link.click();
+
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Get emoji for category
+   */
+  private getCategoryEmoji(category: PerformanceMetric['category']): string {
+    const emojis: Record<PerformanceMetric['category'], string> = {
+      render: '🎨',
+      api: '📡',
+      db: '🗄️',
+      ai: '🤖',
+      import: '📥',
+      export: '📤',
+      other: '⚡',
+    };
+    return emojis[category] || '⚡';
+  }
+
+  /**
+   * Start performance observer for Core Web Vitals
+   */
+  observeCoreWebVitals() {
+    if (typeof window === 'undefined' || !('PerformanceObserver' in window)) {
+      return;
+    }
+
+    // Largest Contentful Paint (LCP)
+    try {
+      const lcpObserver = new PerformanceObserver(list => {
+        for (const entry of list.getEntries()) {
+          const lcp = entry as PerformanceEntry;
+          this.record({
+            name: 'LCP (Largest Contentful Paint)',
+            duration: lcp.startTime,
+            timestamp: Date.now(),
+            category: 'render',
+            metadata: { entryType: lcp.entryType },
+          });
+
+          if (import.meta.env.DEV) {
+            simpleLogger.info(`🎯 LCP: ${lcp.startTime.toFixed(0)}ms`);
+          }
+        }
+      });
+      lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
+    } catch (error) {
+      // Observer not supported
+    }
+
+    // First Input Delay (FID)
+    try {
+      const fidObserver = new PerformanceObserver(list => {
+        for (const entry of list.getEntries()) {
+          const fid = entry as any;
+          const delay = fid.processingStart - fid.startTime;
+
+          this.record({
+            name: 'FID (First Input Delay)',
+            duration: delay,
+            timestamp: Date.now(),
+            category: 'render',
+          });
+
+          if (import.meta.env.DEV) {
+            simpleLogger.info(`⚡ FID: ${delay.toFixed(0)}ms`);
+          }
+        }
+      });
+      fidObserver.observe({ entryTypes: ['first-input'] });
+    } catch (error) {
+      // Observer not supported
+    }
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// API Call Tracking
-// ═══════════════════════════════════════════════════════════════
+// Singleton instance
+export const PerformanceMonitor = new PerformanceMonitorClass();
 
-interface APICallMetric {
-  endpoint: string;
-  method: string;
-  duration: number;
-  status: number;
-  success: boolean;
-  timestamp: number;
-  size?: number; // Response size in bytes
-}
+// Helper exports for easier importing
+export const getAllMetrics = () => PerformanceMonitor.getMetrics();
+export const clearAllMetrics = () => PerformanceMonitor.clear();
+export const getMetricsSummary = () => PerformanceMonitor.getSummary();
+export const trackCustomMetric = (
+  name: string,
+  category: PerformanceMetric['category'] = 'other'
+) => PerformanceMonitor.measure(name, category);
 
-const apiMetrics: APICallMetric[] = [];
-const apiStats = {
-  totalCalls: 0,
-  successfulCalls: 0,
-  failedCalls: 0,
-  totalDuration: 0,
-  averageDuration: 0,
-  slowestCall: null as APICallMetric | null,
-  fastestCall: null as APICallMetric | null,
+// Initialize performance monitoring (called from main.tsx)
+export const initPerformanceMonitoring = () => {
+  if (typeof window !== 'undefined') {
+    PerformanceMonitor.observeCoreWebVitals();
+    if (import.meta.env.DEV) {
+      simpleLogger.info('⚡ Performance monitoring initialized');
+    }
+  }
 };
 
-export function trackAPICall(metric: APICallMetric) {
-  apiMetrics.push(metric);
-
-  // Update stats
-  apiStats.totalCalls++;
-  if (metric.success) {
-    apiStats.successfulCalls++;
-  } else {
-    apiStats.failedCalls++;
-  }
-
-  apiStats.totalDuration += metric.duration;
-  apiStats.averageDuration = apiStats.totalDuration / apiStats.totalCalls;
-
-  // Track extremes
-  if (!apiStats.slowestCall || metric.duration > apiStats.slowestCall.duration) {
-    apiStats.slowestCall = metric;
-  }
-  if (!apiStats.fastestCall || metric.duration < apiStats.fastestCall.duration) {
-    apiStats.fastestCall = metric;
-  }
-
-  // Log slow calls
-  if (metric.duration > 3000) {
-    console.warn(`🐌 Slow API call: ${metric.method} ${metric.endpoint} took ${metric.duration}ms`);
-  }
-
-  // Log errors
-  if (!metric.success) {
-    console.error(`❌ API call failed: ${metric.method} ${metric.endpoint} (${metric.status})`);
-  }
+// Auto-start Core Web Vitals monitoring
+if (typeof window !== 'undefined') {
+  PerformanceMonitor.observeCoreWebVitals();
 }
 
-export function getAPIMetrics() {
-  return {
-    stats: { ...apiStats },
-    recentCalls: apiMetrics.slice(-50), // Last 50 calls
-    allCalls: [...apiMetrics],
-  };
+// Expose to window for debugging
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
+  (window as any).PerformanceMonitor = PerformanceMonitor;
+  simpleLogger.info('💡 Performance Monitor available: window.PerformanceMonitor');
+  simpleLogger.info('   - .getMetrics() - all metrics');
+  simpleLogger.info('   - .getSummary() - summary');
+  simpleLogger.info('   - .getStats("metric-name") - statistics');
+  simpleLogger.info('   - .download() - export JSON');
 }
 
-export function clearAPIMetrics() {
-  apiMetrics.length = 0;
-  apiStats.totalCalls = 0;
-  apiStats.successfulCalls = 0;
-  apiStats.failedCalls = 0;
-  apiStats.totalDuration = 0;
-  apiStats.averageDuration = 0;
-  apiStats.slowestCall = null;
-  apiStats.fastestCall = null;
-}
+// Export trackAPICall function
+export const trackAPICall = (name: string, category: PerformanceMetric['category'] = 'api') =>
+  PerformanceMonitor.measure(name, category);
 
-// ═══════════════════════════════════════════════════════════════
-// Render Tracking
-// ═══════════════════════════════════════════════════════════════
-
-interface RenderMetric {
-  component: string;
-  duration: number;
-  timestamp: number;
-  props?: any;
-}
-
-const renderMetrics: RenderMetric[] = [];
-const renderStats = {
-  totalRenders: 0,
-  slowRenders: 0, // > 16ms (60fps budget)
-  averageDuration: 0,
-  totalDuration: 0,
-  componentCounts: new Map<string, number>(),
-};
-
-export function trackRender(component: string, duration: number, props?: any) {
-  const metric: RenderMetric = {
-    component,
-    duration,
-    timestamp: Date.now(),
-    props: import.meta.env.DEV ? props : undefined,
-  };
-
-  renderMetrics.push(metric);
-
-  // Update stats
-  renderStats.totalRenders++;
-  renderStats.totalDuration += duration;
-  renderStats.averageDuration = renderStats.totalDuration / renderStats.totalRenders;
-
-  if (duration > 16) {
-    renderStats.slowRenders++;
-  }
-
-  // Track per-component counts
-  const count = renderStats.componentCounts.get(component) || 0;
-  renderStats.componentCounts.set(component, count + 1);
-
-  // Warn about slow renders
-  if (duration > 50) {
-    console.warn(`🐌 Slow render: ${component} took ${duration.toFixed(2)}ms`);
-  }
-
-  // Warn about excessive renders
-  if (renderStats.componentCounts.get(component)! > 100) {
-    console.warn(`⚠️ ${component} has rendered ${renderStats.componentCounts.get(component)} times`);
-  }
-}
-
-export function getRenderMetrics() {
-  return {
-    stats: {
-      ...renderStats,
-      componentCounts: Array.from(renderStats.componentCounts.entries())
-        .map(([component, count]) => ({ component, count }))
-        .sort((a, b) => b.count - a.count),
-    },
-    recentRenders: renderMetrics.slice(-100), // Last 100 renders
-    slowRenders: renderMetrics.filter(m => m.duration > 16),
-  };
-}
-
-export function clearRenderMetrics() {
-  renderMetrics.length = 0;
-  renderStats.totalRenders = 0;
-  renderStats.slowRenders = 0;
-  renderStats.averageDuration = 0;
-  renderStats.totalDuration = 0;
-  renderStats.componentCounts.clear();
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Error Tracking
-// ═══════════════════════════════════════════════════════════════
-
-interface ErrorMetric {
-  type: 'api' | 'render' | 'runtime';
-  message: string;
-  timestamp: number;
-  context?: string;
-  stack?: string;
-}
-
-const errorMetrics: ErrorMetric[] = [];
-
-export function trackError(error: Error, type: 'api' | 'render' | 'runtime' = 'runtime', context?: string) {
-  const metric: ErrorMetric = {
-    type,
-    message: error.message,
-    timestamp: Date.now(),
-    context,
-    stack: import.meta.env.DEV ? error.stack : undefined,
-  };
-
-  errorMetrics.push(metric);
-
-  console.error(`❌ ${type.toUpperCase()} Error in ${context || 'unknown'}:`, error);
-}
-
-export function getErrorMetrics() {
-  return {
-    total: errorMetrics.length,
-    byType: {
-      api: errorMetrics.filter(e => e.type === 'api').length,
-      render: errorMetrics.filter(e => e.type === 'render').length,
-      runtime: errorMetrics.filter(e => e.type === 'runtime').length,
-    },
-    recent: errorMetrics.slice(-20),
-    all: [...errorMetrics],
-  };
-}
-
-export function clearErrorMetrics() {
-  errorMetrics.length = 0;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Combined Stats
-// ═══════════════════════════════════════════════════════════════
-
-export function getAllMetrics() {
-  return {
-    performance: getPerformanceReport(),
-    api: getAPIMetrics(),
-    renders: getRenderMetrics(),
-    errors: getErrorMetrics(),
-    memory: getMemoryUsage(),
-  };
-}
-
-export function clearAllMetrics() {
-  clearMetrics();
-  clearAPIMetrics();
-  clearRenderMetrics();
-  clearErrorMetrics();
-}
+export default PerformanceMonitor;

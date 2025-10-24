@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { ModelComparison } from '../lib/modelComparison';
 import { TrainingDataExporter } from '../lib/trainingDataExporter';
+import { simpleLogger } from '../utils/logger';
 
 interface Props {
   categoryId?: number;
@@ -48,7 +49,7 @@ export function FineTuningDashboard({ categoryId }: Props) {
       toast.success(`Exported ${result.count} training examples to ${result.filename}`);
       setStep('info');
     } catch (error: any) {
-      console.error('Export error:', error);
+      simpleLogger.error('Export error:', error);
       toast.error(`Export failed: ${error.message}`);
     } finally {
       setIsExporting(false);

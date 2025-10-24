@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { simpleLogger } from '../utils/logger';
 
 // ═══════════════════════════════════════════════════════════════
 // 🔍 QUERY: Fetch Codes for Category
@@ -11,11 +12,11 @@ export function useCodes(categoryId: number | undefined) {
 
     queryFn: async () => {
       if (!categoryId) {
-        console.log('⏸️  useCodes: No category ID, returning empty array');
+        simpleLogger.info('⏸️  useCodes: No category ID, returning empty array');
         return [];
       }
 
-      console.log('📥 useCodes: Fetching codes for category', categoryId);
+      simpleLogger.info('📥 useCodes: Fetching codes for category', categoryId);
 
       // First try localStorage cache
       const cacheKey = `codes_${categoryId}`;
@@ -24,10 +25,10 @@ export function useCodes(categoryId: number | undefined) {
       if (cached) {
         try {
           const parsedCodes = JSON.parse(cached);
-          console.log(`✅ useCodes: Loaded ${parsedCodes.length} codes from localStorage cache`);
+          simpleLogger.info(`✅ useCodes: Loaded ${parsedCodes.length} codes from localStorage cache`);
           return parsedCodes;
         } catch (error) {
-          console.error('❌ useCodes: Error parsing cached codes:', error);
+          simpleLogger.error('❌ useCodes: Error parsing cached codes:', error);
           localStorage.removeItem(cacheKey);
         }
       }
@@ -46,7 +47,7 @@ export function useCodes(categoryId: number | undefined) {
         .range(0, PAGE_SIZE - 1);
 
       if (error) {
-        console.error('❌ useCodes: Fetch error:', error);
+        simpleLogger.error('❌ useCodes: Fetch error:', error);
         throw error;
       }
 
@@ -60,9 +61,9 @@ export function useCodes(categoryId: number | undefined) {
       // Cache if we got all codes
       if (data && data.length < PAGE_SIZE) {
         localStorage.setItem(cacheKey, JSON.stringify(sortedCodes));
-        console.log(`✅ useCodes: Loaded and cached ${sortedCodes.length} codes`);
+        simpleLogger.info(`✅ useCodes: Loaded and cached ${sortedCodes.length} codes`);
       } else {
-        console.log(`✅ useCodes: Loaded ${sortedCodes.length} codes (more may exist)`);
+        simpleLogger.info(`✅ useCodes: Loaded ${sortedCodes.length} codes (more may exist)`);
       }
 
       return sortedCodes;
@@ -70,8 +71,9 @@ export function useCodes(categoryId: number | undefined) {
 
     enabled: !!categoryId,
 
-    // Codes don't change often, keep them fresh for 2 minutes
-    staleTime: 2 * 60_000,
+    // 🚀 PERFORMANCE: Codes are static data, cache longer
+    staleTime: 30 * 60 * 1000, // 30 min (was 2 min) - rarely change
+    cacheTime: 60 * 60 * 1000, // 1 hour - keep in memory
   });
 }
 
@@ -84,7 +86,7 @@ export function useAllCodes() {
     queryKey: ['codes', 'all'],
 
     queryFn: async () => {
-      console.log('📥 useAllCodes: Fetching all codes');
+      simpleLogger.info('📥 useAllCodes: Fetching all codes');
 
       const { data, error } = await supabase
         .from('codes')
@@ -92,15 +94,17 @@ export function useAllCodes() {
         .order('name', { ascending: true });
 
       if (error) {
-        console.error('❌ useAllCodes: Fetch error:', error);
+        simpleLogger.error('❌ useAllCodes: Fetch error:', error);
         throw error;
       }
 
-      console.log(`✅ useAllCodes: Loaded ${data?.length || 0} codes`);
+      simpleLogger.info(`✅ useAllCodes: Loaded ${data?.length || 0} codes`);
       return data || [];
     },
 
-    staleTime: 2 * 60_000,
+    // 🚀 PERFORMANCE: All codes cache longer
+    staleTime: 30 * 60 * 1000, // 30 min
+    cacheTime: 60 * 60 * 1000, // 1 hour
   });
 }
 
@@ -118,7 +122,7 @@ export function useCreateCode() {
 
   return useMutation({
     mutationFn: async ({ name, categoryIds }: CreateCodePayload) => {
-      console.log('💾 useCreateCode: Creating code', name);
+      simpleLogger.info('💾 useCreateCode: Creating code', name);
 
       // Insert code
       const { data: code, error: codeError } = await supabase
@@ -128,7 +132,7 @@ export function useCreateCode() {
         .single();
 
       if (codeError) {
-        console.error('❌ useCreateCode: Error:', codeError);
+        simpleLogger.error('❌ useCreateCode: Error:', codeError);
         throw codeError;
       }
 
@@ -144,12 +148,12 @@ export function useCreateCode() {
           .insert(relations);
 
         if (relError) {
-          console.error('❌ useCreateCode: Error linking categories:', relError);
+          simpleLogger.error('❌ useCreateCode: Error linking categories:', relError);
           throw relError;
         }
       }
 
-      console.log('✅ useCreateCode: Created successfully');
+      simpleLogger.info('✅ useCreateCode: Created successfully');
       return code;
     },
 
@@ -181,7 +185,7 @@ export function useUpdateCode() {
 
   return useMutation({
     mutationFn: async ({ id, name }: UpdateCodePayload) => {
-      console.log('💾 useUpdateCode: Updating code', id);
+      simpleLogger.info('💾 useUpdateCode: Updating code', id);
 
       const { data, error } = await supabase
         .from('codes')
@@ -191,11 +195,11 @@ export function useUpdateCode() {
         .single();
 
       if (error) {
-        console.error('❌ useUpdateCode: Error:', error);
+        simpleLogger.error('❌ useUpdateCode: Error:', error);
         throw error;
       }
 
-      console.log('✅ useUpdateCode: Updated successfully');
+      simpleLogger.info('✅ useUpdateCode: Updated successfully');
       return data;
     },
 
@@ -222,7 +226,7 @@ export function useDeleteCode() {
 
   return useMutation({
     mutationFn: async (id: number) => {
-      console.log('🗑️ useDeleteCode: Deleting code', id);
+      simpleLogger.info('🗑️ useDeleteCode: Deleting code', id);
 
       const { error } = await supabase
         .from('codes')
@@ -230,11 +234,11 @@ export function useDeleteCode() {
         .eq('id', id);
 
       if (error) {
-        console.error('❌ useDeleteCode: Error:', error);
+        simpleLogger.error('❌ useDeleteCode: Error:', error);
         throw error;
       }
 
-      console.log('✅ useDeleteCode: Deleted successfully');
+      simpleLogger.info('✅ useDeleteCode: Deleted successfully');
       return id;
     },
 

@@ -297,10 +297,7 @@ export function exportLogsCSV(): string {
     log.message,
   ]);
 
-  return [
-    headers.join(','),
-    ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
-  ].join('\n');
+  return [headers.join(','), ...rows.map(row => row.map(cell => `"${cell}"`).join(','))].join('\n');
 }
 
 /**
@@ -428,24 +425,32 @@ export function initLogger() {
 
   // Set up global error handler
   if (typeof window !== 'undefined') {
-    window.addEventListener('error', (event) => {
-      logError('Uncaught error', {
-        component: 'Global',
-        extra: {
-          filename: event.filename,
-          lineno: event.lineno,
-          colno: event.colno,
+    window.addEventListener('error', event => {
+      logError(
+        'Uncaught error',
+        {
+          component: 'Global',
+          extra: {
+            filename: event.filename,
+            lineno: event.lineno,
+            colno: event.colno,
+          },
         },
-      }, event.error);
+        event.error
+      );
     });
 
-    window.addEventListener('unhandledrejection', (event) => {
-      logError('Unhandled promise rejection', {
-        component: 'Global',
-        extra: {
-          reason: event.reason,
+    window.addEventListener('unhandledrejection', event => {
+      logError(
+        'Unhandled promise rejection',
+        {
+          component: 'Global',
+          extra: {
+            reason: event.reason,
+          },
         },
-      }, event.reason instanceof Error ? event.reason : new Error(String(event.reason)));
+        event.reason instanceof Error ? event.reason : new Error(String(event.reason))
+      );
     });
   }
 
@@ -508,10 +513,14 @@ export async function logAsync<T>(
   } catch (error) {
     const duration = performance.now() - start;
 
-    logError(`${message} - failed after ${duration.toFixed(0)}ms`, {
-      ...context,
-      extra: { ...context?.extra, duration },
-    }, error instanceof Error ? error : new Error(String(error)));
+    logError(
+      `${message} - failed after ${duration.toFixed(0)}ms`,
+      {
+        ...context,
+        extra: { ...context?.extra, duration },
+      },
+      error instanceof Error ? error : new Error(String(error))
+    );
 
     throw error;
   }
@@ -535,10 +544,14 @@ export function createTimer(label: string, context?: LogContext) {
 
     fail: (error: Error, message?: string) => {
       const duration = performance.now() - start;
-      logError(message || `${label} failed`, {
-        ...context,
-        extra: { ...context?.extra, duration, label },
-      }, error);
+      logError(
+        message || `${label} failed`,
+        {
+          ...context,
+          extra: { ...context?.extra, duration, label },
+        },
+        error
+      );
       return duration;
     },
   };
@@ -587,5 +600,39 @@ if (typeof window !== 'undefined') {
   initLogger();
 }
 
-export default logger;
+// ───────────────────────────────────────────────────────────────
+// Simplified API for migration from console.log
+// ───────────────────────────────────────────────────────────────
 
+/**
+ * Simple logger interface that only logs in development
+ * Production: Errors go to Sentry, other logs are suppressed
+ */
+export const simpleLogger = {
+  info: (msg: string, ...args: any[]) => {
+    if (import.meta.env.DEV) {
+      console.info(msg, ...args);
+    }
+  },
+  warn: (msg: string, ...args: any[]) => {
+    if (import.meta.env.DEV) {
+      console.warn(msg, ...args);
+    }
+  },
+  error: (msg: string, ...args: any[]) => {
+    if (import.meta.env.PROD) {
+      // Extract error object if present
+      const error = args.find(arg => arg instanceof Error);
+      Sentry.captureException(error || new Error(msg));
+    } else {
+      console.error(msg, ...args);
+    }
+  },
+  log: (msg: string, ...args: any[]) => {
+    if (import.meta.env.DEV) {
+      console.log(msg, ...args);
+    }
+  },
+};
+
+export default logger;

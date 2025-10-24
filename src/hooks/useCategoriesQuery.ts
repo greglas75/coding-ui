@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Category } from '../types';
+import { simpleLogger } from '../utils/logger';
 
 // ═══════════════════════════════════════════════════════════════
 // 🔍 QUERY: Fetch Categories
@@ -11,7 +12,7 @@ export function useCategories() {
     queryKey: ['categories'],
 
     queryFn: async () => {
-      console.log('📥 useCategories: Fetching all categories');
+      simpleLogger.info('📥 useCategories: Fetching all categories');
 
       const { data, error } = await supabase
         .from('categories')
@@ -19,16 +20,17 @@ export function useCategories() {
         .order('name', { ascending: true });
 
       if (error) {
-        console.error('❌ useCategories: Fetch error:', error);
+        simpleLogger.error('❌ useCategories: Fetch error:', error);
         throw error;
       }
 
-      console.log(`✅ useCategories: Loaded ${data?.length || 0} categories`);
+      simpleLogger.info(`✅ useCategories: Loaded ${data?.length || 0} categories`);
       return data || [];
     },
 
-    // Categories don't change often, keep them fresh for 5 minutes
-    staleTime: 5 * 60_000,
+    // 🚀 PERFORMANCE: Categories are semi-static, cache longer
+    staleTime: 15 * 60 * 1000, // 15 min (was 5 min)
+    cacheTime: 30 * 60 * 1000, // 30 min
   });
 }
 
@@ -43,7 +45,7 @@ export function useCategory(categoryId: number | undefined) {
     queryFn: async () => {
       if (!categoryId) return null;
 
-      console.log('📥 useCategory: Fetching category', categoryId);
+      simpleLogger.info('📥 useCategory: Fetching category', categoryId);
 
       const { data, error } = await supabase
         .from('categories')
@@ -52,16 +54,18 @@ export function useCategory(categoryId: number | undefined) {
         .single();
 
       if (error) {
-        console.error('❌ useCategory: Fetch error:', error);
+        simpleLogger.error('❌ useCategory: Fetch error:', error);
         throw error;
       }
 
-      console.log('✅ useCategory: Loaded category', data?.name);
+      simpleLogger.info('✅ useCategory: Loaded category', data?.name);
       return data;
     },
 
     enabled: !!categoryId,
-    staleTime: 5 * 60_000,
+    // 🚀 PERFORMANCE: Cache longer
+    staleTime: 15 * 60 * 1000, // 15 min (was 5 min)
+    cacheTime: 30 * 60 * 1000, // 30 min
   });
 }
 
@@ -81,7 +85,7 @@ export function useCreateCategory() {
 
   return useMutation({
     mutationFn: async (payload: CreateCategoryPayload) => {
-      console.log('💾 useCreateCategory: Creating category', payload.name);
+      simpleLogger.info('💾 useCreateCategory: Creating category', payload.name);
 
       const { data, error } = await supabase
         .from('categories')
@@ -90,11 +94,11 @@ export function useCreateCategory() {
         .single();
 
       if (error) {
-        console.error('❌ useCreateCategory: Error:', error);
+        simpleLogger.error('❌ useCreateCategory: Error:', error);
         throw error;
       }
 
-      console.log('✅ useCreateCategory: Created successfully');
+      simpleLogger.info('✅ useCreateCategory: Created successfully');
       return data;
     },
 
@@ -119,7 +123,7 @@ export function useUpdateCategory() {
 
   return useMutation({
     mutationFn: async ({ id, updates }: UpdateCategoryPayload) => {
-      console.log('💾 useUpdateCategory: Updating category', id);
+      simpleLogger.info('💾 useUpdateCategory: Updating category', id);
 
       const { data, error } = await supabase
         .from('categories')
@@ -129,11 +133,11 @@ export function useUpdateCategory() {
         .single();
 
       if (error) {
-        console.error('❌ useUpdateCategory: Error:', error);
+        simpleLogger.error('❌ useUpdateCategory: Error:', error);
         throw error;
       }
 
-      console.log('✅ useUpdateCategory: Updated successfully');
+      simpleLogger.info('✅ useUpdateCategory: Updated successfully');
       return data;
     },
 
@@ -154,7 +158,7 @@ export function useDeleteCategory() {
 
   return useMutation({
     mutationFn: async (id: number) => {
-      console.log('🗑️ useDeleteCategory: Deleting category', id);
+      simpleLogger.info('🗑️ useDeleteCategory: Deleting category', id);
 
       const { error } = await supabase
         .from('categories')
@@ -162,11 +166,11 @@ export function useDeleteCategory() {
         .eq('id', id);
 
       if (error) {
-        console.error('❌ useDeleteCategory: Error:', error);
+        simpleLogger.error('❌ useDeleteCategory: Error:', error);
         throw error;
       }
 
-      console.log('✅ useDeleteCategory: Deleted successfully');
+      simpleLogger.info('✅ useDeleteCategory: Deleted successfully');
       return id;
     },
 

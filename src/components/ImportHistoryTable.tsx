@@ -2,6 +2,7 @@ import { AlertCircle, CheckCircle, Clock, FileText, RefreshCw, XCircle } from 'l
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
+import { simpleLogger } from '../utils/logger';
 
 // ═══════════════════════════════════════════════════════════════
 // 🎯 TYPES
@@ -60,7 +61,7 @@ export function ImportHistoryTable() {
 
       setImports(mappedData);
     } catch (err: any) {
-      console.error('Failed to fetch import history:', err);
+      simpleLogger.error('Failed to fetch import history:', err);
       setError(err.message || 'Failed to load history');
       toast.error('Failed to load import history');
     } finally {
@@ -74,7 +75,7 @@ export function ImportHistoryTable() {
 
   const handleReimport = async (importRecord: FileImport) => {
     toast.info('Re-import feature coming soon!');
-    console.log('Re-import requested for:', importRecord);
+    simpleLogger.info('Re-import requested for:', importRecord);
     // TODO: Implement re-import functionality
     // This would require storing the original file or file path
   };
