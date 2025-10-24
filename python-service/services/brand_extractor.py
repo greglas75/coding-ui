@@ -1,5 +1,6 @@
 """
 Brand extraction service using NER and fuzzy matching to detect brand names from text.
+Supports multilingual brand names with transliteration and normalization.
 """
 import logging
 import re
@@ -8,6 +9,14 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
+
+# Try to import langdetect for language detection
+try:
+    from langdetect import detect, LangDetectException
+    LANGDETECT_AVAILABLE = True
+except ImportError:
+    LANGDETECT_AVAILABLE = False
+    logger.warning("langdetect not available, multilingual support limited")
 
 
 @dataclass
@@ -21,14 +30,26 @@ class BrandCandidate:
 
 
 class BrandExtractor:
-    """Service for extracting brand names from free-text responses."""
+    """Service for extracting brand names from free-text responses with multilingual support."""
 
-    def __init__(self):
+    def __init__(self, enable_multilingual: bool = True):
+        """
+        Initialize BrandExtractor.
+
+        Args:
+            enable_multilingual: Enable language detection and multilingual support
+        """
+        self.enable_multilingual = enable_multilingual and LANGDETECT_AVAILABLE
+
         # Common brand patterns and keywords
         self.brand_indicators = [
             r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b',  # Title case words
             r'\b[A-Z]{2,}\b',  # Acronyms (APPLE, BMW, etc.)
             r'\b[a-z]+(?:\s+[a-z]+)*\b',  # Lowercase words (for typos)
+            r'[\u0600-\u06FF]+',  # Arabic script
+            r'[\u0400-\u04FF]+',  # Cyrillic script
+            r'[\u4E00-\u9FFF]+',  # Chinese characters
+            r'[\u3040-\u309F\u30A0-\u30FF]+',  # Japanese (Hiragana + Katakana)
         ]
 
         # Common brand suffixes/prefixes
@@ -63,6 +84,27 @@ class BrandExtractor:
             'walmart', 'target', 'costco', 'home depot', 'lowes',
             'ikea', 'wayfair', 'etsy', 'ebay', 'shopify'
         }
+
+    def detect_language(self, text: str) -> str:
+        """
+        Detect the language of text.
+
+        Args:
+            text: Text to analyze
+
+        Returns:
+            str: Language code (e.g., 'en', 'ar', 'zh') or 'unknown'
+        """
+        if not self.enable_multilingual or not text.strip():
+            return 'en'  # Default to English
+
+        try:
+            lang = detect(text)
+            logger.debug(f"Detected language: {lang}")
+            return lang
+        except (LangDetectException, Exception) as e:
+            logger.debug(f"Language detection failed: {e}")
+            return 'unknown'
 
     def extract_brands(self, texts: List[str]) -> List[BrandCandidate]:
         """

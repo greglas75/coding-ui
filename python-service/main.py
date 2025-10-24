@@ -17,6 +17,9 @@ from services.embedder import EmbeddingService
 from services.clusterer import ClusteringService, ClusterConfig
 from services.claude_client import ClaudeClient, ClaudeConfig
 from services.mece_validator import MECEValidator
+from services.brand_extractor import BrandExtractor, BrandCandidate
+from services.google_search_client import GoogleSearchClient
+from services.brand_cache import get_cache
 from supabase import create_client, Client
 import numpy as np
 
@@ -162,16 +165,75 @@ class CodeframeResponse(BaseModel):
     cost_usd: float
 
 
+# Brand extraction models
+class BrandExtractionRequest(BaseModel):
+    """Request body for brand extraction."""
+    texts: List[str]
+    min_confidence: float = Field(default=0.3, ge=0.0, le=1.0)
+
+
+class BrandCandidateResponse(BaseModel):
+    """Response model for a brand candidate."""
+    name: str
+    normalized_name: str
+    confidence: float
+    source_text: str
+    position_start: int
+    position_end: int
+
+
+class BrandExtractionResponse(BaseModel):
+    """Response for brand extraction."""
+    brands: List[BrandCandidateResponse]
+    total_texts_processed: int
+    processing_time_ms: int
+
+
+class BrandNormalizationRequest(BaseModel):
+    """Request body for brand normalization."""
+    brand_name: str
+    threshold: float = Field(default=0.8, ge=0.0, le=1.0)
+
+
+class BrandNormalizationResponse(BaseModel):
+    """Response for brand normalization."""
+    original: str
+    normalized: str
+    known_brand_match: Optional[str] = None
+    match_confidence: float
+    processing_time_ms: int
+
+
+class BrandValidationRequest(BaseModel):
+    """Request body for brand validation."""
+    brand_name: str
+    context: Optional[str] = None  # e.g., "toothpaste", "mobile payment app"
+    use_google_search: bool = True
+    use_google_images: bool = True
+
+
+class BrandValidationResponse(BaseModel):
+    """Response for brand validation."""
+    brand_name: str
+    is_valid: bool
+    confidence: float
+    reasoning: str
+    evidence: Dict[str, Any]
+    processing_time_ms: int
+
+
 # Initialize services at startup
 claude_client: Optional[ClaudeClient] = None
 mece_validator: Optional[MECEValidator] = None
+brand_extractor: Optional[BrandExtractor] = None
+google_search_client: Optional[GoogleSearchClient] = None
 supabase: Optional[Client] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle handler for FastAPI app."""
-    global claude_client, mece_validator, supabase
+    global claude_client, mece_validator, brand_extractor, google_search_client, supabase
 
     logger.info("Initializing services...")
 
@@ -200,6 +262,17 @@ async def lifespan(app: FastAPI):
     # Initialize MECE validator
     mece_validator = MECEValidator()
     logger.info("MECE validator initialized")
+
+    # Initialize Brand Extractor
+    brand_extractor = BrandExtractor()
+    logger.info("Brand extractor initialized")
+
+    # Initialize Google Search Client
+    google_search_client = GoogleSearchClient()
+    if google_search_client.is_configured():
+        logger.info("Google Search client initialized and configured")
+    else:
+        logger.warning("Google Search client initialized but not configured (missing API keys)")
 
     # Pre-load sentence-transformer model
     logger.info("Pre-loading sentence-transformer model...")
@@ -236,8 +309,30 @@ async def health_check():
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "service": "codeframe-generation",
-        "version": "1.0.0"
+        "service": "codeframe-generation-and-brand-extraction",
+        "version": "1.1.0"
+    }
+
+
+@app.get("/api/brand-cache/stats")
+async def get_brand_cache_stats():
+    """Get brand validation cache statistics."""
+    cache = get_cache()
+    stats = cache.get_stats()
+    return {
+        "cache_stats": stats,
+        "status": "ok"
+    }
+
+
+@app.post("/api/brand-cache/clear")
+async def clear_brand_cache():
+    """Clear all brand validation cache entries."""
+    cache = get_cache()
+    cache.clear()
+    return {
+        "message": "Brand cache cleared successfully",
+        "status": "ok"
     }
 
 
@@ -577,6 +672,285 @@ def _build_response(claude_result, mece_result, total_time_ms) -> CodeframeRespo
         ),
         cost_usd=claude_result.usage.cost_usd
     )
+
+
+@app.post("/api/extract-brands", response_model=BrandExtractionResponse)
+async def extract_brands(request: BrandExtractionRequest):
+    """
+    Extract brand names from text using NER and fuzzy matching.
+
+    This endpoint:
+    1. Analyzes text for potential brand mentions
+    2. Applies fuzzy matching against known brands database
+    3. Returns candidates with confidence scores
+    """
+    start_time = time.time()
+
+    try:
+        logger.info(f"Extracting brands from {len(request.texts)} texts")
+
+        if not request.texts:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="texts cannot be empty"
+            )
+
+        # Extract brands using the brand extractor service
+        candidates = brand_extractor.extract_brands(request.texts)
+
+        # Filter by confidence threshold
+        filtered_candidates = [
+            c for c in candidates
+            if c.confidence >= request.min_confidence
+        ]
+
+        # Convert to response model
+        brand_responses = [
+            BrandCandidateResponse(
+                name=candidate.name,
+                normalized_name=candidate.normalized_name,
+                confidence=candidate.confidence,
+                source_text=candidate.source_text,
+                position_start=candidate.position[0],
+                position_end=candidate.position[1]
+            )
+            for candidate in filtered_candidates
+        ]
+
+        processing_time = int((time.time() - start_time) * 1000)
+
+        logger.info(
+            f"Extracted {len(brand_responses)} brands from {len(request.texts)} texts "
+            f"in {processing_time}ms"
+        )
+
+        return BrandExtractionResponse(
+            brands=brand_responses,
+            total_texts_processed=len(request.texts),
+            processing_time_ms=processing_time
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error extracting brands: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to extract brands: {str(e)}"
+        )
+
+
+@app.post("/api/normalize-brand", response_model=BrandNormalizationResponse)
+async def normalize_brand(request: BrandNormalizationRequest):
+    """
+    Normalize a brand name and find matching known brands.
+
+    This endpoint:
+    1. Normalizes the brand name (lowercase, remove punctuation, etc.)
+    2. Fuzzy matches against known brands database
+    3. Returns normalized name and best match if found
+    """
+    start_time = time.time()
+
+    try:
+        logger.info(f"Normalizing brand: {request.brand_name}")
+
+        if not request.brand_name or len(request.brand_name.strip()) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="brand_name cannot be empty"
+            )
+
+        # Normalize the brand name
+        normalized = brand_extractor.normalize_brand_name(request.brand_name)
+
+        # Fuzzy match against known brands
+        known_match = brand_extractor.fuzzy_match_known_brands(
+            normalized,
+            threshold=request.threshold
+        )
+
+        # Calculate match confidence
+        match_confidence = 0.0
+        if known_match:
+            from difflib import SequenceMatcher
+            match_confidence = SequenceMatcher(
+                None,
+                normalized.lower(),
+                known_match.lower()
+            ).ratio()
+
+        processing_time = int((time.time() - start_time) * 1000)
+
+        logger.info(
+            f"Normalized '{request.brand_name}' to '{normalized}' "
+            f"(match: {known_match or 'none'}) in {processing_time}ms"
+        )
+
+        return BrandNormalizationResponse(
+            original=request.brand_name,
+            normalized=normalized,
+            known_brand_match=known_match,
+            match_confidence=match_confidence,
+            processing_time_ms=processing_time
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error normalizing brand: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to normalize brand: {str(e)}"
+        )
+
+
+@app.post("/api/validate-brand", response_model=BrandValidationResponse)
+async def validate_brand(request: BrandValidationRequest):
+    """
+    Validate if a brand name is real using multiple signals.
+
+    This endpoint:
+    1. Checks cache for previous validation
+    2. Normalizes the brand name
+    3. Checks against known brands database
+    4. Optionally validates with Google Search API
+    5. Optionally validates with Google Images API
+    6. Caches and returns validation result
+    """
+    start_time = time.time()
+
+    try:
+        logger.info(f"Validating brand: {request.brand_name}")
+
+        if not request.brand_name or len(request.brand_name.strip()) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="brand_name cannot be empty"
+            )
+
+        # Check cache first
+        cache = get_cache()
+        cached_result = cache.get(request.brand_name, request.context)
+
+        if cached_result:
+            logger.info(f"Cache hit for brand: {request.brand_name}")
+            processing_time = int((time.time() - start_time) * 1000)
+            cached_result["processing_time_ms"] = processing_time
+            cached_result["from_cache"] = True
+            return BrandValidationResponse(**cached_result)
+
+        # Initialize validation data
+        evidence = {
+            "normalized_name": "",
+            "known_brand_match": None,
+            "fuzzy_match_score": 0.0,
+            "google_search_found": False,
+            "google_images_found": False,
+            "validation_methods": []
+        }
+
+        # Step 1: Normalize brand name
+        normalized = brand_extractor.normalize_brand_name(request.brand_name)
+        evidence["normalized_name"] = normalized
+        evidence["validation_methods"].append("normalization")
+
+        # Step 2: Check known brands database
+        known_match = brand_extractor.fuzzy_match_known_brands(normalized, threshold=0.7)
+        if known_match:
+            from difflib import SequenceMatcher
+            fuzzy_score = SequenceMatcher(None, normalized.lower(), known_match.lower()).ratio()
+            evidence["known_brand_match"] = known_match
+            evidence["fuzzy_match_score"] = fuzzy_score
+            evidence["validation_methods"].append("known_brands_db")
+
+        # Step 3 & 4: Google Search and Images validation (if enabled)
+        if (request.use_google_search or request.use_google_images) and google_search_client.is_configured():
+            try:
+                google_result = google_search_client.validate_brand(
+                    brand_name=request.brand_name,
+                    context=request.context
+                )
+
+                # Merge Google validation results
+                evidence["google_search_found"] = google_result["valid"]
+                evidence["google_confidence"] = google_result["confidence"]
+                evidence["google_reasoning"] = google_result["reasoning"]
+                evidence["google_evidence"] = google_result["evidence"]
+                evidence["validation_methods"].append("google_search_and_images")
+
+            except Exception as e:
+                logger.error(f"Error during Google validation: {str(e)}")
+                evidence["validation_methods"].append("google_validation_failed")
+        elif request.use_google_search or request.use_google_images:
+            logger.warning("Google Search/Images validation requested but not configured")
+
+        # Calculate confidence score
+        confidence = 0.0
+
+        # Known brand match contributes up to 60% confidence
+        if known_match:
+            confidence += evidence["fuzzy_match_score"] * 0.6
+
+        # Google validation contributes up to 70% confidence (if available)
+        if "google_confidence" in evidence:
+            confidence += evidence["google_confidence"] * 0.7
+
+        # Context relevance (if provided)
+        if request.context:
+            confidence += 0.1
+
+        # Cap at 1.0
+        confidence = min(confidence, 1.0)
+
+        # Determine if valid (threshold: 0.5)
+        is_valid = confidence >= 0.5
+
+        # Generate reasoning
+        reasoning_parts = []
+        if known_match:
+            reasoning_parts.append(f"Matched known brand '{known_match}' with {evidence['fuzzy_match_score']:.2f} similarity")
+        else:
+            reasoning_parts.append("No match in known brands database")
+
+        if "google_reasoning" in evidence:
+            reasoning_parts.append(f"Google validation: {evidence['google_reasoning']}")
+
+        if request.context:
+            reasoning_parts.append(f"Context: '{request.context}'")
+
+        reasoning = "; ".join(reasoning_parts)
+
+        processing_time = int((time.time() - start_time) * 1000)
+
+        logger.info(
+            f"Validated brand '{request.brand_name}': "
+            f"valid={is_valid}, confidence={confidence:.2f} in {processing_time}ms"
+        )
+
+        # Prepare response
+        response_data = {
+            "brand_name": request.brand_name,
+            "is_valid": is_valid,
+            "confidence": confidence,
+            "reasoning": reasoning,
+            "evidence": evidence,
+            "processing_time_ms": processing_time
+        }
+
+        # Cache the result
+        cache.set(request.brand_name, response_data, request.context)
+
+        return BrandValidationResponse(**response_data)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error validating brand: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to validate brand: {str(e)}"
+        )
 
 
 if __name__ == "__main__":
