@@ -3,6 +3,7 @@
  * Renders hierarchical tree structure with expand/collapse
  */
 import { useState, useCallback, useMemo } from 'react';
+import { Download } from 'lucide-react';
 import { TreeNode } from './TreeNode';
 import { BrandInsightsModal } from '../modals/BrandInsightsModal';
 import type { HierarchyNode } from '@/types/codeframe';
@@ -175,6 +176,71 @@ export function CodeframeTree({
     }
   }, [currentBrandIndex, brandCodes]);
 
+  // Export hierarchy as JSON
+  const handleExportJSON = useCallback(() => {
+    try {
+      const jsonString = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `codeframe-hierarchy-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export JSON:', error);
+      alert('Failed to export JSON. Please try again.');
+    }
+  }, [data]);
+
+  // Export hierarchy as CSV
+  const handleExportCSV = useCallback(() => {
+    try {
+      // Flatten tree structure into CSV rows
+      const rows: string[][] = [];
+      rows.push(['ID', 'Name', 'Description', 'Type', 'Level', 'Confidence', 'Cluster Size', 'Parent ID']);
+
+      const flattenNode = (node: HierarchyNode, level: number = 0, parentId: string = '') => {
+        rows.push([
+          node.id,
+          node.name,
+          node.description || '',
+          node.node_type || '',
+          level.toString(),
+          node.confidence || '',
+          node.cluster_size?.toString() || '',
+          parentId
+        ]);
+
+        if (node.children) {
+          node.children.forEach((child) => flattenNode(child, level + 1, node.id));
+        }
+      };
+
+      data.forEach((node) => flattenNode(node));
+
+      // Convert to CSV format
+      const csvContent = rows.map((row) =>
+        row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')
+      ).join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `codeframe-hierarchy-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export CSV:', error);
+      alert('Failed to export CSV. Please try again.');
+    }
+  }, [data]);
+
   // Recursive tree renderer
   const renderNode = (node: HierarchyNode, depth: number = 0) => {
     const isExpanded = expandedNodes.has(node.id);
@@ -220,31 +286,51 @@ export function CodeframeTree({
 
   return (
     <div className="space-y-1">
-      {/* Expand/Collapse All */}
-      <div className="flex justify-end gap-2 mb-2 pb-2 border-b dark:border-gray-700">
-        <button
-          onClick={() => {
-            // Expand all nodes
-            const allIds = new Set<string>();
-            const collectIds = (nodes: HierarchyNode[]) => {
-              nodes.forEach((node) => {
-                allIds.add(node.id);
-                if (node.children) collectIds(node.children);
-              });
-            };
-            collectIds(data);
-            setExpandedNodes(allIds);
-          }}
-          className="text-xs px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
-        >
-          Expand All
-        </button>
-        <button
-          onClick={() => setExpandedNodes(new Set())}
-          className="text-xs px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
-        >
-          Collapse All
-        </button>
+      {/* Expand/Collapse All & Export */}
+      <div className="flex justify-between items-center mb-2 pb-2 border-b dark:border-gray-700">
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportJSON}
+            className="text-xs px-2 py-1 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded flex items-center gap-1"
+            title="Export as JSON"
+          >
+            <Download className="h-3 w-3" />
+            JSON
+          </button>
+          <button
+            onClick={handleExportCSV}
+            className="text-xs px-2 py-1 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded flex items-center gap-1"
+            title="Export as CSV"
+          >
+            <Download className="h-3 w-3" />
+            CSV
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              // Expand all nodes
+              const allIds = new Set<string>();
+              const collectIds = (nodes: HierarchyNode[]) => {
+                nodes.forEach((node) => {
+                  allIds.add(node.id);
+                  if (node.children) collectIds(node.children);
+                });
+              };
+              collectIds(data);
+              setExpandedNodes(allIds);
+            }}
+            className="text-xs px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
+          >
+            Expand All
+          </button>
+          <button
+            onClick={() => setExpandedNodes(new Set())}
+            className="text-xs px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
+          >
+            Collapse All
+          </button>
+        </div>
       </div>
 
       {/* Tree */}
