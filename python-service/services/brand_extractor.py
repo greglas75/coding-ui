@@ -303,7 +303,7 @@ class BrandExtractor:
                 brand_groups[brand_name] = []
             brand_groups[brand_name].append(candidate)
 
-        # Build codeframe entries
+        # Build codeframe entries with validation evidence
         codeframe_brands = []
         for brand_name, mentions in brand_groups.items():
             # Calculate average confidence
@@ -315,12 +315,65 @@ class BrandExtractor:
             # Example texts
             example_texts = [m.get('raw_text', '') for m in mentions[:3]]
 
+            # Collect validation evidence from Google APIs
+            validation_evidence = None
+            if self.google and self.google.is_configured():
+                try:
+                    # Search text results
+                    search_results = self.google.search_text(
+                        query=f"{brand_name} {category}",
+                        num_results=5
+                    )
+
+                    # Search images
+                    image_results = self.google.search_images(
+                        query=brand_name,
+                        num_results=6
+                    )
+
+                    # Knowledge Graph
+                    kg_data = self.google.search_knowledge_graph(
+                        query=brand_name,
+                        limit=1
+                    )
+
+                    # Build validation evidence structure
+                    validation_evidence = {
+                        "method": "google_validation",
+                        "evidence": {
+                            "search_results": {
+                                "query": f"{brand_name} {category}",
+                                "results": [
+                                    {
+                                        "title": r.title,
+                                        "url": r.link,
+                                        "snippet": r.snippet,
+                                        "display_link": r.display_link
+                                    }
+                                    for r in search_results
+                                ]
+                            },
+                            "image_results": {
+                                "query": brand_name,
+                                "image_urls": [img.link for img in image_results]
+                            },
+                            "knowledge_graph": kg_data
+                        }
+                    }
+
+                    logger.info(f"✅ Collected validation evidence for '{brand_name}': {len(search_results)} search results, {len(image_results)} images")
+
+                except Exception as e:
+                    logger.warning(f"Failed to collect validation evidence for '{brand_name}': {e}")
+                    validation_evidence = None
+
             codeframe_brands.append({
                 "brand_name": brand_name.title(),
                 "mention_count": len(mentions),
                 "confidence": round(avg_confidence, 2),
                 "google_verified": is_google_verified,
-                "example_texts": example_texts
+                "example_texts": example_texts,
+                "validation_evidence": validation_evidence
             })
 
         # Sort by mention count

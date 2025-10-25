@@ -26,6 +26,7 @@ class BrandCodeNode:
     frequency_estimate: str  # "high" | "medium" | "low"
     example_texts: List[Dict[str, str]]
     google_verified: bool = False
+    validation_evidence: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -217,7 +218,8 @@ class BrandCodeframeBuilder:
                 mention_count=mention_count,
                 frequency_estimate=frequency,
                 example_texts=example_texts,
-                google_verified=brand.get('google_verified', False)
+                google_verified=brand.get('google_verified', False),
+                validation_evidence=brand.get('validation_evidence')
             )
             brand_codes.append(code_node)
 
