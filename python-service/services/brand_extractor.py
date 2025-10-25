@@ -441,8 +441,9 @@ Return ONLY a JSON object with this exact structure:
 
         try:
             # Use Anthropic client directly for simple classification
+            # Use model from config (respects user's category settings)
             response = self.claude.client.messages.create(
-                model="claude-3-5-sonnet-20240620",  # Stable model version
+                model=self.claude.config.model,  # Use configured model (haiku/sonnet/opus)
                 max_tokens=200,
                 temperature=0.1,
                 messages=[{
