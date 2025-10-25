@@ -334,7 +334,7 @@ export function CodeframeTree({
       </div>
 
       {/* Tree */}
-      <div className="overflow-auto max-h-[600px]">
+      <div className="overflow-auto max-h-[calc(100vh-400px)] min-h-[600px]">
         {data.map((node) => renderNode(node, 0))}
       </div>
 

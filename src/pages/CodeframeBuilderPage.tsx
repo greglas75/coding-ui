@@ -137,7 +137,7 @@ export function CodeframeBuilderPage() {
       <StepIndicator steps={steps} currentStep={currentStep} className="mb-8" />
 
       {/* Main Content */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 min-h-[500px]">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 min-h-[calc(100vh-300px)]">
         {currentStep === 0 && (
           <Step0SelectType
             config={config}

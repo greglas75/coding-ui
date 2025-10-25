@@ -58,7 +58,7 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -200,13 +200,13 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
                   Related Images ({imageResults.length})
                 </h3>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 {imageResults.slice(0, 6).map((url: string, i: number) => (
                   <div key={i} className="relative aspect-video bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden">
                     <img
                       src={url}
                       alt={`${node.name} image ${i + 1}`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
                       loading="lazy"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';

@@ -56,7 +56,7 @@ export function Step4TreeEditor({ generation, onSave, onBack }: Step4TreeEditorP
       {meceIssues.length > 0 && <MECEWarnings issues={meceIssues} />}
 
       {/* Tree */}
-      <div className="border rounded-lg bg-white dark:bg-gray-800 p-4">
+      <div className="border rounded-lg bg-white dark:bg-gray-800 p-6">
         <CodeframeTree
           data={hierarchy}
           selectedNodes={selectedNodes}
