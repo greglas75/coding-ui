@@ -440,14 +440,22 @@ Return ONLY a JSON object with this exact structure:
 }}"""
 
         try:
-            response = self.claude.send_message(
-                prompt,
+            # Use Anthropic client directly for simple classification
+            response = self.claude.client.messages.create(
+                model="claude-3-5-sonnet-20241022",
                 max_tokens=200,
-                temperature=0.1
+                temperature=0.1,
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }]
             )
 
+            # Extract text from response
+            response_text = response.content[0].text.strip()
+
             # Parse JSON response
-            result = json.loads(response.strip())
+            result = json.loads(response_text)
             return result
 
         except Exception as e:
