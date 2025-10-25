@@ -103,7 +103,7 @@ export function CodeframeBuilderPage() {
       // Step3Processing component will handle the transition to step 4
       toast.success('Codeframe generation started successfully');
     } catch (err) {
-      simpleLogger.error('Generation failed:', err);
+      console.error('Generation failed:', err);
 
       const errorMessage = getErrorMessage(err);
       toast.error(errorMessage, {

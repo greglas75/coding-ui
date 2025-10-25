@@ -2,7 +2,7 @@
  * Individual Tree Node Component
  */
 import { useState } from 'react';
-import { ChevronRight, ChevronDown, Edit2, Trash2, Check, X } from 'lucide-react';
+import { ChevronRight, ChevronDown, Edit2, Trash2, Check, X, Info } from 'lucide-react';
 import type { HierarchyNode } from '@/types/codeframe';
 
 interface TreeNodeProps {
@@ -12,6 +12,7 @@ interface TreeNodeProps {
   onSelect: () => void;
   onRename: (newName: string) => void;
   onDelete: () => void;
+  onViewDetails?: () => void;
   depth: number;
 }
 
@@ -22,6 +23,7 @@ export function TreeNode({
   onSelect,
   onRename,
   onDelete,
+  onViewDetails,
   depth,
 }: TreeNodeProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -147,6 +149,16 @@ export function TreeNode({
             {/* Actions - Show on hover or selected */}
             {(isHovered || isSelected) && (
               <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                {/* Show View Details for brand codes with validation evidence */}
+                {node.node_type === 'code' && onViewDetails && (
+                  <button
+                    onClick={onViewDetails}
+                    className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded"
+                    title="View validation details"
+                  >
+                    <Info className="h-3 w-3" />
+                  </button>
+                )}
                 <button
                   onClick={() => setIsEditing(true)}
                   className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
@@ -178,14 +190,26 @@ export function TreeNode({
       )}
 
       {/* Example Texts */}
-      {node.example_texts && node.example_texts.length > 0 && !isEditing && (
-        <div
-          className="text-xs text-gray-400 dark:text-gray-500 ml-2 mt-1"
-          style={{ paddingLeft: `${depth * 24 + 32}px` }}
-        >
-          Examples: {node.example_texts.slice(0, 2).map(ex => `"${ex.text}"`).join(', ')}
-        </div>
-      )}
+      {node.example_texts && !isEditing && (() => {
+        try {
+          const examples = typeof node.example_texts === 'string'
+            ? JSON.parse(node.example_texts)
+            : node.example_texts;
+          if (examples && Array.isArray(examples) && examples.length > 0) {
+            return (
+              <div
+                className="text-xs text-gray-400 dark:text-gray-500 ml-2 mt-1"
+                style={{ paddingLeft: `${depth * 24 + 32}px` }}
+              >
+                Examples: {examples.slice(0, 2).map((ex: any) => typeof ex === 'string' ? `"${ex}"` : `"${ex.text}"`).join(', ')}
+              </div>
+            );
+          }
+        } catch (e) {
+          console.error('Failed to parse example_texts:', e);
+        }
+        return null;
+      })()}
     </div>
   );
 }

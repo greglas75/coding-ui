@@ -15,6 +15,7 @@ export interface APIKeys {
   google_gemini?: string | null;
   google_cse?: string | null;
   google_cse_cx?: string | null;
+  pinecone?: string | null;
 }
 
 /**
@@ -94,6 +95,13 @@ export function getGoogleCSECXID(): string | null {
 }
 
 /**
+ * Get Pinecone API key from Settings page
+ */
+export function getPineconeAPIKey(): string | null {
+  return getSecureValue('pinecone_api_key');
+}
+
+/**
  * Set Anthropic API key (with obfuscation)
  */
 export function setAnthropicAPIKey(value: string): void {
@@ -129,6 +137,13 @@ export function setGoogleCSECXID(value: string): void {
 }
 
 /**
+ * Set Pinecone API key (with obfuscation)
+ */
+export function setPineconeAPIKey(value: string): void {
+  setSecureValue('pinecone_api_key', value);
+}
+
+/**
  * Get all configured API keys from Settings page
  */
 export function getAllAPIKeys(): APIKeys {
@@ -138,6 +153,7 @@ export function getAllAPIKeys(): APIKeys {
     google_gemini: getGoogleGeminiAPIKey(),
     google_cse: getGoogleCSEAPIKey(),
     google_cse_cx: getGoogleCSECXID(),
+    pinecone: getPineconeAPIKey(),
   };
 }
 
@@ -199,6 +215,7 @@ export function enableSessionOnlyMode(): void {
     'google_gemini_api_key',
     'google_cse_api_key',
     'google_cse_cx_id',
+    'pinecone_api_key',
   ];
 
   keysToMigrate.forEach((key) => {
@@ -224,6 +241,7 @@ export function disableSessionOnlyMode(): void {
     'google_gemini_api_key',
     'google_cse_api_key',
     'google_cse_cx_id',
+    'pinecone_api_key',
   ];
 
   keysToMigrate.forEach((key) => {
@@ -252,6 +270,7 @@ export function clearAllAPIKeys(): void {
     'google_gemini_api_key',
     'google_cse_api_key',
     'google_cse_cx_id',
+    'pinecone_api_key',
     'anthropic_model',
     'openai_model',
     'google_gemini_model',

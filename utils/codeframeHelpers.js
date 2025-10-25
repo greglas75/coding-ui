@@ -24,6 +24,9 @@ export const generateCodeframeSchema = z.object({
   target_language: z.string().length(2).optional().default('en'),
   existing_codes: z.array(z.string()).optional().default([]),
   anthropic_api_key: z.string().optional(), // API key from Settings page
+  google_api_key: z.string().optional(), // Google API key for brand validation
+  google_cse_cx_id: z.string().optional(), // Google CSE CX ID for brand validation
+  pinecone_api_key: z.string().optional(), // Pinecone API key for brand embeddings
 });
 
 // Schema for update hierarchy request

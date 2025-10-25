@@ -22,6 +22,7 @@ import {
 import { Fragment, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { PricingDashboard } from '../components/PricingDashboard';
+import { PineconeSettings } from '../components/PineconeSettings';
 import { MainLayout } from '../components/layout/MainLayout';
 import { useAIPricing } from '../hooks/useAIPricing';
 import type { ModelPricing } from '../types/pricing';

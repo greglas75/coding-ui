@@ -41,6 +41,10 @@ export interface HierarchyNode {
   is_auto_generated?: boolean;
   example_texts?: Array<{ id: string; text: string }>;
   display_order?: number;
+  validation_evidence?: any; // Google validation results (search, images, Knowledge Graph)
+  approval_status?: 'pending' | 'approved' | 'rejected';
+  approved_at?: string | null;
+  approved_by?: string | null;
 }
 
 export interface MECEIssue {

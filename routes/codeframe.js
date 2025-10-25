@@ -99,7 +99,7 @@ router.post(
         `[Codeframe] User ${userId} requesting generation for category ${validatedData.category_id}, type: ${validatedData.coding_type}`
       );
 
-      // Start generation - pass full config (includes coding_type)
+      // Start generation - pass full config (includes coding_type and all API keys)
       const result = await codeframeService.startGeneration(
         validatedData.category_id,
         validatedData.answer_ids,
@@ -109,6 +109,9 @@ router.post(
           target_language: validatedData.target_language,
           existing_codes: validatedData.existing_codes,
           anthropic_api_key: validatedData.anthropic_api_key, // Pass API key from Settings
+          google_api_key: validatedData.google_api_key, // Pass Google API key for brand validation
+          google_cse_cx_id: validatedData.google_cse_cx_id, // Pass Google CSE CX ID
+          pinecone_api_key: validatedData.pinecone_api_key, // Pass Pinecone API key for brand embeddings
         },
         userId
       );
@@ -327,6 +330,67 @@ router.get(
       });
     } catch (error) {
       console.error('[Codeframe] List generations failed:', error);
+
+      const { statusCode, body } = formatErrorResponse(error);
+      res.status(statusCode).json(body);
+    }
+  }
+);
+
+/**
+ * PATCH /api/v1/codeframe/hierarchy/:nodeId/approval
+ * Approve or reject a brand code
+ */
+router.patch(
+  '/hierarchy/:nodeId/approval',
+  standardRateLimiter,
+  async (req, res) => {
+    try {
+      const { nodeId } = req.params;
+      const { status } = req.body;
+
+      // Validate status
+      if (!status || !['approved', 'rejected'].includes(status)) {
+        return res.status(400).json({
+          error: 'Invalid approval status',
+          message: 'Status must be either "approved" or "rejected"',
+        });
+      }
+
+      // Get user from session/auth
+      const userId = req.user?.email || req.session?.user?.email || 'system';
+
+      console.log(`[Codeframe] User ${userId} ${status} brand node ${nodeId}`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      );
+
+      // Update the approval status
+      const { data, error } = await supabase
+        .from('codeframe_hierarchy')
+        .update({
+          approval_status: status,
+          approved_at: new Date().toISOString(),
+          approved_by: userId,
+        })
+        .eq('id', nodeId)
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      res.json({
+        success: true,
+        node: data,
+        message: `Brand ${status} successfully`,
+      });
+    } catch (error) {
+      console.error('[Codeframe] Approval update failed:', error);
 
       const { statusCode, body } = formatErrorResponse(error);
       res.status(statusCode).json(body);

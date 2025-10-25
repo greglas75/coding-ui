@@ -29,6 +29,12 @@ class CodeframeService {
   async startGeneration(categoryId, answerIds, config, userId) {
     const codingType = config.coding_type || 'open-ended';
     console.log(`Starting codeframe generation for category ${categoryId} (type: ${codingType})`);
+    console.log('🔑 API keys in config:', {
+      anthropic: !!config.anthropic_api_key,
+      google: !!config.google_api_key,
+      google_cx: !!config.google_cse_cx_id,
+      pinecone: !!config.pinecone_api_key
+    });
 
     // 1. Fetch category info
     const { data: category, error: categoryError } = await supabase
@@ -42,7 +48,7 @@ class CodeframeService {
     }
 
     // 2. Fetch answers
-    const answers = await this.fetchAnswers(categoryId, answerIds);
+    const answers = await this.fetchAnswers(categoryId, answerIds, codingType);
 
     if (answers.length < MIN_ANSWERS_REQUIRED) {
       throw new Error(
@@ -52,39 +58,75 @@ class CodeframeService {
 
     console.log(`Fetched ${answers.length} answers`);
 
-    // 3. For Brand coding, skip clustering entirely
+    // 3. For Brand coding, use direct brand extraction (skip clustering)
     let clusterResult;
     if (codingType === 'brand') {
-      console.log('Brand coding detected - skipping clustering, using direct brand detection');
-      // Create a single "cluster" with all answers for brand detection
-      clusterResult = {
-        n_clusters: 1,
-        noise_count: 0,
-        clusters: {
-          '0': {
-            texts: answers.map((a, idx) => ({
-              id: a.id,
-              text: a.answer_text,
-              language: 'en', // TODO: detect language
-            })),
-            size: answers.length,
-            confidence: 1.0,
-          },
+      console.log('Brand coding detected - using Python brand extraction endpoint');
+
+      // Create generation record first (for status tracking)
+      const initialGeneration = await this.createGenerationRecord(
+        categoryId,
+        answers,
+        {
+          n_clusters: 1,
+          noise_count: 0,
+          clusters: { '0': { texts: [], size: answers.length, confidence: 1.0 } }
         },
-      };
-    } else {
-      // 3a. Generate embeddings (or use cached)
-      console.log('Generating/fetching embeddings...');
-      await this.ensureEmbeddings(answers);
-
-      // 3b. Call Python service to cluster answers
-      console.log('Clustering answers...');
-      clusterResult = await this.clusterAnswers(answers, config);
-
-      console.log(
-        `Clustering complete: ${clusterResult.n_clusters} clusters, ${clusterResult.noise_count} noise points`
+        config,
+        userId
       );
+
+      console.log(`Generation record created: ${initialGeneration.id}`);
+
+      // Call Python brand codeframe endpoint directly
+      try {
+        const brandCodeframe = await this.buildBrandCodeframe(
+          answers,
+          category,
+          config
+        );
+
+        // Save brand codeframe result to database
+        await this.saveBrandCodeframeResult(initialGeneration.id, brandCodeframe);
+
+        console.log(
+          `Brand codeframe complete: ${brandCodeframe.total_brands_found} brands found, ` +
+          `${brandCodeframe.verified_brands} verified`
+        );
+
+        // Return immediately (no async jobs needed)
+        return {
+          generation_id: initialGeneration.id,
+          status: 'completed',
+          n_clusters: 1,
+          n_answers: answers.length,
+          estimated_time_seconds: 0,
+          poll_url: `/api/v1/codeframe/${initialGeneration.id}/status`,
+        };
+
+      } catch (error) {
+        // Update generation status to failed
+        await supabase
+          .from('codeframe_generations')
+          .update({ status: 'failed' })
+          .eq('id', initialGeneration.id);
+
+        throw error;
+      }
     }
+
+    // For non-brand types, use clustering
+    // 3a. Generate embeddings (or use cached)
+    console.log('Generating/fetching embeddings...');
+    await this.ensureEmbeddings(answers);
+
+    // 3b. Call Python service to cluster answers
+    console.log('Clustering answers...');
+    clusterResult = await this.clusterAnswers(answers, config);
+
+    console.log(
+      `Clustering complete: ${clusterResult.n_clusters} clusters, ${clusterResult.noise_count} noise points`
+    );
 
     // 5. Create generation record in database
     const generation = await this.createGenerationRecord(
@@ -118,7 +160,7 @@ class CodeframeService {
   /**
    * Fetch answers for a category
    */
-  async fetchAnswers(categoryId, answerIds = null) {
+  async fetchAnswers(categoryId, answerIds = null, codingType = 'open-ended') {
     let query = supabase
       .from('answers')
       .select('id, answer_text, category_id')
@@ -129,10 +171,11 @@ class CodeframeService {
     // If specific answer IDs provided, filter by them
     if (answerIds && answerIds.length > 0) {
       query = query.in('id', answerIds);
-    } else {
-      // Default: only get uncategorized answers
+    } else if (codingType !== 'brand') {
+      // For non-brand coding: only get uncategorized answers
       query = query.is('selected_code', null);
     }
+    // For brand coding without answer_ids: fetch ALL answers (no filter on selected_code)
 
     const { data: answers, error } = await query;
 
@@ -672,6 +715,181 @@ class CodeframeService {
     }
 
     return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+  }
+
+  /**
+   * Build brand codeframe using Python brand extraction endpoint
+   */
+  async buildBrandCodeframe(answers, category, config) {
+    console.log('Calling Python brand codeframe builder...');
+    console.log('Config keys received:', Object.keys(config));
+    console.log('Pinecone API key present:', !!config.pinecone_api_key);
+    console.log('Google API key present:', !!config.google_api_key);
+    console.log('Anthropic API key present:', !!config.anthropic_api_key);
+
+    const requestBody = {
+      answers: answers.map(a => ({
+        id: a.id,
+        text: a.answer_text
+      })),
+      category_name: category.name,
+      category_description: category.description || '',
+      target_language: config.target_language || 'en',
+      min_confidence: config.brand_min_confidence || null,
+      enable_enrichment: config.brand_enable_enrichment !== false,
+      // Pass API keys from Settings (if provided)
+      anthropic_api_key: config.anthropic_api_key || null,
+      google_api_key: config.google_api_key || null,
+      google_cse_cx_id: config.google_cse_cx_id || null,
+      pinecone_api_key: config.pinecone_api_key || null
+    };
+
+    console.log('🔍 Request body API keys:', {
+      anthropic: !!requestBody.anthropic_api_key,
+      google: !!requestBody.google_api_key,
+      google_cx: !!requestBody.google_cse_cx_id,
+      pinecone: !!requestBody.pinecone_api_key,
+      pinecone_value_length: requestBody.pinecone_api_key?.length || 0
+    });
+
+    try {
+      const response = await axios.post(
+        `${PYTHON_SERVICE_URL}/api/build_codeframe`,
+        requestBody,
+        {
+          timeout: 600000, // 10 minutes timeout (brand extraction takes 3-8 min with 100+ answers)
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error('Error calling brand codeframe builder:', error);
+      throw new Error(
+        `Failed to build brand codeframe: ${error.response?.data?.detail || error.message}`
+      );
+    }
+  }
+
+  /**
+   * Save brand codeframe result to database
+   */
+  async saveBrandCodeframeResult(generationId, brandCodeframe) {
+    console.log(`Saving brand codeframe result for generation ${generationId}`);
+
+    // Convert brand codes to hierarchy format
+    const hierarchy = this.convertBrandCodesToHierarchy(brandCodeframe, generationId);
+
+    // Calculate statistics
+    const totalCodes = brandCodeframe.codes.length;
+    const processingTimeMs = brandCodeframe.processing_time_ms;
+
+    // Update generation record
+    const { error: updateError } = await supabase
+      .from('codeframe_generations')
+      .update({
+        status: 'completed',
+        progress_percent: 100,
+        n_clusters: 1,
+        n_themes: 1,
+        n_codes: totalCodes,
+        processing_time_ms: processingTimeMs,
+        completed_at: new Date().toISOString()
+      })
+      .eq('id', generationId);
+
+    if (updateError) {
+      throw new Error(`Failed to update generation: ${updateError.message}`);
+    }
+
+    // Save hierarchy
+    await this.saveHierarchyToDatabase(generationId, hierarchy);
+
+    console.log(`Brand codeframe result saved: ${totalCodes} brands`);
+  }
+
+  /**
+   * Save hierarchy nodes to database
+   */
+  async saveHierarchyToDatabase(generationId, hierarchy) {
+    if (!hierarchy || hierarchy.length === 0) {
+      console.log('No hierarchy to save');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('codeframe_hierarchy')
+      .insert(hierarchy);
+
+    if (error) {
+      throw new Error(`Failed to save hierarchy: ${error.message}`);
+    }
+
+    console.log(`Saved ${hierarchy.length} hierarchy nodes`);
+  }
+
+  /**
+   * Convert brand codes to hierarchy format
+   */
+  convertBrandCodesToHierarchy(brandCodeframe, generationId) {
+    const hierarchy = [];
+
+    // Create root node (theme)
+    const themeId = crypto.randomUUID();
+    const themeNode = {
+      id: themeId,
+      generation_id: generationId,
+      name: brandCodeframe.theme_name,
+      description: brandCodeframe.theme_description,
+      level: 1,
+      node_type: 'theme',
+      confidence: brandCodeframe.theme_confidence,
+      cluster_size: null,
+      cluster_id: null,
+      parent_id: null,
+      display_order: 0,
+      is_auto_generated: true
+    };
+
+    hierarchy.push(themeNode);
+
+    // Add brand codes
+    brandCodeframe.codes.forEach((brandCode, index) => {
+      // Log embedding status
+      if (index === 0) {
+        console.log(`First brand embedding check:`, {
+          has_embedding: !!brandCode.embedding,
+          embedding_type: typeof brandCode.embedding,
+          embedding_length: brandCode.embedding ? brandCode.embedding.length : 0
+        });
+      }
+
+      const codeNode = {
+        id: crypto.randomUUID(),
+        generation_id: generationId,
+        name: brandCode.brand_name,
+        code_name: brandCode.brand_name,
+        description: brandCode.description,
+        level: 2,
+        node_type: 'code',
+        confidence: brandCode.confidence,
+        cluster_size: brandCode.mention_count,
+        cluster_id: null,
+        parent_id: themeId,
+        display_order: index,
+        is_auto_generated: true,
+        frequency_estimate: brandCode.frequency_estimate,
+        example_texts: JSON.stringify(brandCode.example_texts),
+        embedding: brandCode.embedding ? JSON.stringify(brandCode.embedding) : null,
+        validation_evidence: brandCode.validation_evidence ? JSON.stringify(brandCode.validation_evidence) : null
+      };
+
+      hierarchy.push(codeNode);
+    });
+
+    return hierarchy;
   }
 }
 

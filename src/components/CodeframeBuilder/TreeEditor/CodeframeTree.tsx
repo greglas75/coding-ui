@@ -2,8 +2,9 @@
  * Codeframe Tree Component
  * Renders hierarchical tree structure with expand/collapse
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { TreeNode } from './TreeNode';
+import { BrandInsightsModal } from '../modals/BrandInsightsModal';
 import type { HierarchyNode } from '@/types/codeframe';
 
 interface CodeframeTreeProps {
@@ -22,6 +23,31 @@ export function CodeframeTree({
   onDelete,
 }: CodeframeTreeProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [selectedBrandNode, setSelectedBrandNode] = useState<HierarchyNode | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Collect all brand codes (node_type === 'code') for navigation
+  const brandCodes = useMemo(() => {
+    const codes: HierarchyNode[] = [];
+    const collectBrandCodes = (nodes: HierarchyNode[]) => {
+      nodes.forEach((node) => {
+        if (node.node_type === 'code') {
+          codes.push(node);
+        }
+        if (node.children) {
+          collectBrandCodes(node.children);
+        }
+      });
+    };
+    collectBrandCodes(data);
+    return codes;
+  }, [data]);
+
+  // Get current brand code index for navigation
+  const currentBrandIndex = useMemo(() => {
+    if (!selectedBrandNode) return -1;
+    return brandCodes.findIndex((node) => node.id === selectedBrandNode.id);
+  }, [brandCodes, selectedBrandNode]);
 
   // Toggle node expansion
   const toggleNode = useCallback((nodeId: string) => {
@@ -54,6 +80,101 @@ export function CodeframeTree({
     [selectedNodes, onSelect]
   );
 
+  // Handle view details for brand codes
+  const handleViewDetails = useCallback((node: HierarchyNode) => {
+    setSelectedBrandNode(node);
+    setIsModalOpen(true);
+  }, []);
+
+  // Handle modal close
+  const handleCloseModal = useCallback(() => {
+    setIsModalOpen(false);
+    // Don't clear selectedBrandNode immediately - let modal animation finish
+    setTimeout(() => setSelectedBrandNode(null), 300);
+  }, []);
+
+  // Handle brand approval
+  const handleApprove = useCallback(async () => {
+    if (!selectedBrandNode) return;
+
+    try {
+      // Call API to approve brand
+      const response = await fetch(`/api/v1/codeframe/hierarchy/${selectedBrandNode.id}/approval`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'approved' }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to approve brand');
+      }
+
+      const result = await response.json();
+      console.log('Brand approved successfully:', result);
+
+      // Navigate to next brand or close modal
+      if (currentBrandIndex < brandCodes.length - 1) {
+        setSelectedBrandNode(brandCodes[currentBrandIndex + 1]);
+      } else {
+        handleCloseModal();
+      }
+    } catch (error) {
+      console.error('Failed to approve brand:', error);
+      alert('Failed to approve brand. Please try again.');
+    }
+  }, [selectedBrandNode, currentBrandIndex, brandCodes, handleCloseModal]);
+
+  // Handle brand rejection
+  const handleReject = useCallback(async () => {
+    if (!selectedBrandNode) return;
+
+    try {
+      // Call API to reject brand
+      const response = await fetch(`/api/v1/codeframe/hierarchy/${selectedBrandNode.id}/approval`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'rejected' }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to reject brand');
+      }
+
+      const result = await response.json();
+      console.log('Brand rejected successfully:', result);
+
+      // Navigate to next brand or close modal
+      if (currentBrandIndex < brandCodes.length - 1) {
+        setSelectedBrandNode(brandCodes[currentBrandIndex + 1]);
+      } else {
+        handleCloseModal();
+      }
+    } catch (error) {
+      console.error('Failed to reject brand:', error);
+      alert('Failed to reject brand. Please try again.');
+    }
+  }, [selectedBrandNode, currentBrandIndex, brandCodes, handleCloseModal]);
+
+  // Navigate to previous brand
+  const handlePrevious = useCallback(() => {
+    if (currentBrandIndex > 0) {
+      setSelectedBrandNode(brandCodes[currentBrandIndex - 1]);
+    }
+  }, [currentBrandIndex, brandCodes]);
+
+  // Navigate to next brand
+  const handleNext = useCallback(() => {
+    if (currentBrandIndex < brandCodes.length - 1) {
+      setSelectedBrandNode(brandCodes[currentBrandIndex + 1]);
+    }
+  }, [currentBrandIndex, brandCodes]);
+
   // Recursive tree renderer
   const renderNode = (node: HierarchyNode, depth: number = 0) => {
     const isExpanded = expandedNodes.has(node.id);
@@ -69,6 +190,7 @@ export function CodeframeTree({
           onSelect={() => handleSelect(node.id)}
           onRename={(newName) => onRename(node.id, newName)}
           onDelete={() => onDelete(node.id)}
+          onViewDetails={node.node_type === 'code' ? () => handleViewDetails(node) : undefined}
           depth={depth}
         />
 
@@ -145,6 +267,21 @@ export function CodeframeTree({
             )}
           </p>
         </div>
+      )}
+
+      {/* Brand Insights Modal */}
+      {selectedBrandNode && (
+        <BrandInsightsModal
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+          node={selectedBrandNode}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onPrevious={handlePrevious}
+          onNext={handleNext}
+          hasPrevious={currentBrandIndex > 0}
+          hasNext={currentBrandIndex < brandCodes.length - 1}
+        />
       )}
     </div>
   );

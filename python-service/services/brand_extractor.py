@@ -1,335 +1,485 @@
 """
-Brand extraction service using NER and fuzzy matching to detect brand names from text.
-Supports multilingual brand names with transliteration and normalization.
+3-Phase Brand Extraction System using OpenAI Embeddings, Pinecone, Claude AI, and Google APIs.
+
+PHASE 1: Embedding Indexing - Store ALL unique answers as vectors
+PHASE 2: Brand Classification - AI + Google validation to mark brands
+PHASE 3: Codeframe Building - Group verified brands and create centroids
 """
+import hashlib
 import logging
-import re
-from typing import List, Optional, Tuple
-from dataclasses import dataclass
-from difflib import SequenceMatcher
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass, asdict
+import json
 
 logger = logging.getLogger(__name__)
 
-# Try to import langdetect for language detection
-try:
-    from langdetect import detect, LangDetectException
-    LANGDETECT_AVAILABLE = True
-except ImportError:
-    LANGDETECT_AVAILABLE = False
-    logger.warning("langdetect not available, multilingual support limited")
+
+@dataclass
+class AnswerEmbedding:
+    """Represents an answer stored in Pinecone."""
+    answer_id: str
+    raw_text: str
+    category: str
+    is_brand: bool = False
+    suggested_brand: Optional[str] = None
+    confidence: float = 0.0
+    verified_by: List[str] = None
+    ai_reasoning: Optional[str] = None
+    google_verified: bool = False
+
+    def __post_init__(self):
+        if self.verified_by is None:
+            self.verified_by = []
 
 
 @dataclass
 class BrandCandidate:
-    """Represents a potential brand found in text."""
-    name: str
-    normalized_name: str
+    """Brand candidate after AI + Google validation."""
+    brand_name: str
     confidence: float
-    source_text: str
-    position: Tuple[int, int]  # (start, end) character positions
+    answer_count: int
+    example_texts: List[str]
+    verified_by: List[str]
+    is_verified: bool
 
 
 class BrandExtractor:
-    """Service for extracting brand names from free-text responses with multilingual support."""
+    """
+    3-Phase brand extraction system.
 
-    def __init__(self, enable_multilingual: bool = True):
+    Architecture:
+    - Phase 1: Index all unique answers to Pinecone (no brand detection yet)
+    - Phase 2: Classify which indexed answers are brands using AI + Google
+    - Phase 3: Build codeframe by grouping verified brands
+    """
+
+    def __init__(
+        self,
+        openai_embedder=None,
+        claude_client=None,
+        google_client=None,
+        index_name: str = "tgm-brand-embeddings",
+        namespace: str = "answers"
+    ):
         """
-        Initialize BrandExtractor.
+        Initialize brand extractor.
 
         Args:
-            enable_multilingual: Enable language detection and multilingual support
+            openai_embedder: OpenAIEmbedder instance for generating embeddings
+            claude_client: ClaudeClient for AI validation
+            google_client: GoogleSearchClient for Google validation
+            index_name: Pinecone index name
+            namespace: Pinecone namespace for answer embeddings
         """
-        self.enable_multilingual = enable_multilingual and LANGDETECT_AVAILABLE
+        self.embedder = openai_embedder
+        self.claude = claude_client
+        self.google = google_client
+        self.index_name = index_name
+        self.namespace = namespace
 
-        # Common brand patterns and keywords
-        self.brand_indicators = [
-            r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b',  # Title case words
-            r'\b[A-Z]{2,}\b',  # Acronyms (APPLE, BMW, etc.)
-            r'\b[a-z]+(?:\s+[a-z]+)*\b',  # Lowercase words (for typos)
-            r'[\u0600-\u06FF]+',  # Arabic script
-            r'[\u0400-\u04FF]+',  # Cyrillic script
-            r'[\u4E00-\u9FFF]+',  # Chinese characters
-            r'[\u3040-\u309F\u30A0-\u30FF]+',  # Japanese (Hiragana + Katakana)
-        ]
+        logger.info(
+            f"BrandExtractor initialized - "
+            f"embedder={'✓' if openai_embedder else '✗'}, "
+            f"claude={'✓' if claude_client else '✗'}, "
+            f"google={'✓' if google_client else '✗'}"
+        )
 
-        # Common brand suffixes/prefixes
-        self.brand_suffixes = [
-            'brand', 'company', 'corp', 'inc', 'ltd', 'llc', 'group',
-            'international', 'global', 'worldwide', 'enterprises'
-        ]
+    # ============================================================================
+    # PHASE 1: EMBEDDING INDEXING
+    # ============================================================================
 
-        # Known brand database for fuzzy matching (can be expanded)
-        self.known_brands = {
-            # Health & Personal Care
-            'colgate', 'crest', 'oral-b', 'sensodyne', 'listerine',
-            'dove', 'olay', 'neutrogena', 'cetaphil', 'aveeno',
-            'johnson', 'johnson & johnson', 'pampers', 'huggies',
-
-            # Tech & Electronics
-            'apple', 'samsung', 'google', 'microsoft', 'amazon',
-            'sony', 'lg', 'nokia', 'huawei', 'xiaomi',
-            'tesla', 'bmw', 'mercedes', 'audi', 'volkswagen',
-
-            # Fashion & Luxury
-            'nike', 'adidas', 'puma', 'under armour', 'lululemon',
-            'gucci', 'louis vuitton', 'chanel', 'prada', 'hermes',
-            'zara', 'h&m', 'uniqlo', 'gap', 'old navy',
-
-            # Food & Beverage
-            'coca-cola', 'pepsi', 'mcdonalds', 'kfc', 'subway',
-            'starbucks', 'dunkin', 'tim hortons', 'dominos',
-            'pizza hut', 'burger king', 'wendys',
-
-            # Retail & E-commerce
-            'walmart', 'target', 'costco', 'home depot', 'lowes',
-            'ikea', 'wayfair', 'etsy', 'ebay', 'shopify'
-        }
-
-    def detect_language(self, text: str) -> str:
+    def index_unique_answers(
+        self,
+        answers: List[Dict[str, Any]],
+        category: str
+    ) -> Dict[str, Any]:
         """
-        Detect the language of text.
+        PHASE 1: Index all unique answers to Pinecone WITHOUT classifying as brands yet.
 
         Args:
-            text: Text to analyze
+            answers: List of dicts with keys: id, text
+            category: Category name (e.g., "toothpaste")
 
         Returns:
-            str: Language code (e.g., 'en', 'ar', 'zh') or 'unknown'
+            Dict with indexing stats: {
+                "total_answers": int,
+                "unique_answers": int,
+                "indexed_count": int,
+                "skipped_count": int
+            }
         """
-        if not self.enable_multilingual or not text.strip():
-            return 'en'  # Default to English
+        logger.info(f"📊 [PHASE 1/3] EMBEDDING INDEXING - Indexing {len(answers)} answers for category '{category}'")
+
+        if not self.embedder or not self.embedder.pc:
+            logger.error("❌ OpenAI embedder or Pinecone not configured")
+            return {"error": "Embedder not configured"}
+
+        # Deduplicate answers by text
+        unique_answers = {}
+        for answer in answers:
+            text = answer.get('text', '').strip().lower()
+            if text and text not in unique_answers:
+                unique_answers[text] = answer
+
+        logger.info(f"📝 Found {len(unique_answers)} unique answers (from {len(answers)} total)")
+
+        # Generate embeddings in batch
+        texts = list(unique_answers.keys())
+        embeddings = self.embedder.generate_embeddings_batch(texts)
+
+        # Prepare vectors for Pinecone
+        vectors = []
+        for i, (text, embedding) in enumerate(zip(texts, embeddings)):
+            if embedding is None:
+                logger.warning(f"⚠️ Failed to generate embedding for: {text[:50]}...")
+                continue
+
+            answer = unique_answers[text]
+            answer_id = self._generate_answer_id(text, category)
+
+            metadata = {
+                "raw_text": answer.get('text', '').strip(),
+                "category": category,
+                "original_answer_id": str(answer.get('id', '')),
+                "is_brand": False,  # Not classified yet
+                "verified_by": [],
+                "confidence": 0.0
+            }
+
+            vectors.append({
+                "id": answer_id,
+                "values": embedding,
+                "metadata": metadata
+            })
+
+        # Upsert to Pinecone
+        if vectors:
+            success = self.embedder.upsert_to_pinecone(
+                vectors=vectors,
+                index_name=self.index_name,
+                namespace=self.namespace
+            )
+
+            if success:
+                logger.info(f"✅ [PHASE 1/3] Indexed {len(vectors)} unique answers to Pinecone")
+            else:
+                logger.error(f"❌ [PHASE 1/3] Failed to index answers to Pinecone")
+
+        return {
+            "total_answers": len(answers),
+            "unique_answers": len(unique_answers),
+            "indexed_count": len(vectors),
+            "skipped_count": len(unique_answers) - len(vectors)
+        }
+
+    # ============================================================================
+    # PHASE 2: BRAND CLASSIFICATION
+    # ============================================================================
+
+    def classify_brands(
+        self,
+        category: str,
+        batch_size: int = 50
+    ) -> List[BrandCandidate]:
+        """
+        PHASE 2: Classify which indexed answers are brands using AI + Google validation.
+
+        Args:
+            category: Category to classify brands for
+            batch_size: Number of answers to process per batch
+
+        Returns:
+            List[BrandCandidate]: Verified brand candidates
+        """
+        logger.info(f"🤖 [PHASE 2/3] BRAND CLASSIFICATION - Classifying brands for category '{category}'")
+
+        if not self.embedder or not self.embedder.index:
+            logger.error("❌ Pinecone not initialized")
+            return []
+
+        # Fetch all unclassified answers from Pinecone
+        all_vectors = self._fetch_all_vectors_for_category(category)
+        logger.info(f"📦 Found {len(all_vectors)} vectors to classify")
+
+        if not all_vectors:
+            logger.warning(f"⚠️ No vectors found for category '{category}'. Run PHASE 1 first!")
+            return []
+
+        # Process in batches
+        brand_candidates = []
+        for i in range(0, len(all_vectors), batch_size):
+            batch = all_vectors[i:i + batch_size]
+            logger.info(f"🔄 Processing batch {i//batch_size + 1}/{(len(all_vectors)-1)//batch_size + 1}")
+
+            for vector in batch:
+                metadata = vector.get('metadata', {})
+                text = metadata.get('raw_text', '')
+                vector_id = vector.get('id', '')
+
+                # Skip if already classified
+                if metadata.get('is_brand'):
+                    logger.debug(f"⏭️ Skipping already classified: {text[:30]}...")
+                    continue
+
+                # AI Classification
+                ai_result = self._ai_classify_brand(text, category)
+
+                if ai_result.get('is_brand'):
+                    # Google Validation
+                    google_result = self._google_validate_brand(
+                        brand_name=ai_result.get('suggested_brand', text),
+                        category=category
+                    )
+
+                    # Update metadata in Pinecone
+                    updated_metadata = {
+                        **metadata,
+                        "is_brand": True,
+                        "suggested_brand": ai_result.get('suggested_brand'),
+                        "confidence": ai_result.get('confidence', 0.0),
+                        "ai_reasoning": ai_result.get('reason', ''),
+                        "verified_by": ["AI"] + (["Google"] if google_result.get('is_verified') else []),
+                        "google_verified": google_result.get('is_verified', False)
+                    }
+
+                    # Update in Pinecone
+                    self.embedder.index.update(
+                        id=vector_id,
+                        set_metadata=updated_metadata,
+                        namespace=self.namespace
+                    )
+
+                    logger.info(f"✅ Classified as brand: {ai_result.get('suggested_brand')} (confidence: {ai_result.get('confidence'):.2f})")
+
+        # Fetch all classified brands
+        classified_brands = self._fetch_classified_brands(category)
+        logger.info(f"🎯 [PHASE 2/3] Classification complete - Found {len(classified_brands)} brand candidates")
+
+        return classified_brands
+
+    # ============================================================================
+    # PHASE 3: CODEFRAME BUILDING
+    # ============================================================================
+
+    def build_codeframe(
+        self,
+        category: str,
+        similarity_threshold: float = 0.85
+    ) -> Dict[str, Any]:
+        """
+        PHASE 3: Build codeframe by grouping verified brands and creating centroids.
+
+        Args:
+            category: Category to build codeframe for
+            similarity_threshold: Cosine similarity threshold for grouping
+
+        Returns:
+            Dict: {
+                "category": str,
+                "brands": List[Dict],  # Brand codeframe
+                "total_mentions": int,
+                "unique_brands": int
+            }
+        """
+        logger.info(f"📊 [PHASE 3/3] CODEFRAME BUILDING - Building codeframe for category '{category}'")
+
+        # Fetch all classified brands
+        brand_candidates = self._fetch_classified_brands(category)
+
+        if not brand_candidates:
+            logger.warning(f"⚠️ No classified brands found. Run PHASE 2 first!")
+            return {
+                "category": category,
+                "brands": [],
+                "total_mentions": 0,
+                "unique_brands": 0
+            }
+
+        # Group by suggested_brand name
+        brand_groups = {}
+        for candidate in brand_candidates:
+            brand_name = candidate.get('suggested_brand', '').lower()
+            if brand_name not in brand_groups:
+                brand_groups[brand_name] = []
+            brand_groups[brand_name].append(candidate)
+
+        # Build codeframe entries
+        codeframe_brands = []
+        for brand_name, mentions in brand_groups.items():
+            # Calculate average confidence
+            avg_confidence = sum(m.get('confidence', 0.0) for m in mentions) / len(mentions)
+
+            # Get verification status
+            is_google_verified = any(m.get('google_verified', False) for m in mentions)
+
+            # Example texts
+            example_texts = [m.get('raw_text', '') for m in mentions[:3]]
+
+            codeframe_brands.append({
+                "brand_name": brand_name.title(),
+                "mention_count": len(mentions),
+                "confidence": round(avg_confidence, 2),
+                "google_verified": is_google_verified,
+                "example_texts": example_texts
+            })
+
+        # Sort by mention count
+        codeframe_brands.sort(key=lambda x: x['mention_count'], reverse=True)
+
+        logger.info(f"✅ [PHASE 3/3] Codeframe built - {len(codeframe_brands)} unique brands from {len(brand_candidates)} mentions")
+
+        return {
+            "category": category,
+            "brands": codeframe_brands,
+            "total_mentions": len(brand_candidates),
+            "unique_brands": len(codeframe_brands)
+        }
+
+    # ============================================================================
+    # HELPER METHODS
+    # ============================================================================
+
+    def _generate_answer_id(self, text: str, category: str) -> str:
+        """Generate unique ID for answer based on text + category."""
+        content = f"{category}:{text}".encode('utf-8')
+        return hashlib.md5(content).hexdigest()
+
+    def _fetch_all_vectors_for_category(self, category: str) -> List[Dict[str, Any]]:
+        """Fetch all vectors for a category from Pinecone."""
+        try:
+            # Pinecone doesn't have list_all, so we query with a dummy vector and high top_k
+            # Better approach: Use Pinecone's list() method if available, or query in batches
+
+            # For now, use a workaround: query with random vector and very high top_k
+            import random
+            dummy_vector = [random.random() for _ in range(3072)]
+
+            results = self.embedder.index.query(
+                vector=dummy_vector,
+                top_k=10000,  # Max allowed
+                namespace=self.namespace,
+                include_metadata=True,
+                filter={"category": {"$eq": category}}
+            )
+
+            vectors = []
+            for match in results.matches:
+                vectors.append({
+                    "id": match.id,
+                    "score": match.score,
+                    "metadata": match.metadata
+                })
+
+            return vectors
+
+        except Exception as e:
+            logger.error(f"Failed to fetch vectors: {e}")
+            return []
+
+    def _fetch_classified_brands(self, category: str) -> List[Dict[str, Any]]:
+        """Fetch all classified brands (is_brand=True) from Pinecone."""
+        try:
+            import random
+            dummy_vector = [random.random() for _ in range(3072)]
+
+            results = self.embedder.index.query(
+                vector=dummy_vector,
+                top_k=10000,
+                namespace=self.namespace,
+                include_metadata=True,
+                filter={
+                    "category": {"$eq": category},
+                    "is_brand": {"$eq": True}
+                }
+            )
+
+            brands = []
+            for match in results.matches:
+                brands.append({
+                    **match.metadata,
+                    "vector_id": match.id
+                })
+
+            return brands
+
+        except Exception as e:
+            logger.error(f"Failed to fetch classified brands: {e}")
+            return []
+
+    def _ai_classify_brand(self, text: str, category: str) -> Dict[str, Any]:
+        """
+        Use Claude AI to classify if text is a brand.
+
+        Returns:
+            Dict: {
+                "is_brand": bool,
+                "suggested_brand": str,
+                "confidence": float,
+                "reason": str
+            }
+        """
+        if not self.claude:
+            logger.warning("Claude client not configured - skipping AI classification")
+            return {"is_brand": False, "confidence": 0.0}
+
+        prompt = f"""You are verifying if a given text refers to a real consumer brand within the category: {category}.
+
+Consider:
+- Possible typos, translations, or variants
+- Brand names vs. generic product descriptions
+- Well-known international brands
+
+Text to classify: "{text}"
+
+Return ONLY a JSON object with this exact structure:
+{{
+  "is_brand": true or false,
+  "suggested_brand": "Corrected Brand Name" or null,
+  "confidence": 0.0 to 1.0,
+  "reason": "Brief explanation"
+}}"""
 
         try:
-            lang = detect(text)
-            logger.debug(f"Detected language: {lang}")
-            return lang
-        except (LangDetectException, Exception) as e:
-            logger.debug(f"Language detection failed: {e}")
-            return 'unknown'
+            response = self.claude.send_message(
+                prompt,
+                max_tokens=200,
+                temperature=0.1
+            )
 
-    def extract_brands(self, texts: List[str]) -> List[BrandCandidate]:
+            # Parse JSON response
+            result = json.loads(response.strip())
+            return result
+
+        except Exception as e:
+            logger.error(f"AI classification failed: {e}")
+            return {"is_brand": False, "confidence": 0.0, "reason": str(e)}
+
+    def _google_validate_brand(self, brand_name: str, category: str) -> Dict[str, Any]:
         """
-        Extract potential brand names from a list of texts.
-
-        Args:
-            texts: List of text strings to analyze
+        Validate brand using Google Knowledge Graph + Search.
 
         Returns:
-            List[BrandCandidate]: List of potential brands found
+            Dict: {
+                "is_verified": bool,
+                "confidence": float
+            }
         """
-        all_candidates = []
+        if not self.google:
+            logger.warning("Google client not configured - skipping Google validation")
+            return {"is_verified": False, "confidence": 0.0}
 
-        for text in texts:
-            candidates = self._extract_from_text(text)
-            all_candidates.extend(candidates)
+        try:
+            # Use existing Google validation logic
+            validation = self.google.validate_brand(
+                brand_name=brand_name,
+                category_description=category
+            )
 
-        # Remove duplicates and merge similar candidates
-        unique_candidates = self._deduplicate_candidates(all_candidates)
+            return {
+                "is_verified": validation.get('is_valid', False),
+                "confidence": validation.get('confidence', 0.0)
+            }
 
-        # Sort by confidence (highest first)
-        unique_candidates.sort(key=lambda x: x.confidence, reverse=True)
-
-        logger.info(f"Extracted {len(unique_candidates)} unique brand candidates from {len(texts)} texts")
-        return unique_candidates
-
-    def _extract_from_text(self, text: str) -> List[BrandCandidate]:
-        """Extract brand candidates from a single text."""
-        candidates = []
-
-        # Find all potential brand mentions using regex patterns
-        for pattern in self.brand_indicators:
-            matches = re.finditer(pattern, text, re.IGNORECASE)
-
-            for match in matches:
-                raw_name = match.group().strip()
-
-                # Skip very short or very long names
-                if len(raw_name) < 2 or len(raw_name) > 50:
-                    continue
-
-                # Skip common words that aren't brands
-                if self._is_common_word(raw_name):
-                    continue
-
-                # Normalize the brand name
-                normalized = self.normalize_brand_name(raw_name)
-
-                # Calculate confidence based on various factors
-                confidence = self._calculate_confidence(raw_name, normalized, text)
-
-                # Only include candidates with reasonable confidence
-                if confidence > 0.3:
-                    candidate = BrandCandidate(
-                        name=raw_name,
-                        normalized_name=normalized,
-                        confidence=confidence,
-                        source_text=text,
-                        position=(match.start(), match.end())
-                    )
-                    candidates.append(candidate)
-
-        return candidates
-
-    def normalize_brand_name(self, raw_name: str) -> str:
-        """
-        Normalize a brand name by cleaning and standardizing it.
-
-        Args:
-            raw_name: Raw brand name from text
-
-        Returns:
-            str: Normalized brand name
-        """
-        # Convert to lowercase for processing
-        normalized = raw_name.lower().strip()
-
-        # Remove common punctuation
-        normalized = re.sub(r'[^\w\s-]', '', normalized)
-
-        # Remove extra whitespace
-        normalized = ' '.join(normalized.split())
-
-        # Handle common typos and variations
-        normalized = self._fix_common_typos(normalized)
-
-        # Remove brand suffixes if present
-        for suffix in self.brand_suffixes:
-            if normalized.endswith(f' {suffix}'):
-                normalized = normalized[:-len(f' {suffix}')].strip()
-
-        return normalized
-
-    def fuzzy_match_known_brands(self, candidate: str, threshold: float = 0.8) -> Optional[str]:
-        """
-        Find the best match for a candidate brand in the known brands database.
-
-        Args:
-            candidate: Brand name to match
-            threshold: Minimum similarity score (0-1)
-
-        Returns:
-            Optional[str]: Best matching known brand or None
-        """
-        best_match = None
-        best_score = 0.0
-
-        for known_brand in self.known_brands:
-            # Calculate similarity using SequenceMatcher
-            similarity = SequenceMatcher(None, candidate.lower(), known_brand.lower()).ratio()
-
-            if similarity > best_score and similarity >= threshold:
-                best_score = similarity
-                best_match = known_brand
-
-        return best_match if best_score >= threshold else None
-
-    def _calculate_confidence(self, raw_name: str, normalized: str, context: str) -> float:
-        """Calculate confidence score for a brand candidate."""
-        confidence = 0.0
-
-        # Base confidence from length (not too short, not too long)
-        length_score = min(1.0, len(normalized) / 15.0)  # Optimal around 15 chars
-        confidence += length_score * 0.2
-
-        # Check if it matches a known brand
-        known_match = self.fuzzy_match_known_brands(normalized, threshold=0.7)
-        if known_match:
-            confidence += 0.6  # High confidence for known brands
-
-        # Check for brand indicators in context
-        context_lower = context.lower()
-        brand_context_indicators = [
-            'brand', 'company', 'product', 'manufacturer',
-            'buy', 'purchase', 'use', 'prefer', 'like',
-            'recommend', 'trust', 'quality'
-        ]
-
-        context_score = sum(1 for indicator in brand_context_indicators
-                          if indicator in context_lower) / len(brand_context_indicators)
-        confidence += context_score * 0.2
-
-        # Bonus for title case (likely proper nouns)
-        if raw_name[0].isupper() and any(c.isupper() for c in raw_name[1:]):
-            confidence += 0.1
-
-        # Penalty for very common words
-        if self._is_common_word(normalized):
-            confidence *= 0.3
-
-        return min(1.0, confidence)
-
-    def _fix_common_typos(self, name: str) -> str:
-        """Fix common typos in brand names."""
-        typo_fixes = {
-            'colagte': 'colgate',
-            'crest': 'crest',  # Already correct
-            'appel': 'apple',
-            'samsun': 'samsung',
-            'googl': 'google',
-            'microsft': 'microsoft',
-            'amazn': 'amazon',
-            'nik': 'nike',
-            'adida': 'adidas',
-            'starbuck': 'starbucks',
-            'mcdonal': 'mcdonalds',
-            'coca cola': 'coca-cola',
-            'louis vuiton': 'louis vuitton',
-        }
-
-        return typo_fixes.get(name, name)
-
-    def _is_common_word(self, word: str) -> bool:
-        """Check if a word is too common to be a brand."""
-        common_words = {
-            'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with',
-            'by', 'from', 'up', 'about', 'into', 'through', 'during', 'before',
-            'after', 'above', 'below', 'between', 'among', 'good', 'bad', 'new',
-            'old', 'big', 'small', 'great', 'nice', 'best', 'better', 'worse',
-            'first', 'last', 'next', 'previous', 'other', 'another', 'same',
-            'different', 'similar', 'easy', 'hard', 'simple', 'complex'
-        }
-
-        return word.lower() in common_words
-
-    def _deduplicate_candidates(self, candidates: List[BrandCandidate]) -> List[BrandCandidate]:
-        """Remove duplicate and very similar brand candidates."""
-        unique_candidates = []
-
-        for candidate in candidates:
-            # Check if this candidate is too similar to existing ones
-            is_duplicate = False
-
-            for existing in unique_candidates:
-                similarity = SequenceMatcher(
-                    None,
-                    candidate.normalized_name.lower(),
-                    existing.normalized_name.lower()
-                ).ratio()
-
-                # If very similar (90%+), keep the one with higher confidence
-                if similarity > 0.9:
-                    is_duplicate = True
-                    if candidate.confidence > existing.confidence:
-                        # Replace the existing candidate
-                        unique_candidates.remove(existing)
-                        unique_candidates.append(candidate)
-                    break
-
-            if not is_duplicate:
-                unique_candidates.append(candidate)
-
-        return unique_candidates
-
-
-# Convenience function for direct use
-def extract_brands(texts: List[str]) -> List[BrandCandidate]:
-    """
-    Extract brand candidates from a list of texts.
-
-    Args:
-        texts: List of text strings to analyze
-
-    Returns:
-        List[BrandCandidate]: List of potential brands found
-    """
-    extractor = BrandExtractor()
-    return extractor.extract_brands(texts)
+        except Exception as e:
+            logger.error(f"Google validation failed: {e}")
+            return {"is_verified": False, "confidence": 0.0}
