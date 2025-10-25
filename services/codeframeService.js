@@ -80,17 +80,28 @@ class CodeframeService {
 
       // Call Python brand codeframe endpoint directly
       try {
+        console.log(`\n🚀 Calling Python brand codeframe builder...`);
+        console.log(`   Answers: ${answers.length}`);
+        console.log(`   Category: ${category.name}`);
+
         const brandCodeframe = await this.buildBrandCodeframe(
           answers,
           category,
           config
         );
 
+        console.log(`\n✅ Python response received:`, {
+          has_codes: !!brandCodeframe.codes,
+          n_codes: brandCodeframe.codes?.length || 0,
+          theme_name: brandCodeframe.theme_name,
+          processing_time: brandCodeframe.processing_time_ms
+        });
+
         // Save brand codeframe result to database
         await this.saveBrandCodeframeResult(initialGeneration.id, brandCodeframe);
 
         console.log(
-          `Brand codeframe complete: ${brandCodeframe.total_brands_found} brands found, ` +
+          `\n🎉 Brand codeframe complete: ${brandCodeframe.total_brands_found} brands found, ` +
           `${brandCodeframe.verified_brands} verified`
         );
 
@@ -105,10 +116,16 @@ class CodeframeService {
         };
 
       } catch (error) {
+        console.error(`\n❌ Brand codeframe generation FAILED:`, error.message);
+        console.error(`   Stack:`, error.stack);
+
         // Update generation status to failed
         await supabase
           .from('codeframe_generations')
-          .update({ status: 'failed' })
+          .update({
+            status: 'failed',
+            error_message: error.message
+          })
           .eq('id', initialGeneration.id);
 
         throw error;
@@ -777,16 +794,35 @@ class CodeframeService {
    * Save brand codeframe result to database
    */
   async saveBrandCodeframeResult(generationId, brandCodeframe) {
-    console.log(`Saving brand codeframe result for generation ${generationId}`);
+    console.log(`\n🔍 ===== SAVING BRAND CODEFRAME RESULT =====`);
+    console.log(`Generation ID: ${generationId}`);
+    console.log(`Python response keys:`, Object.keys(brandCodeframe));
+    console.log(`Total codes received:`, brandCodeframe.codes?.length || 0);
+    console.log(`Theme name:`, brandCodeframe.theme_name);
+    console.log(`Processing time:`, brandCodeframe.processing_time_ms);
+
+    if (!brandCodeframe.codes || brandCodeframe.codes.length === 0) {
+      console.error('⚠️  WARNING: No brand codes returned from Python service!');
+      throw new Error('No brand codes returned from Python service');
+    }
+
+    // Log first 3 codes
+    console.log(`\n📝 First 3 brand codes:`)
+;
+    brandCodeframe.codes.slice(0, 3).forEach((code, i) => {
+      console.log(`  ${i + 1}. ${code.brand_name} (confidence: ${code.confidence}, mentions: ${code.mention_count})`);
+    });
 
     // Convert brand codes to hierarchy format
     const hierarchy = this.convertBrandCodesToHierarchy(brandCodeframe, generationId);
+    console.log(`\n🌳 Hierarchy nodes created: ${hierarchy.length} (1 theme + ${hierarchy.length - 1} codes)`);
 
     // Calculate statistics
     const totalCodes = brandCodeframe.codes.length;
     const processingTimeMs = brandCodeframe.processing_time_ms;
 
     // Update generation record
+    console.log(`\n💾 Updating generation record...`);
     const { error: updateError } = await supabase
       .from('codeframe_generations')
       .update({
@@ -801,13 +837,17 @@ class CodeframeService {
       .eq('id', generationId);
 
     if (updateError) {
+      console.error('❌ Failed to update generation:', updateError);
       throw new Error(`Failed to update generation: ${updateError.message}`);
     }
+    console.log(`✅ Generation record updated`);
 
     // Save hierarchy
+    console.log(`\n💾 Saving ${hierarchy.length} nodes to codeframe_hierarchy...`);
     await this.saveHierarchyToDatabase(generationId, hierarchy);
 
-    console.log(`Brand codeframe result saved: ${totalCodes} brands`);
+    console.log(`✅ Brand codeframe result saved: ${totalCodes} brands`);
+    console.log(`===== SAVE COMPLETE =====\n`);
   }
 
   /**
