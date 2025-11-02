@@ -55,6 +55,9 @@ export function SelectCodeModal({
   const [searchTerm, setSearchTerm] = useState('');
   const [isResetting, setIsResetting] = useState(false);
 
+  // ✅ Cache codes by category to avoid re-fetching
+  const [codesCache, setCodesCache] = useState<Map<number | undefined, { id: number; name: string }[]>>(new Map());
+
   // Code suggestions state
   const [suggestionEngine] = useState(() => CodeSuggestionEngine.create());
   const [suggestions, setSuggestions] = useState<CodeSuggestion[]>([]);
@@ -71,11 +74,22 @@ export function SelectCodeModal({
     }
   }, [open, selectedAnswerIds.join(','), preselectedCodes.join(',')]);
 
-  // 🔹 Fetch codes (filtered by category if provided)
+  // 🔹 Fetch codes (filtered by category if provided) - WITH CACHING
   useEffect(() => {
     if (!open) return;
+
+    // ✅ Check cache first
+    if (codesCache.has(_categoryId)) {
+      const cachedCodes = codesCache.get(_categoryId)!;
+      simpleLogger.info('✅ Using cached codes for categoryId:', _categoryId, '- count:', cachedCodes.length);
+      setCodes(cachedCodes);
+      return;
+    }
+
     const fetchCodes = async () => {
       simpleLogger.info('🔍 SelectCodeModal fetching codes with categoryId:', _categoryId);
+
+      let fetchedCodes: { id: number; name: string }[] = [];
 
       if (_categoryId) {
         // Filter by category using codes_categories table
@@ -99,10 +113,8 @@ export function SelectCodeModal({
             .filter(Boolean)
             .flat() as { id: number; name: string }[];
           simpleLogger.info('🔍 Fetched codes for category:', codes.length, 'codes');
-          simpleLogger.info('🔍 Codes data:', codes);
 
-          const sorted = codes.sort((a, b) => a.name.localeCompare(b.name));
-          setCodes(sorted);
+          fetchedCodes = codes.sort((a, b) => a.name.localeCompare(b.name));
         } else {
           simpleLogger.error('🔍 Error fetching codes for category:', error);
         }
@@ -114,14 +126,20 @@ export function SelectCodeModal({
 
         if (!error && data) {
           simpleLogger.info('🔍 Fetched all codes:', data.length, 'codes');
-          setCodes(data);
+          fetchedCodes = data;
         } else {
           simpleLogger.error('🔍 Error fetching all codes:', error);
         }
       }
+
+      // ✅ Update state and cache
+      setCodes(fetchedCodes);
+      setCodesCache(prev => new Map(prev).set(_categoryId, fetchedCodes));
+      simpleLogger.info('✅ Cached codes for categoryId:', _categoryId);
     };
+
     fetchCodes();
-  }, [open, _categoryId]);
+  }, [open, _categoryId, codesCache]);
 
   // 🔹 Initialize suggestion engine and load suggestions
   useEffect(() => {

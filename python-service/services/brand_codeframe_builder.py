@@ -35,24 +35,32 @@ class BrandCodeNode:
 
 @dataclass
 class BrandCodeframe:
-    """Complete brand codeframe result."""
+    """Complete brand codeframe result with 3-group categorization."""
     theme_name: str
     theme_description: str
     theme_confidence: str
     hierarchy_depth: str
-    codes: List[BrandCodeNode]
+
+    # 3 groups for manual review workflow
+    verified_brands: List[BrandCodeNode]  # High confidence + Google verified
+    needs_review: List[BrandCodeNode]     # Medium confidence or unverified
+    spam_invalid: List[BrandCodeNode]      # Low confidence or gibberish
+
     mece_score: float
     mece_issues: List[Dict[str, Any]]
     processing_time_ms: int
     total_brands_found: int
-    verified_brands: int
-    needs_review_brands: int
+    verified_count: int
+    review_count: int
+    spam_count: int
     total_mentions: int
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         result = asdict(self)
-        result['codes'] = [code.to_dict() for code in self.codes]
+        result['verified_brands'] = [code.to_dict() for code in self.verified_brands]
+        result['needs_review'] = [code.to_dict() for code in self.needs_review]
+        result['spam_invalid'] = [code.to_dict() for code in self.spam_invalid]
         return result
 
 
@@ -107,7 +115,8 @@ class BrandCodeframeBuilder:
         category_description: str = "",
         target_language: str = "en",
         min_confidence: Optional[float] = None,
-        enable_enrichment: bool = True
+        enable_enrichment: bool = True,
+        progress_callback = None  # Callback for progress updates: callback(percent, step, details)
     ) -> BrandCodeframe:
         """
         Build a brand codeframe using the 3-phase extraction system.
@@ -142,19 +151,26 @@ class BrandCodeframeBuilder:
         # PHASE 1: INDEX ALL ANSWERS TO PINECONE
         # ========================================================================
         logger.info("📊 [PHASE 1/3] Indexing answers to Pinecone...")
+        if progress_callback:
+            progress_callback(15, "Phase 1/3: Indexing", f"Processing {len(answers)} answers")
 
         indexing_result = self.extractor.index_unique_answers(
             answers=answers,
             category=category_name
         )
 
-        logger.info(f"✅ [PHASE 1/3] Indexed {indexing_result.get('indexed_count', 0)} unique answers")
+        indexed_count = indexing_result.get('indexed_count', 0)
+        logger.info(f"✅ [PHASE 1/3] Indexed {indexed_count} unique answers")
+        if progress_callback:
+            progress_callback(33, "Phase 1/3: Complete", f"Indexed {indexed_count} unique answers")
 
         # ========================================================================
         # PHASE 2: CLASSIFY BRANDS (optional, controlled by enable_enrichment)
         # ========================================================================
         if enable_enrichment:
             logger.info("🤖 [PHASE 2/3] Classifying brands with AI + Google...")
+            if progress_callback:
+                progress_callback(40, "Phase 2/3: AI Classification", f"Analyzing {indexed_count} brands with AI")
 
             classified_brands = self.extractor.classify_brands(
                 category=category_name,
@@ -162,14 +178,20 @@ class BrandCodeframeBuilder:
             )
 
             logger.info(f"✅ [PHASE 2/3] Classified {len(classified_brands)} brand candidates")
+            if progress_callback:
+                progress_callback(66, "Phase 2/3: Complete", f"Found {len(classified_brands)} brand candidates")
         else:
             logger.info("⏭️ [PHASE 2/3] Skipping classification (enrichment disabled)")
             classified_brands = []
+            if progress_callback:
+                progress_callback(66, "Phase 2/3: Skipped", "Enrichment disabled")
 
         # ========================================================================
         # PHASE 3: BUILD CODEFRAME FROM VERIFIED BRANDS
         # ========================================================================
         logger.info("📊 [PHASE 3/3] Building codeframe...")
+        if progress_callback:
+            progress_callback(70, "Phase 3/3: Building codeframe", "Grouping and validating brands")
 
         codeframe_data = self.extractor.build_codeframe(
             category=category_name,
@@ -180,13 +202,23 @@ class BrandCodeframeBuilder:
         total_mentions = codeframe_data.get('total_mentions', 0)
         unique_brands = codeframe_data.get('unique_brands', 0)
 
+        if progress_callback:
+            progress_callback(95, "Phase 3/3: Complete", f"Built codeframe with {unique_brands} brands")
+
         logger.info(f"✅ [PHASE 3/3] Codeframe built - {unique_brands} unique brands, {total_mentions} mentions")
 
-        # Convert to BrandCodeNode format
-        brand_codes = []
+        # Categorize brands into 3 groups for manual review
+        verified_brands_list = []
+        needs_review_list = []
+        spam_invalid_list = []
+
         for i, brand in enumerate(brands):
-            # Determine confidence level
+            # Get confidence value
             conf_value = brand.get('confidence', 0.0)
+            google_verified = brand.get('google_verified', False)
+            brand_name = brand.get('brand_name', '')
+
+            # Determine confidence level string
             if conf_value >= 0.7:
                 confidence = "high"
             elif conf_value >= 0.5:
@@ -209,46 +241,77 @@ class BrandCodeframeBuilder:
                 for idx, text in enumerate(brand.get('example_texts', []))
             ]
 
+            # Check if gibberish
+            is_gibberish = self._is_gibberish(brand_name)
+
+            # Create brand code node
             code_node = BrandCodeNode(
                 code_id=f"brand_{i+1}",
-                brand_name=brand.get('brand_name', ''),
-                description=f"Brand: {brand.get('brand_name', '')}",
+                brand_name=brand_name,
+                description=f"Brand: {brand_name}",
                 confidence=confidence,
-                is_verified=brand.get('google_verified', False),
+                is_verified=google_verified,
                 mention_count=mention_count,
                 frequency_estimate=frequency,
                 example_texts=example_texts,
-                google_verified=brand.get('google_verified', False),
+                google_verified=google_verified,
                 validation_evidence=brand.get('validation_evidence')
             )
-            brand_codes.append(code_node)
+
+            # CATEGORIZATION LOGIC:
+            # 1. Verified Brands: High confidence (≥0.8) AND Google verified
+            # 2. Needs Review: Medium confidence (0.3-0.8) OR not verified
+            # 3. Spam/Invalid: Low confidence (<0.3) OR gibberish
+
+            if is_gibberish or conf_value < 0.3:
+                # Group 3: Spam/Invalid
+                spam_invalid_list.append(code_node)
+                logger.debug(f"→ SPAM: {brand_name} (conf={conf_value:.2f}, gibberish={is_gibberish})")
+            elif conf_value >= 0.8 and google_verified:
+                # Group 1: Verified Brands
+                verified_brands_list.append(code_node)
+                logger.debug(f"→ VERIFIED: {brand_name} (conf={conf_value:.2f}, verified=True)")
+            else:
+                # Group 2: Needs Review
+                needs_review_list.append(code_node)
+                logger.debug(f"→ REVIEW: {brand_name} (conf={conf_value:.2f}, verified={google_verified})")
 
         # Calculate stats
-        verified_count = sum(1 for code in brand_codes if code.is_verified)
-        needs_review_count = sum(1 for code in brand_codes if not code.is_verified and code.confidence == "medium")
+        verified_count = len(verified_brands_list)
+        review_count = len(needs_review_list)
+        spam_count = len(spam_invalid_list)
+
+        # Combine all brands for MECE calculation
+        all_brand_codes = verified_brands_list + needs_review_list + spam_invalid_list
 
         # Calculate MECE score (simplified for brands)
-        mece_score, mece_issues = self._calculate_brand_mece(brand_codes, len(answers))
+        mece_score, mece_issues = self._calculate_brand_mece(all_brand_codes, len(answers))
 
         processing_time_ms = int((time.time() - start_time) * 1000)
 
-        # Build final codeframe
+        # Build final codeframe with 3 separate groups
         codeframe = BrandCodeframe(
             theme_name=category_name,
             theme_description=category_description or f"Brand mentions for {category_name}",
             theme_confidence="high" if verified_count > unique_brands * 0.5 else "medium",
             hierarchy_depth="flat",
-            codes=brand_codes,
+            verified_brands=verified_brands_list,
+            needs_review=needs_review_list,
+            spam_invalid=spam_invalid_list,
             mece_score=mece_score,
             mece_issues=mece_issues,
             processing_time_ms=processing_time_ms,
             total_brands_found=unique_brands,
-            verified_brands=verified_count,
-            needs_review_brands=needs_review_count,
+            verified_count=verified_count,
+            review_count=review_count,
+            spam_count=spam_count,
             total_mentions=total_mentions
         )
 
-        logger.info(f"🎉 Brand codeframe complete: {unique_brands} brands, {verified_count} verified")
+        logger.info(f"🎉 Brand codeframe complete: {unique_brands} brands")
+        logger.info(f"   ✅ Verified: {verified_count}")
+        logger.info(f"   ⚠️  Review: {review_count}")
+        logger.info(f"   ❌ Spam: {spam_count}")
         return codeframe
 
     def _calculate_brand_mece(
@@ -296,3 +359,66 @@ class BrandCodeframeBuilder:
             })
 
         return round(mece_score, 1), issues
+
+    def _is_gibberish(self, text: str) -> bool:
+        """
+        Detect obvious gibberish/spam text.
+
+        Heuristics:
+        - Very short (1-2 chars)
+        - All numbers
+        - Excessive repeated characters (e.g., "aaaaaaa")
+        - Random keyboard mashing (low vowel ratio)
+        - Common spam patterns
+
+        Args:
+            text: Text to check
+
+        Returns:
+            True if likely gibberish, False otherwise
+        """
+        if not text or not isinstance(text, str):
+            return True
+
+        # Clean text
+        text = text.strip().lower()
+
+        # Too short
+        if len(text) <= 2:
+            return True
+
+        # All numbers
+        if text.isdigit():
+            return True
+
+        # All special characters
+        if not any(c.isalnum() for c in text):
+            return True
+
+        # Excessive character repetition (>70% same character)
+        if len(text) > 3:
+            char_counts = {}
+            for char in text:
+                char_counts[char] = char_counts.get(char, 0) + 1
+            max_count = max(char_counts.values())
+            if max_count / len(text) > 0.7:
+                return True
+
+        # Low vowel ratio (for Latin scripts)
+        # Skip this check for non-Latin scripts
+        latin_chars = sum(1 for c in text if c.isalpha() and ord(c) < 128)
+        if latin_chars > len(text) * 0.5:  # Mostly Latin
+            vowels = sum(1 for c in text if c in 'aeiouAEIOU')
+            if latin_chars > 4 and vowels / latin_chars < 0.15:
+                return True
+
+        # Common spam patterns
+        spam_patterns = [
+            'asdf', 'qwer', 'zxcv', 'hjkl', 'test', 'xxx', 'zzz',
+            'aaaa', 'bbbb', 'cccc', 'dddd', '1234', '0000'
+        ]
+        for pattern in spam_patterns:
+            if pattern in text:
+                return True
+
+        return False

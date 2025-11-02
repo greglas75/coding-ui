@@ -1,5 +1,10 @@
-import { Code2, DollarSign, FileSpreadsheet, Home, Image, List, Settings } from 'lucide-react';
+import { Code2, DollarSign, FileSpreadsheet, Home, Image, List, LogIn, Settings } from 'lucide-react';
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { AuthDialog } from './Auth/AuthDialog';
+import { UserProfile } from './Auth/UserProfile';
+import { ServerStatus } from './ServerStatus';
+import { useAuth } from '../contexts/AuthContext';
 
 interface AppHeaderProps {
   dark: boolean;
@@ -8,10 +13,12 @@ interface AppHeaderProps {
 
 export default function AppHeader({ dark, onToggleTheme }: AppHeaderProps) {
   const location = useLocation();
+  const { user } = useAuth();
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
 
   return (
     <header className="flex items-center justify-between px-6 py-3 bg-neutral-900 border-b border-neutral-800 text-gray-100">
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center space-x-4">
         <Link to="/" className="flex items-center space-x-3">
           <span className="text-2xl font-semibold tracking-tight text-blue-400">
             Research
@@ -20,6 +27,11 @@ export default function AppHeader({ dark, onToggleTheme }: AppHeaderProps) {
             Coding & AI Categorization Dashboard
           </span>
         </Link>
+
+        {/* Server Status Indicator */}
+        <div className="pl-4 border-l border-neutral-700">
+          <ServerStatus />
+        </div>
       </div>
 
       <nav className="flex items-center space-x-4">
@@ -104,6 +116,19 @@ export default function AppHeader({ dark, onToggleTheme }: AppHeaderProps) {
           Settings
         </Link>
         <div className="flex items-center space-x-2">
+          {/* Auth Section - Show UserProfile if logged in, otherwise Sign In button */}
+          {user ? (
+            <UserProfile />
+          ) : (
+            <button
+              onClick={() => setShowAuthDialog(true)}
+              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition cursor-pointer"
+            >
+              <LogIn size={16} />
+              Sign In
+            </button>
+          )}
+
           <button
             onClick={() => window.location.reload()}
             className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition cursor-pointer"
@@ -118,6 +143,9 @@ export default function AppHeader({ dark, onToggleTheme }: AppHeaderProps) {
           </button>
         </div>
       </nav>
+
+      {/* Auth Dialog Modal */}
+      <AuthDialog isOpen={showAuthDialog} onClose={() => setShowAuthDialog(false)} />
     </header>
   );
 }

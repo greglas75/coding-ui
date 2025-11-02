@@ -4,6 +4,7 @@ OpenAI embedding service using text-embedding-3-large model with Pinecone integr
 import hashlib
 import logging
 import os
+import threading
 from typing import List, Optional, Dict, Any
 import openai
 
@@ -20,6 +21,11 @@ except ImportError:
         logging.warning("Pinecone not installed - vector storage will be disabled")
 
 logger = logging.getLogger(__name__)
+
+# ✅ FIX: Global lock dictionary to prevent race conditions in Pinecone upserts
+# Multiple concurrent requests modifying same index can cause duplicates/corruption
+_pinecone_locks = {}
+_pinecone_locks_lock = threading.Lock()  # Lock for the locks dict itself
 
 
 class OpenAIEmbedder:
@@ -209,17 +215,27 @@ class OpenAIEmbedder:
         if not self.ensure_index(index_name):
             return False
 
-        try:
-            self.index.upsert(
-                vectors=vectors,
-                namespace=namespace
-            )
-            logger.info(f"Upserted {len(vectors)} vectors to Pinecone namespace: {namespace}")
-            return True
+        # ✅ FIX: Get or create lock for this specific index to prevent race conditions
+        # Multiple concurrent requests can try to upsert same brand causing duplicates
+        lock_key = f"{index_name}:{namespace}"
+        with _pinecone_locks_lock:
+            if lock_key not in _pinecone_locks:
+                _pinecone_locks[lock_key] = threading.Lock()
+            index_lock = _pinecone_locks[lock_key]
 
-        except Exception as e:
-            logger.error(f"Failed to upsert to Pinecone: {e}")
-            return False
+        # Acquire lock before upsert to ensure only one thread modifies index at a time
+        with index_lock:
+            try:
+                self.index.upsert(
+                    vectors=vectors,
+                    namespace=namespace
+                )
+                logger.info(f"Upserted {len(vectors)} vectors to Pinecone namespace: {namespace}")
+                return True
+
+            except Exception as e:
+                logger.error(f"Failed to upsert to Pinecone: {e}")
+                return False
 
     def store_brand_embedding(
         self,

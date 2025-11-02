@@ -54,6 +54,7 @@ export function useCodeframeGeneration() {
     isGenerating: mutation.isPending,
     generate: mutation.mutateAsync,
     error: mutation.error,
+    setGeneration, // Export for resuming saved generations
     reset: () => {
       setGeneration(null);
       mutation.reset();

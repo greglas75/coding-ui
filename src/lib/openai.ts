@@ -12,6 +12,12 @@ import type { AiCodeSuggestion, AiSuggestions } from '../types';
 import { getAnthropicAPIKey, getGoogleGeminiAPIKey, getOpenAIAPIKey } from '../utils/apiKeys';
 import { simpleLogger } from '../utils/logger';
 import { openaiRateLimiter, retryWithBackoff } from './rateLimit';
+import {
+  validateBrandMultiSource,
+  convertToAISuggestion,
+  formatSourcesForDisplay,
+  type MultiSourceValidationResult,
+} from '../services/multiSourceValidator';
 
 // ✅ SECURITY: OpenAI client initialized dynamically from Settings page (localStorage)
 // Keys are obfuscated in browser storage and never exposed in .env files
@@ -61,6 +67,7 @@ export interface CategorizeResponse {
   reasoning?: string;
   webContext?: WebContext[];
   images?: ImageResult[];
+  multiSourceResult?: MultiSourceValidationResult; // ADD: Full multi-source validation result
 }
 
 /**
@@ -143,72 +150,154 @@ export async function categorizeAnswer(request: CategorizeRequest): Promise<Cate
         async () => {
           try {
             // ═══════════════════════════════════════════════════════════
-            // Step 1: Fetch Web Context (Google Search)
+            // Step 1: Multi-Source Brand Validation (6-Tier System)
             // ═══════════════════════════════════════════════════════════
             let webContext: WebContext[] = [];
             let images: ImageResult[] = [];
-            let visionResult: any = null; // Store vision analysis result
-            // 🌍 Build localized search query with category name for better results
-            // Format: "CategoryName keyword" (e.g., "Toothpaste crest", "Brand sensodyne")
-            // ✅ Use English translation for better Google Search results (if available)
-            const searchText = request.answerTranslation || request.answer;
+            let visionResult: any = null;
+            let multiSourceResult: MultiSourceValidationResult | null = null;
 
-            // ✅ Avoid duplication if translation already includes category name
-            // e.g., "toothpaste ps" → use as-is, don't prepend "Toothpaste" again
+            // ═══════════════════════════════════════════════════════════
+            // ALWAYS USE: Multi-Source 6-Tier Validation System
+            // ═══════════════════════════════════════════════════════════
+            simpleLogger.info(`🚀 Using Multi-Source Brand Validation (6-Tier System)`);
+            simpleLogger.info(`   Answer: "${request.answer}"`);
+            simpleLogger.info(`   Category: "${request.categoryName}"`);
+            simpleLogger.info(`   Language: "${request.context.language || 'en'}"`);
+
+            try {
+              multiSourceResult = await validateBrandMultiSource(
+                request.answer,
+                request.categoryName,
+                request.context.language || 'en'
+              );
+
+              simpleLogger.info(`✅ Multi-source validation complete:`);
+              simpleLogger.info(`   Type: ${multiSourceResult.type}`);
+              simpleLogger.info(`   Confidence: ${multiSourceResult.confidence}%`);
+              if (multiSourceResult.tier !== undefined && multiSourceResult.cost !== undefined && multiSourceResult.time_ms !== undefined) {
+                simpleLogger.info(`   Tier: ${multiSourceResult.tier} (cost: $${multiSourceResult.cost.toFixed(5)}, time: ${multiSourceResult.time_ms}ms)`);
+              }
+              simpleLogger.info(`   UI Action: ${multiSourceResult.ui_action}`);
+
+              // Format vision result from multi-source validation
+              if (multiSourceResult.sources?.vision_ai) {
+                const v = multiSourceResult.sources.vision_ai;
+                visionResult = {
+                  brandDetected: v.dominant_brand !== undefined,
+                  brandName: v.dominant_brand || '',
+                  confidence: v.dominant_frequency || 0,
+                  reasoning: `Vision AI analyzed ${v.images_analyzed} images. ${v.dominant_brand ? `Dominant brand: ${v.dominant_brand} (${((v.dominant_frequency || 0) * 100).toFixed(0)}% frequency)` : 'No dominant brand detected'}`,
+                  objectsDetected: [],
+                };
+              }
+
+            } catch (error) {
+              simpleLogger.error('❌ Multi-source validation failed:', error);
+              multiSourceResult = null;
+              // Will fallback to old system below
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            // Build localized search query (needed for fallback return)
+            // ═══════════════════════════════════════════════════════════
+            const searchText = request.answerTranslation || request.answer;
             const searchLower = searchText.toLowerCase().trim();
-            const categoryLower = request.categoryName.toLowerCase().trim();
+            const categoryLower = request.categoryName.toLowerCase();
             const alreadyIncludesCategory = searchLower.startsWith(categoryLower);
 
             const localizedQuery = alreadyIncludesCategory
               ? searchText.trim()
               : `${request.categoryName} ${searchText}`.trim();
 
-            try {
-              simpleLogger.info(
-                `🌐 Fetching web context for: "${request.answer.substring(0, 50)}..."`
-              );
-              simpleLogger.info(`🔍 Search query: "${localizedQuery}"`);
+            // ═══════════════════════════════════════════════════════════
+            // FALLBACK: Old Web Context System (for non-brand or if multi-source fails)
+            // ═══════════════════════════════════════════════════════════
+            if (!multiSourceResult) {
+              simpleLogger.info(`📝 Using traditional web context system`);
 
-              // Build web context section (returns formatted string)
-              const _webContextText = await buildWebContextSection(localizedQuery, {
-                enabled: true,
-                numResults: 6, // Increased from 3 to 6 for better brand consistency analysis
-              });
+              try {
+                simpleLogger.info(`🌐 Fetching web context for: "${request.answer.substring(0, 50)}..."`);
+                simpleLogger.info(`🔍 Search query: "${localizedQuery}"`);
 
-              // Also get raw results for the modal
-              const { googleSearch } = await import('../services/webContextProvider');
-              webContext = await googleSearch(localizedQuery, { numResults: 6 }); // Increased from 3 to 6
+                // Build web context section
+                const _webContextText = await buildWebContextSection(localizedQuery, {
+                  enabled: true,
+                  numResults: 6,
+                });
 
-              simpleLogger.info(`✅ Found ${webContext.length} web results:`, webContext);
+                // Get raw results for modal
+                const { googleSearch } = await import('../services/webContextProvider');
+                webContext = await googleSearch(localizedQuery, { numResults: 6 });
+                simpleLogger.info(`✅ Found ${webContext.length} web results`);
 
-              // Fetch related images
-              simpleLogger.info(`🖼️ Fetching related images...`);
-              images = await googleImageSearch(localizedQuery, 6);
-              simpleLogger.info(`✅ Found ${images.length} images:`, images);
+                // Fetch related images
+                simpleLogger.info(`🖼️ Fetching related images...`);
+                images = await googleImageSearch(localizedQuery, 6);
+                simpleLogger.info(`✅ Found ${images.length} images`);
 
-              // 👁️ Analyze images with vision AI (if vision_model configured)
-              if (images.length > 0 && request.visionModel) {
-                simpleLogger.info(`👁️ Analyzing images with ${request.visionModel}...`);
-                try {
-                  const { analyzeImagesWithGemini, calculateVisionBoost: _calculateVisionBoost } =
-                    await import('../services/geminiVision');
-
-                  // Pass original image URLs - geminiVision.ts will handle proxy internally
-                  const brandNames = request.codes.map((c: any) => c.name);
-                  visionResult = await analyzeImagesWithGemini(
-                    images, // Pass original URLs, geminiVision.ts handles proxy
-                    request.answer,
-                    brandNames,
-                    request.visionModel
-                  );
-
-                  simpleLogger.info('✅ Vision analysis result:', visionResult);
-                } catch (visionError) {
-                  simpleLogger.warn('⚠️ Vision analysis failed:', visionError);
+                // Vision AI analysis (if configured)
+                if (images.length > 0 && request.visionModel) {
+                  simpleLogger.info(`👁️ Analyzing images with ${request.visionModel}...`);
+                  try {
+                    const { analyzeImagesWithGemini } = await import('../services/geminiVision');
+                    const brandNames = request.codes.map((c: any) => c.name);
+                    visionResult = await analyzeImagesWithGemini(
+                      images,
+                      request.answer,
+                      brandNames,
+                      request.visionModel
+                    );
+                    simpleLogger.info('✅ Vision analysis result:', visionResult);
+                  } catch (visionError) {
+                    simpleLogger.warn('⚠️ Vision analysis failed:', visionError);
+                  }
                 }
+              } catch (error) {
+                simpleLogger.warn('⚠️ Web context fetch failed, continuing without it:', error);
               }
-            } catch (error) {
-              simpleLogger.warn('⚠️ Web context fetch failed, continuing without it:', error);
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            // EARLY RETURN: If Multi-Source Result Available
+            // ═══════════════════════════════════════════════════════════
+            if (multiSourceResult) {
+              simpleLogger.info(`🎯 Using multi-source result directly (skipping OpenAI call)`);
+
+              // Convert multi-source result to AI suggestion
+              const suggestion = convertToAISuggestion(multiSourceResult, request.codes);
+
+              const suggestions: AiCodeSuggestion[] = suggestion ? [suggestion] : [];
+
+              // Format sources for display
+              const sourcesDisplay = formatSourcesForDisplay(multiSourceResult);
+
+              // Build reasoning with sources breakdown
+              let enhancedReasoning = multiSourceResult.reasoning;
+              enhancedReasoning += `\n\n📊 Sources Checked:`;
+              if (sourcesDisplay.pinecone) enhancedReasoning += `\n• Pinecone: ${sourcesDisplay.pinecone}`;
+              if (sourcesDisplay.googleSearch) enhancedReasoning += `\n• Google Search: ${sourcesDisplay.googleSearch}`;
+              if (sourcesDisplay.visionAI) enhancedReasoning += `\n• Vision AI: ${sourcesDisplay.visionAI}`;
+              if (sourcesDisplay.knowledgeGraph) enhancedReasoning += `\n• Knowledge Graph: ${sourcesDisplay.knowledgeGraph}`;
+              if (sourcesDisplay.embeddings) enhancedReasoning += `\n• Embeddings: ${sourcesDisplay.embeddings}`;
+
+              enhancedReasoning += `\n\n💰 Cost: $${multiSourceResult.cost.toFixed(5)} | ⏱️ Time: ${multiSourceResult.time_ms}ms | 🏆 Tier: ${multiSourceResult.tier}`;
+
+              // Update reasoning in suggestion
+              if (suggestions.length > 0 && suggestions[0]) {
+                suggestions[0].reasoning = enhancedReasoning;
+              }
+
+              simpleLogger.info(`✅ Returning ${suggestions.length} suggestions from multi-source validation`);
+
+              // Return result with multi-source data
+              return {
+                suggestions,
+                reasoning: enhancedReasoning,
+                webContext: [], // Multi-source doesn't provide raw web context
+                images: [], // Multi-source doesn't provide raw images
+                multiSourceResult, // ADD: Include full multi-source result for modal
+              };
             }
 
             // ═══════════════════════════════════════════════════════════
@@ -449,6 +538,7 @@ export async function categorizeAnswer(request: CategorizeRequest): Promise<Cate
               searchQuery: localizedQuery, // Add search phrase used in Google
               visionResult: visionResult || undefined, // Gemini Vision API analysis
               categoryName: request.categoryName, // Category name (e.g., "Toothpaste", "Brand")
+              multiSourceResult: multiSourceResult || undefined, // ✅ Multi-source 6-tier validation results
             };
 
             simpleLogger.info('📊 Returning AI result:', {

@@ -2,9 +2,10 @@
  * Codeframe Tree Component
  * Renders hierarchical tree structure with expand/collapse
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Download } from 'lucide-react';
 import { TreeNode } from './TreeNode';
+import { BulkActions } from './BulkActions';
 import { BrandInsightsModal } from '../modals/BrandInsightsModal';
 import type { HierarchyNode } from '@/types/codeframe';
 
@@ -24,6 +25,8 @@ export function CodeframeTree({
   onDelete,
 }: CodeframeTreeProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [expandedDetailsNodes, setExpandedDetailsNodes] = useState<Set<string>>(new Set());
+  const [checkboxSelectedNodes, setCheckboxSelectedNodes] = useState<Set<string>>(new Set());
   const [selectedBrandNode, setSelectedBrandNode] = useState<HierarchyNode | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -241,10 +244,221 @@ export function CodeframeTree({
     }
   }, [data]);
 
+  // Bulk Actions: Select All
+  const handleSelectAll = useCallback(() => {
+    const allCodeIds = new Set<string>();
+    const collectCodeIds = (nodes: HierarchyNode[]) => {
+      nodes.forEach((node) => {
+        if (node.node_type === 'code') {
+          allCodeIds.add(node.id);
+        }
+        if (node.children) collectCodeIds(node.children);
+      });
+    };
+    collectCodeIds(data);
+    setCheckboxSelectedNodes(allCodeIds);
+  }, [data]);
+
+  // Bulk Actions: Select None
+  const handleSelectNone = useCallback(() => {
+    setCheckboxSelectedNodes(new Set());
+  }, []);
+
+  // Bulk Actions: Expand All Details
+  const handleExpandAll = useCallback(() => {
+    const allCodeIds = new Set<string>();
+    const collectCodeIds = (nodes: HierarchyNode[]) => {
+      nodes.forEach((node) => {
+        if (node.node_type === 'code') {
+          allCodeIds.add(node.id);
+        }
+        if (node.children) collectCodeIds(node.children);
+      });
+    };
+    collectCodeIds(data);
+    setExpandedDetailsNodes(allCodeIds);
+
+    // Also expand tree nodes
+    const allNodeIds = new Set<string>();
+    const collectAllIds = (nodes: HierarchyNode[]) => {
+      nodes.forEach((node) => {
+        allNodeIds.add(node.id);
+        if (node.children) collectAllIds(node.children);
+      });
+    };
+    collectAllIds(data);
+    setExpandedNodes(allNodeIds);
+  }, [data]);
+
+  // Bulk Actions: Collapse All Details
+  const handleCollapseAll = useCallback(() => {
+    setExpandedDetailsNodes(new Set());
+  }, []);
+
+  // Bulk Actions: Approve Selected
+  const handleApproveSelected = useCallback(async () => {
+    if (checkboxSelectedNodes.size === 0) return;
+
+    try {
+      const promises = Array.from(checkboxSelectedNodes).map((nodeId) =>
+        fetch(`/api/v1/codeframe/hierarchy/${nodeId}/approval`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'approved' }),
+        })
+      );
+
+      await Promise.all(promises);
+      console.log(`Approved ${checkboxSelectedNodes.size} brands`);
+      setCheckboxSelectedNodes(new Set());
+    } catch (error) {
+      console.error('Failed to approve selected brands:', error);
+      alert('Failed to approve some brands. Please try again.');
+    }
+  }, [checkboxSelectedNodes]);
+
+  // Bulk Actions: Reject Selected
+  const handleRejectSelected = useCallback(async () => {
+    if (checkboxSelectedNodes.size === 0) return;
+
+    try {
+      const promises = Array.from(checkboxSelectedNodes).map((nodeId) =>
+        fetch(`/api/v1/codeframe/hierarchy/${nodeId}/approval`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'rejected' }),
+        })
+      );
+
+      await Promise.all(promises);
+      console.log(`Rejected ${checkboxSelectedNodes.size} brands`);
+      setCheckboxSelectedNodes(new Set());
+    } catch (error) {
+      console.error('Failed to reject selected brands:', error);
+      alert('Failed to reject some brands. Please try again.');
+    }
+  }, [checkboxSelectedNodes]);
+
+  // Handle checkbox toggle for individual nodes
+  const handleCheckboxToggle = useCallback((nodeId: string) => {
+    setCheckboxSelectedNodes((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Handle expand/collapse details for individual nodes
+  const handleToggleDetails = useCallback((nodeId: string) => {
+    setExpandedDetailsNodes((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      // A - Select All
+      if (e.key === 'a' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        handleSelectAll();
+        return;
+      }
+
+      // E - Expand All
+      if (e.key === 'e' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        handleExpandAll();
+        return;
+      }
+
+      // C - Collapse All
+      if (e.key === 'c' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        handleCollapseAll();
+        return;
+      }
+
+      // Enter - Approve selected (bulk or single)
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (checkboxSelectedNodes.size > 0) {
+          handleApproveSelected();
+        }
+        return;
+      }
+
+      // Shift+A - Approve selected
+      if (e.key === 'A' && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        handleApproveSelected();
+        return;
+      }
+
+      // Shift+R - Reject selected
+      if (e.key === 'R' && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        handleRejectSelected();
+        return;
+      }
+
+      // ? - Show help (could implement a help modal later)
+      if (e.key === '?' && !e.shiftKey) {
+        e.preventDefault();
+        alert(`Keyboard Shortcuts:
+• A - Select All
+• E - Expand All Details
+• C - Collapse All Details
+• Enter - Approve Selected
+• Shift+A - Approve Selected (bulk)
+• Shift+R - Reject Selected (bulk)
+• Space - Toggle Details (when node focused)
+• ? - Show this help`);
+        return;
+      }
+
+      // Space - Toggle details for selected node
+      if (e.key === ' ' && selectedNodes.length === 1) {
+        e.preventDefault();
+        handleToggleDetails(selectedNodes[0]);
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    handleSelectAll,
+    handleExpandAll,
+    handleCollapseAll,
+    handleApproveSelected,
+    handleRejectSelected,
+    handleToggleDetails,
+    checkboxSelectedNodes,
+    selectedNodes,
+  ]);
+
   // Recursive tree renderer
   const renderNode = (node: HierarchyNode, depth: number = 0) => {
     const isExpanded = expandedNodes.has(node.id);
     const isSelected = selectedNodes.includes(node.id);
+    const isDetailsExpanded = expandedDetailsNodes.has(node.id);
+    const isCheckboxSelected = checkboxSelectedNodes.has(node.id);
     const hasChildren = node.children && node.children.length > 0;
 
     return (
@@ -252,11 +466,46 @@ export function CodeframeTree({
         <TreeNode
           node={node}
           isSelected={isSelected}
-          onToggle={() => toggleNode(node.id)}
+          isExpanded={isDetailsExpanded}
+          isCheckboxSelected={isCheckboxSelected}
+          onToggle={() => {
+            toggleNode(node.id);
+            // Also toggle details when toggling the node
+            if (node.node_type === 'code') {
+              handleToggleDetails(node.id);
+            }
+          }}
           onSelect={() => handleSelect(node.id)}
           onRename={(newName) => onRename(node.id, newName)}
           onDelete={() => onDelete(node.id)}
           onViewDetails={node.node_type === 'code' ? () => handleViewDetails(node) : undefined}
+          onCheckboxToggle={node.node_type === 'code' ? () => handleCheckboxToggle(node.id) : undefined}
+          onApprove={node.node_type === 'code' ? async () => {
+            try {
+              await fetch(`/api/v1/codeframe/hierarchy/${node.id}/approval`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'approved' }),
+              });
+              console.log(`Approved brand: ${node.name}`);
+            } catch (error) {
+              console.error('Failed to approve brand:', error);
+              alert('Failed to approve brand. Please try again.');
+            }
+          } : undefined}
+          onReject={node.node_type === 'code' ? async () => {
+            try {
+              await fetch(`/api/v1/codeframe/hierarchy/${node.id}/approval`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'rejected' }),
+              });
+              console.log(`Rejected brand: ${node.name}`);
+            } catch (error) {
+              console.error('Failed to reject brand:', error);
+              alert('Failed to reject brand. Please try again.');
+            }
+          } : undefined}
           depth={depth}
         />
 
@@ -286,52 +535,20 @@ export function CodeframeTree({
 
   return (
     <div className="space-y-1">
-      {/* Expand/Collapse All & Export */}
-      <div className="flex justify-between items-center mb-2 pb-2 border-b dark:border-gray-700">
-        <div className="flex gap-2">
-          <button
-            onClick={handleExportJSON}
-            className="text-xs px-2 py-1 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded flex items-center gap-1"
-            title="Export as JSON"
-          >
-            <Download className="h-3 w-3" />
-            JSON
-          </button>
-          <button
-            onClick={handleExportCSV}
-            className="text-xs px-2 py-1 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded flex items-center gap-1"
-            title="Export as CSV"
-          >
-            <Download className="h-3 w-3" />
-            CSV
-          </button>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => {
-              // Expand all nodes
-              const allIds = new Set<string>();
-              const collectIds = (nodes: HierarchyNode[]) => {
-                nodes.forEach((node) => {
-                  allIds.add(node.id);
-                  if (node.children) collectIds(node.children);
-                });
-              };
-              collectIds(data);
-              setExpandedNodes(allIds);
-            }}
-            className="text-xs px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
-          >
-            Expand All
-          </button>
-          <button
-            onClick={() => setExpandedNodes(new Set())}
-            className="text-xs px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
-          >
-            Collapse All
-          </button>
-        </div>
-      </div>
+      {/* Bulk Actions Toolbar */}
+      <BulkActions
+        selectedCount={checkboxSelectedNodes.size}
+        totalCount={brandCodes.length}
+        allExpanded={expandedDetailsNodes.size === brandCodes.length}
+        onSelectAll={handleSelectAll}
+        onSelectNone={handleSelectNone}
+        onExpandAll={handleExpandAll}
+        onCollapseAll={handleCollapseAll}
+        onApproveSelected={handleApproveSelected}
+        onRejectSelected={handleRejectSelected}
+        onDownloadJSON={handleExportJSON}
+        onDownloadCSV={handleExportCSV}
+      />
 
       {/* Tree */}
       <div className="overflow-auto max-h-[calc(100vh-400px)] min-h-[600px]">

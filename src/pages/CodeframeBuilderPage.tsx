@@ -2,9 +2,10 @@
  * AI Codeframe Builder - Main Page
  * 6-step wizard for generating and applying AI-powered codebooks
  */
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { MainLayout } from '@/components/layout/MainLayout';
 import { StepIndicator } from '@/components/CodeframeBuilder/shared/StepIndicator';
 import { Step0SelectType } from '@/components/CodeframeBuilder/steps/Step0SelectType';
 import { Step1SelectData } from '@/components/CodeframeBuilder/steps/Step1SelectData';
@@ -13,10 +14,12 @@ import { Step3Processing } from '@/components/CodeframeBuilder/steps/Step3Proces
 import { Step4TreeEditor } from '@/components/CodeframeBuilder/steps/Step4TreeEditor';
 import { Step5Apply } from '@/components/CodeframeBuilder/steps/Step5Apply';
 import { useCodeframeGeneration } from '@/hooks/useCodeframeGeneration';
-import type { CodeframeConfig } from '@/types/codeframe';
+import type { CodeframeConfig, BrandCodeframeData } from '@/types/codeframe';
+import { simpleLogger } from '@/utils/logger';
 
 export function CodeframeBuilderPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [currentStep, setCurrentStep] = useState(0);
   const [config, setConfig] = useState<CodeframeConfig>({
     category_id: null,
@@ -27,8 +30,37 @@ export function CodeframeBuilderPage() {
     },
     target_language: 'en',
   });
+  const [brandCodeframeData, setBrandCodeframeData] = useState<BrandCodeframeData | null>(null); // Store brand codeframe result
 
-  const { generation, isGenerating, generate, error } = useCodeframeGeneration();
+  const { generation, isGenerating, generate, error, setGeneration } = useCodeframeGeneration();
+
+  /**
+   * Resume editing a previously saved generation
+   */
+  const handleResumeGeneration = (generationId: string) => {
+    // Set the generation data (useTreeEditor will load the hierarchy)
+    setGeneration({
+      generation_id: generationId,
+      mece_score: 0, // Will be loaded from API
+      n_themes: 0,
+      n_codes: 0,
+    });
+
+    // Jump directly to Review & Edit step
+    setCurrentStep(4);
+
+    toast.success('Loading saved codeframe...');
+  };
+
+  // Check for resumeId in URL params on mount
+  useEffect(() => {
+    const resumeId = searchParams.get('resumeId');
+    if (resumeId) {
+      simpleLogger.info('Resuming generation from URL:', resumeId);
+      handleResumeGeneration(resumeId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   const steps = ['Select Type', 'Select Data', 'Configure', 'Processing', 'Review & Edit', 'Apply'];
 
@@ -99,7 +131,20 @@ export function CodeframeBuilderPage() {
       // Move to processing step immediately to show progress
       setCurrentStep(3);
 
-      await generate(config);
+      const response = await generate(config);
+
+      // For brand coding, the response includes brand_codeframe data
+      if (config.coding_type === 'brand' && response.brand_codeframe) {
+        console.log('📦 Brand codeframe data received:', {
+          verified: response.brand_codeframe.verified_brands?.length || 0,
+          review: response.brand_codeframe.needs_review?.length || 0,
+          spam: response.brand_codeframe.spam_invalid?.length || 0
+        });
+
+        // Store brand codeframe data for Step4TreeEditor
+        setBrandCodeframeData(response.brand_codeframe);
+      }
+
       // Step3Processing component will handle the transition to step 4
       toast.success('Codeframe generation started successfully');
     } catch (err) {
@@ -122,13 +167,17 @@ export function CodeframeBuilderPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          AI Codeframe Builder
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">
+    <MainLayout
+      title="AI Codeframe Builder"
+      maxWidth="wide"
+      breadcrumbs={[
+        { label: 'Home', href: '/' },
+        { label: 'Codeframe Builder' }
+      ]}
+    >
+      {/* Description */}
+      <div className="mb-6">
+        <p className="text-gray-600 dark:text-gray-400">
           Automatically generate hierarchical codebooks using Claude AI
         </p>
       </div>
@@ -153,6 +202,7 @@ export function CodeframeBuilderPage() {
             onChange={setConfig}
             onNext={() => setCurrentStep(2)}
             onCancel={() => navigate('/categories')}
+            onResumeGeneration={handleResumeGeneration}
           />
         )}
 
@@ -169,6 +219,7 @@ export function CodeframeBuilderPage() {
         {currentStep === 3 && (
           <Step3Processing
             generation={generation}
+            codingType={config.coding_type}
             onComplete={() => setCurrentStep(4)}
             onError={(error) => {
               simpleLogger.error('Processing error:', error);
@@ -185,6 +236,8 @@ export function CodeframeBuilderPage() {
         {currentStep === 4 && (
           <Step4TreeEditor
             generation={generation}
+            codingType={config.coding_type}
+            brandCodeframeData={brandCodeframeData}
             onSave={() => setCurrentStep(5)}
             onBack={() => setCurrentStep(1)}
           />
@@ -226,6 +279,6 @@ export function CodeframeBuilderPage() {
           <li>Apply codes automatically to uncategorized answers</li>
         </ol>
       </div>
-    </div>
+    </MainLayout>
   );
 }

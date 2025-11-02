@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { exec } from 'child_process';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { randomUUID } from 'crypto';
@@ -12,13 +13,17 @@ import multer from 'multer';
 import OpenAI from 'openai';
 import Papa from 'papaparse';
 import path from 'path';
+import { promisify } from 'util';
 import { z } from 'zod';
 import codeframeRoutes from './routes/codeframe.js';
 import codesRoutes from './routes/codes.js';
 import costDashboardRoutes from './routes/costDashboard.js';
 import sentimentRoutes from './routes/sentiment.js';
+import settingsSyncRoutes from './routes/settingsSync.js';
 import testImageSearchRoutes from './routes/test-image-search.js';
 import pricingFetcher from './server/pricing/pricingFetcher.js';
+
+const execAsync = promisify(exec);
 
 const app = express();
 const port = 3020;
@@ -159,6 +164,9 @@ app.use(
           },
         }
       : false,
+    // Disable CORS-blocking headers in development
+    crossOriginResourcePolicy: isProd ? { policy: "same-origin" } : false,
+    crossOriginOpenerPolicy: isProd ? { policy: "same-origin" } : false,
   })
 );
 
@@ -171,7 +179,11 @@ const corsOrigins = process.env.CORS_ORIGINS
 if (isProd && (!corsOrigins || corsOrigins.length === 0)) {
   throw new Error('CORS_ORIGINS must be set in production');
 }
-app.use(cors({ origin: corsOrigins || true }));
+// In development, allow all origins (*) for easier frontend development
+app.use(cors({
+  origin: isProd ? corsOrigins : '*',
+  credentials: !isProd // Allow credentials in development
+}));
 
 // JSON body size limit - gated
 if (process.env.JSON_LIMIT) {
@@ -988,6 +1000,66 @@ app.get('/api/health', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// 🔄 SERVER RESTART ENDPOINTS (Development Only)
+// ═══════════════════════════════════════════════════════════════
+
+// Restart Python backend (port 8000)
+app.post('/api/admin/restart/python', async (req, res) => {
+  if (isProd) {
+    return res.status(403).json({ error: 'Restart not allowed in production' });
+  }
+
+  try {
+    log.info('Restarting Python backend...');
+    const cmd = `
+      lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+      sleep 2
+      cd /Users/greglas/coding-ui/python-service && source venv/bin/activate && python main.py > /tmp/python-server.log 2>&1 &
+    `;
+    await execAsync(cmd);
+    log.info('Python backend restart initiated');
+    res.json({
+      success: true,
+      message: 'Python backend is restarting...',
+      note: 'Wait 3-5 seconds for the server to be ready'
+    });
+  } catch (error) {
+    log.error('Failed to restart Python backend', {}, error);
+    res.status(500).json({ error: 'Failed to restart Python backend', details: error.message });
+  }
+});
+
+// Restart Node.js backend (self-restart - kills current process)
+app.post('/api/admin/restart/node', async (req, res) => {
+  if (isProd) {
+    return res.status(403).json({ error: 'Restart not allowed in production' });
+  }
+
+  try {
+    log.info('Restarting Node.js backend...');
+    // Send response immediately before killing
+    res.json({
+      success: true,
+      message: 'Node.js backend is restarting...',
+      note: 'Wait 2-3 seconds for the server to be ready'
+    });
+
+    // Delay to ensure response is sent before process dies
+    setTimeout(async () => {
+      const cmd = `
+        lsof -ti:3020 | xargs kill -9 2>/dev/null || true
+        sleep 2
+        cd /Users/greglas/coding-ui && node api-server.js > /tmp/node-server.log 2>&1 &
+      `;
+      await execAsync(cmd);
+    }, 100);
+  } catch (error) {
+    log.error('Failed to restart Node.js backend', {}, error);
+    // Response might already be sent
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
 // 💰 AI PRICING ENDPOINTS
 // ═══════════════════════════════════════════════════════════════
 
@@ -1057,6 +1129,10 @@ log.info('✅ Sentiment routes mounted at /api/v1/sentiment');
 // Mount codes routes
 app.use('/api/v1/codes', codesRoutes);
 log.info('✅ Codes routes mounted at /api/v1/codes');
+
+// Mount settings synchronization routes
+app.use('/api/settings-sync', settingsSyncRoutes);
+log.info('✅ Settings sync routes mounted at /api/settings-sync');
 
 // Mount test image search routes
 app.use('/api', testImageSearchRoutes);

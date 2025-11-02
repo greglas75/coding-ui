@@ -42,6 +42,7 @@ export interface HierarchyNode {
   example_texts?: Array<{ id: string; text: string }>;
   display_order?: number;
   validation_evidence?: any; // Google validation results (search, images, Knowledge Graph)
+  variants?: Record<string, number>; // Brand name variants with counts (e.g., {"Sensodyne": 6, "سنسوداين": 3})
   approval_status?: 'pending' | 'approved' | 'rejected';
   approved_at?: string | null;
   approved_by?: string | null;
@@ -75,21 +76,23 @@ export interface CodeframeConfig {
 
 export interface GenerationResponse {
   generation_id: string;
-  status: 'processing';
+  status: 'processing' | 'completed';
   n_clusters: number;
   n_answers: number;
   estimated_time_seconds: number;
   poll_url: string;
-  cost_estimate: {
+  cost_estimate?: {
     n_clusters: number;
     estimated_cost_usd: number;
   };
+  brand_codeframe?: BrandCodeframeData; // Only present for brand coding type
 }
 
 export interface StatusResponse {
   generation_id: string;
   status: 'processing' | 'completed' | 'failed' | 'partial';
   progress: number;
+  current_step?: string;
   n_clusters: number;
   n_completed: number;
   n_failed: number;
@@ -130,4 +133,22 @@ export interface CategoryInfo {
   description?: string;
   total_answers: number;
   uncategorized_count: number;
+}
+
+/**
+ * Brand codeframe data with 3-group categorization for manual review
+ */
+export interface BrandCodeframeData {
+  verified_brands: HierarchyNode[];  // High confidence + Google verified
+  needs_review: HierarchyNode[];     // Medium confidence or not verified
+  spam_invalid: HierarchyNode[];     // Low confidence or gibberish
+  theme_name: string;
+  theme_description: string;
+  total_brands_found: number;
+  verified_count: number;
+  review_count: number;
+  spam_count: number;
+  total_mentions: number;
+  mece_score: number;
+  processing_time_ms: number;
 }

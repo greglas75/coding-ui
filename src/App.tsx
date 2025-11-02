@@ -7,6 +7,7 @@ import { ErrorLogsViewer } from "./components/ErrorLogsViewer";
 import { PageLoadingSpinner } from "./components/LoadingSkeleton";
 import { PerformanceMonitor } from "./components/PerformanceMonitor";
 import { SkipNavigation } from "./components/SkipNavigation";
+import { AuthProvider } from "./contexts/AuthContext";
 import "./index.css";
 import { errorLogger } from "./lib/errorLogger";
 
@@ -93,9 +94,11 @@ export default function App() {
 
   return (
     <ErrorBoundary onError={handleError}>
-      <Router>
-        <AppContent />
-      </Router>
+      <AuthProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

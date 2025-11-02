@@ -14,6 +14,7 @@ import {
   Home,
   Info,
   Key,
+  RefreshCw,
   Search,
   Settings,
   Shield,
@@ -24,6 +25,8 @@ import { toast } from 'sonner';
 import { PricingDashboard } from '../components/PricingDashboard';
 import { PineconeSettings } from '../components/PineconeSettings';
 import { MainLayout } from '../components/layout/MainLayout';
+import { useAuth } from '../contexts/AuthContext';
+import { useSettingsSync } from '../hooks/useSettingsSync';
 import { useAIPricing } from '../hooks/useAIPricing';
 import type { ModelPricing } from '../types/pricing';
 import {
@@ -36,6 +39,18 @@ export function SettingsPage() {
   const [selectedTab, setSelectedTab] = useState(0);
   const [sessionOnlyMode, setSessionOnlyMode] = useState(getSessionOnlyMode());
   const { getPricingForProvider } = useAIPricing();
+  const { user } = useAuth();
+  const { syncStatus, syncSettings } = useSettingsSync();
+
+  // Auto-sync on component mount if authenticated
+  useEffect(() => {
+    if (user) {
+      console.log('User authenticated, triggering auto-sync');
+      syncSettings();
+    } else {
+      console.log('No user, skipping auto-sync');
+    }
+  }, [user, syncSettings]);
 
   // Map tab index to provider
   const getProviderForTab = (tabIndex: number): 'openai' | 'anthropic' | 'google' | null => {
@@ -73,6 +88,38 @@ export function SettingsPage() {
           </p>
         </div>
 
+        {/* Cloud Sync Banner - Show only if authenticated */}
+        {user && (
+          <div className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-xl p-5 shadow-sm">
+            <div className="flex items-start gap-3">
+              <Cloud className="h-6 w-6 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-green-900 dark:text-green-100 mb-2 text-sm">
+                  ☁️ Cloud Sync Enabled
+                </h3>
+                <p className="text-xs text-green-800 dark:text-green-200 mb-3">
+                  Your API keys are synced across browsers using AES-256 encryption. Signed in as <strong>{user.email}</strong>
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => syncSettings()}
+                    disabled={syncStatus.syncing}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-xs font-medium rounded-lg transition"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${syncStatus.syncing ? 'animate-spin' : ''}`} />
+                    {syncStatus.syncing ? 'Syncing...' : 'Sync Now'}
+                  </button>
+                  {syncStatus.lastSync && (
+                    <span className="text-xs text-green-700 dark:text-green-300">
+                      Last synced: {new Date(syncStatus.lastSync).toLocaleString()} (v{syncStatus.version})
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Security Warning Banner */}
         <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-5 shadow-sm">
           <div className="flex items-start gap-3">
@@ -85,8 +132,7 @@ export function SettingsPage() {
                 <li className="flex items-start gap-2">
                   <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
                   <span>
-                    <strong>Protected:</strong> Keys are obfuscated (XOR + Base64) in browser
-                    storage
+                    <strong>Protected:</strong> Keys are {user ? 'encrypted (AES-256) on server' : 'obfuscated (XOR + Base64) in browser storage'}
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
@@ -96,6 +142,14 @@ export function SettingsPage() {
                     backend)
                   </span>
                 </li>
+                {user && (
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                    <span>
+                      <strong>Synced:</strong> Settings sync across all your devices and browsers
+                    </span>
+                  </li>
+                )}
                 <li className="flex items-start gap-2">
                   <AlertCircle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                   <span>

@@ -98,6 +98,7 @@ export interface AiSuggestions {
   searchQuery?: string; // Exact phrase used in Google search
   visionResult?: VisionAnalysisResult; // Gemini Vision API analysis
   categoryName?: string; // Category name (e.g., "Toothpaste", "Brand")
+  multiSourceResult?: any; // Multi-source validation result (imported type causes circular dependency)
 }
 
 export interface Answer {

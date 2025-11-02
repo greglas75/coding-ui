@@ -2,16 +2,28 @@
  * Step 1: Select Category and Answers
  */
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Database, ChevronDown } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Database, ChevronDown, Clock, CheckCircle, AlertCircle, Edit, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import axios from 'axios';
 import type { CodeframeConfig, CategoryInfo } from '@/types/codeframe';
+
+interface SavedGeneration {
+  id: string;
+  category_id: number;
+  status: 'processing' | 'completed' | 'failed';
+  n_codes: number;
+  n_themes: number;
+  created_at: string;
+  completed_at: string | null;
+}
 
 interface Step1SelectDataProps {
   config: CodeframeConfig;
   onChange: (config: CodeframeConfig) => void;
   onNext: () => void;
   onCancel: () => void;
+  onResumeGeneration?: (generationId: string) => void;
 }
 
 export function Step1SelectData({
@@ -19,10 +31,37 @@ export function Step1SelectData({
   onChange,
   onNext,
   onCancel,
+  onResumeGeneration,
 }: Step1SelectDataProps) {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
     config.category_id
   );
+  const queryClient = useQueryClient();
+
+  // Fetch previous generations for selected category
+  const { data: previousGenerations, isLoading: isLoadingGenerations } = useQuery({
+    queryKey: ['category-generations', selectedCategoryId],
+    queryFn: async () => {
+      if (!selectedCategoryId) return [];
+
+      const response = await axios.get(
+        `/api/v1/codeframe/category/${selectedCategoryId}/generations?limit=5`
+      );
+      return response.data.generations as SavedGeneration[];
+    },
+    enabled: !!selectedCategoryId,
+  });
+
+  // Delete generation mutation
+  const deleteGenerationMutation = useMutation({
+    mutationFn: async (generationId: string) => {
+      await axios.delete(`/api/v1/codeframe/${generationId}`);
+    },
+    onSuccess: () => {
+      // Invalidate and refetch generations list
+      queryClient.invalidateQueries({ queryKey: ['category-generations', selectedCategoryId] });
+    },
+  });
 
   // Fetch categories with answer counts
   const { data: categories, isLoading } = useQuery({
@@ -74,6 +113,19 @@ export function Step1SelectData({
       category_id: categoryId,
       answer_ids: [], // Will use all uncategorized by default
     });
+  };
+
+  const handleDeleteGeneration = async (generationId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+
+    if (window.confirm('Are you sure you want to delete this generation? This action cannot be undone.')) {
+      try {
+        await deleteGenerationMutation.mutateAsync(generationId);
+      } catch (error) {
+        console.error('Failed to delete generation:', error);
+        alert('Failed to delete generation. Please try again.');
+      }
+    }
   };
 
   const canProceed = selectedCategory && selectedCategory.uncategorized_count >= 10;
@@ -175,6 +227,68 @@ export function Step1SelectData({
           </div>
         )}
       </div>
+
+      {/* Previous Generations */}
+      {selectedCategoryId && previousGenerations && previousGenerations.length > 0 && (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <h3 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+            <Clock className="h-5 w-5 text-gray-400" />
+            Previous Generations ({previousGenerations.length})
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Resume editing a saved codeframe or create a new one
+          </p>
+
+          <div className="space-y-2">
+            {previousGenerations.filter((gen) => gen.status === 'completed').map((gen) => (
+              <div
+                key={gen.id}
+                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+              >
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {gen.n_themes} theme{gen.n_themes !== 1 ? 's' : ''}, {gen.n_codes} code{gen.n_codes !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Created: {new Date(gen.created_at).toLocaleString()}
+                    {gen.completed_at && (
+                      <> • Completed: {new Date(gen.completed_at).toLocaleString()}</>
+                    )}
+                  </div>
+                </div>
+
+                <div className="ml-4 flex items-center gap-2">
+                  <button
+                    onClick={(e) => handleDeleteGeneration(gen.id, e)}
+                    disabled={deleteGenerationMutation.isPending}
+                    className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
+                    title="Delete generation"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => onResumeGeneration?.(gen.id)}
+                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Resume
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              💡 Or continue below to create a new codeframe
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Summary */}
       {selectedCategory && (

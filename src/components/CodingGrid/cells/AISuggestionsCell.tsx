@@ -3,7 +3,8 @@ import type { FC } from 'react';
 import { useState } from 'react';
 import type { ImageResult } from '../../../types';
 import { Tooltip } from '../../shared/Tooltip';
-import { AIInsightsModal } from '../modals/AIInsightsModal';
+import { BrandValidationModal } from '../modals/BrandValidationModal';
+import type { MultiSourceValidationResult } from '../../../services/multiSourceValidator';
 
 interface AISuggestion {
   code_id: string;
@@ -38,6 +39,7 @@ interface AISuggestionsData {
   searchQuery?: string;
   visionResult?: VisionAnalysisResult;
   categoryName?: string;
+  multiSourceResult?: MultiSourceValidationResult; // NEW: Full multi-source validation
 }
 
 interface AISuggestionsCellProps {
@@ -208,23 +210,36 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
         <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
       )}
 
-      {/* AI Insights Modal */}
-      <AIInsightsModal
+      {/* ALWAYS show new Brand Validation Modal with all 7 features */}
+      <BrandValidationModal
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
           setSelectedSuggestion(null);
         }}
-        suggestion={selectedSuggestion}
-        webContext={aiSuggestions?.webContext}
-        images={aiSuggestions?.images}
-        timestamp={aiSuggestions?.timestamp}
-        model={aiSuggestions?.model}
-        answer={answer}
+        result={
+          aiSuggestions?.multiSourceResult || {
+            // Fallback for cached data without multiSourceResult
+            type: 'unclear',
+            reasoning: 'Loading validation data...',
+            confidence: 0,
+            ui_action: 'MANUAL_REVIEW',
+            brand: null,
+            expected_category: aiSuggestions?.categoryName || 'Unknown',
+            sources: {},
+            kg_details: {},
+            cost: 0,
+            time_ms: 0,
+            tier: 0,
+          }
+        }
+        userResponse={answer}
         translation={translation}
-        searchQuery={aiSuggestions?.searchQuery}
-        visionResult={aiSuggestions?.visionResult}
-        categoryName={aiSuggestions?.categoryName}
+        categoryName={
+          aiSuggestions?.multiSourceResult?.expected_category ||
+          aiSuggestions?.categoryName ||
+          'Unknown Category'
+        }
       />
     </div>
   );

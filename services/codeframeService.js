@@ -78,58 +78,27 @@ class CodeframeService {
 
       console.log(`Generation record created: ${initialGeneration.id}`);
 
-      // Call Python brand codeframe endpoint directly
-      try {
-        console.log(`\n🚀 Calling Python brand codeframe builder...`);
-        console.log(`   Answers: ${answers.length}`);
-        console.log(`   Category: ${category.name}`);
+      // Start Python brand extraction in BACKGROUND (don't wait)
+      this.runBrandExtractionInBackground(
+        initialGeneration.id,
+        answers,
+        category,
+        config
+      ).catch(error => {
+        console.error(`\n❌ Background brand extraction failed:`, error.message);
+      });
 
-        const brandCodeframe = await this.buildBrandCodeframe(
-          answers,
-          category,
-          config
-        );
+      // Return IMMEDIATELY with status 'processing' so frontend can poll
+      const estimatedTimeSeconds = Math.ceil(answers.length * 1.5); // ~1.5 sec per answer
 
-        console.log(`\n✅ Python response received:`, {
-          has_codes: !!brandCodeframe.codes,
-          n_codes: brandCodeframe.codes?.length || 0,
-          theme_name: brandCodeframe.theme_name,
-          processing_time: brandCodeframe.processing_time_ms
-        });
-
-        // Save brand codeframe result to database
-        await this.saveBrandCodeframeResult(initialGeneration.id, brandCodeframe);
-
-        console.log(
-          `\n🎉 Brand codeframe complete: ${brandCodeframe.total_brands_found} brands found, ` +
-          `${brandCodeframe.verified_brands} verified`
-        );
-
-        // Return immediately (no async jobs needed)
-        return {
-          generation_id: initialGeneration.id,
-          status: 'completed',
-          n_clusters: 1,
-          n_answers: answers.length,
-          estimated_time_seconds: 0,
-          poll_url: `/api/v1/codeframe/${initialGeneration.id}/status`,
-        };
-
-      } catch (error) {
-        console.error(`\n❌ Brand codeframe generation FAILED:`, error.message);
-        console.error(`   Stack:`, error.stack);
-
-        // Update generation status to failed
-        await supabase
-          .from('codeframe_generations')
-          .update({
-            status: 'failed',
-            error_message: error.message
-          })
-          .eq('id', initialGeneration.id);
-
-        throw error;
-      }
+      return {
+        generation_id: initialGeneration.id,
+        status: 'processing',
+        n_clusters: 1,
+        n_answers: answers.length,
+        estimated_time_seconds: estimatedTimeSeconds,
+        poll_url: `/api/v1/codeframe/${initialGeneration.id}/status`,
+      };
     }
 
     // For non-brand types, use clustering
@@ -180,7 +149,7 @@ class CodeframeService {
   async fetchAnswers(categoryId, answerIds = null, codingType = 'open-ended') {
     let query = supabase
       .from('answers')
-      .select('id, answer_text, category_id')
+      .select('id, answer_text, category_id, general_status, selected_code')
       .eq('category_id', categoryId)
       .not('answer_text', 'is', null)
       .neq('answer_text', '');
@@ -188,11 +157,13 @@ class CodeframeService {
     // If specific answer IDs provided, filter by them
     if (answerIds && answerIds.length > 0) {
       query = query.in('id', answerIds);
-    } else if (codingType !== 'brand') {
-      // For non-brand coding: only get uncategorized answers
-      query = query.is('selected_code', null);
+    } else {
+      // For ALL coding types: only get uncategorized answers
+      // Skip: whitelisted, blacklisted, global_blacklisted, and already categorized
+      query = query
+        .is('selected_code', null)
+        .or('general_status.is.null,general_status.eq.uncategorized');
     }
-    // For brand coding without answer_ids: fetch ALL answers (no filter on selected_code)
 
     const { data: answers, error } = await query;
 
@@ -387,12 +358,15 @@ class CodeframeService {
       throw new Error(`Generation ${generationId} not found`);
     }
 
-    // Calculate progress
+    // Get real progress from database (updated by Python service during brand extraction)
+    const progress = generation.progress_percent || 0;
+    const currentStep = generation.current_step || 'Starting generation...';
+
+    // Also calculate cluster-based progress for non-brand coding types
     const totalClusters = generation.n_clusters || 0;
     const hierarchy = generation.codeframe_hierarchy || [];
     const themes = hierarchy.filter((n) => n.node_type === 'theme');
     const completedClusters = themes.length;
-    const progress = totalClusters > 0 ? Math.round((completedClusters / totalClusters) * 100) : 0;
 
     // Get hierarchy if completed
     let result = null;
@@ -400,13 +374,18 @@ class CodeframeService {
       result = await this.getHierarchy(generationId);
     }
 
+    // Calculate status counts based on actual generation status
+    const nFailed = generation.status === 'failed' ? 1 : 0;
+    const nCompleted = generation.status === 'completed' ? completedClusters : 0;
+
     return {
       generation_id: generation.id,
       status: generation.status,
       progress,
+      current_step: currentStep,
       n_clusters: totalClusters,
-      n_completed: completedClusters,
-      n_failed: totalClusters - completedClusters,
+      n_completed: nCompleted,
+      n_failed: nFailed,
       processing_time_ms: generation.processing_time_ms,
       mece_score: generation.mece_score,
       result,
@@ -735,9 +714,57 @@ class CodeframeService {
   }
 
   /**
+   * Run brand extraction in background (async, don't wait)
+   */
+  async runBrandExtractionInBackground(generationId, answers, category, config) {
+    try {
+      console.log(`\n🚀 Starting background brand extraction for generation ${generationId}...`);
+      console.log(`   Answers: ${answers.length}`);
+      console.log(`   Category: ${category.name}`);
+
+      const brandCodeframe = await this.buildBrandCodeframe(
+        answers,
+        category,
+        config,
+        generationId
+      );
+
+      console.log(`\n✅ Python response received:`, {
+        has_codes: !!brandCodeframe.codes,
+        n_codes: brandCodeframe.codes?.length || 0,
+        theme_name: brandCodeframe.theme_name,
+        processing_time: brandCodeframe.processing_time_ms
+      });
+
+      // Save brand codeframe result to database
+      await this.saveBrandCodeframeResult(generationId, brandCodeframe);
+
+      console.log(
+        `\n🎉 Brand codeframe complete: ${brandCodeframe.total_brands_found} brands found, ` +
+        `${brandCodeframe.verified_count} verified, ${brandCodeframe.review_count} review, ${brandCodeframe.spam_count} spam`
+      );
+
+    } catch (error) {
+      console.error(`\n❌ Brand codeframe generation FAILED:`, error.message);
+      console.error(`   Stack:`, error.stack);
+
+      // Update generation status to failed
+      await supabase
+        .from('codeframe_generations')
+        .update({
+          status: 'failed',
+          error_message: error.message
+        })
+        .eq('id', generationId);
+
+      throw error;
+    }
+  }
+
+  /**
    * Build brand codeframe using Python brand extraction endpoint
    */
-  async buildBrandCodeframe(answers, category, config) {
+  async buildBrandCodeframe(answers, category, config, generationId = null) {
     console.log('Calling Python brand codeframe builder...');
     console.log('Config keys received:', Object.keys(config));
     console.log('Pinecone API key present:', !!config.pinecone_api_key);
@@ -754,6 +781,7 @@ class CodeframeService {
       target_language: config.target_language || 'en',
       min_confidence: config.brand_min_confidence || null,
       enable_enrichment: config.brand_enable_enrichment !== false,
+      generation_id: generationId,  // Add generation_id for progress tracking
       // Pass API keys from Settings (if provided)
       anthropic_api_key: config.anthropic_api_key || null,
       google_api_key: config.google_api_key || null,
@@ -770,18 +798,48 @@ class CodeframeService {
     });
 
     try {
-      const response = await axios.post(
-        `${PYTHON_SERVICE_URL}/api/build_codeframe`,
-        requestBody,
-        {
-          timeout: 600000, // 10 minutes timeout (brand extraction takes 3-8 min with 100+ answers)
-          headers: {
-            'Content-Type': 'application/json'
-          }
+      // ✅ FIX: Add periodic health check during long-running operation
+      // If Python crashes, we detect it quickly instead of waiting 10 minutes
+      let healthCheckInterval;
+      const checkHealth = async () => {
+        try {
+          await axios.get(`${PYTHON_SERVICE_URL}/health`, { timeout: 5000 });
+          return true;
+        } catch {
+          return false;
         }
-      );
+      };
 
-      return response.data;
+      // Poll health every 30 seconds during the operation
+      healthCheckInterval = setInterval(async () => {
+        const isHealthy = await checkHealth();
+        if (!isHealthy) {
+          clearInterval(healthCheckInterval);
+          throw new Error('Python service died mid-processing - health check failed');
+        }
+        console.log('✅ Python service health check passed');
+      }, 30000);
+
+      try {
+        const response = await axios.post(
+          `${PYTHON_SERVICE_URL}/api/build_codeframe`,
+          requestBody,
+          {
+            timeout: 600000, // 10 minutes timeout (brand extraction takes 3-8 min with 100+ answers)
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        // Clear health check interval on success
+        clearInterval(healthCheckInterval);
+        return response.data;
+      } catch (error) {
+        // Clear health check interval on error
+        clearInterval(healthCheckInterval);
+        throw error;
+      }
     } catch (error) {
       console.error('Error calling brand codeframe builder:', error);
       throw new Error(
@@ -797,28 +855,36 @@ class CodeframeService {
     console.log(`\n🔍 ===== SAVING BRAND CODEFRAME RESULT =====`);
     console.log(`Generation ID: ${generationId}`);
     console.log(`Python response keys:`, Object.keys(brandCodeframe));
-    console.log(`Total codes received:`, brandCodeframe.codes?.length || 0);
+    console.log(`Verified brands:`, brandCodeframe.verified_brands?.length || 0);
+    console.log(`Needs review:`, brandCodeframe.needs_review?.length || 0);
+    console.log(`Spam/Invalid:`, brandCodeframe.spam_invalid?.length || 0);
     console.log(`Theme name:`, brandCodeframe.theme_name);
     console.log(`Processing time:`, brandCodeframe.processing_time_ms);
 
-    if (!brandCodeframe.codes || brandCodeframe.codes.length === 0) {
-      console.error('⚠️  WARNING: No brand codes returned from Python service!');
-      throw new Error('No brand codes returned from Python service');
+    // Combine all 3 groups into single array for DB storage
+    const allBrands = [
+      ...(brandCodeframe.verified_brands || []),
+      ...(brandCodeframe.needs_review || []),
+      ...(brandCodeframe.spam_invalid || [])
+    ];
+
+    if (allBrands.length === 0) {
+      console.log('ℹ️  No brands found by AI - this is a valid result (AI did not identify any brand names in the answers)');
+    } else {
+      // Log first 3 brands
+      console.log(`\n📝 First 3 brands (from all groups):`)
+;
+      allBrands.slice(0, 3).forEach((brand, i) => {
+        console.log(`  ${i + 1}. ${brand.brand_name} (confidence: ${brand.confidence}, mentions: ${brand.mention_count})`);
+      });
     }
 
-    // Log first 3 codes
-    console.log(`\n📝 First 3 brand codes:`)
-;
-    brandCodeframe.codes.slice(0, 3).forEach((code, i) => {
-      console.log(`  ${i + 1}. ${code.brand_name} (confidence: ${code.confidence}, mentions: ${code.mention_count})`);
-    });
-
     // Convert brand codes to hierarchy format
-    const hierarchy = this.convertBrandCodesToHierarchy(brandCodeframe, generationId);
+    const hierarchy = this.convertBrandCodesToHierarchy(brandCodeframe, generationId, allBrands);
     console.log(`\n🌳 Hierarchy nodes created: ${hierarchy.length} (1 theme + ${hierarchy.length - 1} codes)`);
 
     // Calculate statistics
-    const totalCodes = brandCodeframe.codes.length;
+    const totalCodes = allBrands.length;
     const processingTimeMs = brandCodeframe.processing_time_ms;
 
     // Update generation record
@@ -872,8 +938,11 @@ class CodeframeService {
 
   /**
    * Convert brand codes to hierarchy format
+   * @param {object} brandCodeframe - Brand codeframe response from Python
+   * @param {string} generationId - Generation ID
+   * @param {array} allBrands - Combined array of all brands from 3 groups
    */
-  convertBrandCodesToHierarchy(brandCodeframe, generationId) {
+  convertBrandCodesToHierarchy(brandCodeframe, generationId, allBrands) {
     const hierarchy = [];
 
     // Create root node (theme)
@@ -895,8 +964,8 @@ class CodeframeService {
 
     hierarchy.push(themeNode);
 
-    // Add brand codes
-    brandCodeframe.codes.forEach((brandCode, index) => {
+    // Add brand codes from all groups
+    allBrands.forEach((brandCode, index) => {
       // Log embedding status
       if (index === 0) {
         console.log(`First brand embedding check:`, {
@@ -923,7 +992,8 @@ class CodeframeService {
         frequency_estimate: brandCode.frequency_estimate,
         example_texts: JSON.stringify(brandCode.example_texts),
         embedding: brandCode.embedding ? JSON.stringify(brandCode.embedding) : null,
-        validation_evidence: brandCode.validation_evidence ? JSON.stringify(brandCode.validation_evidence) : null
+        validation_evidence: brandCode.validation_evidence ? JSON.stringify(brandCode.validation_evidence) : null,
+        variants: brandCode.variants ? JSON.stringify(brandCode.variants) : null  // Add variants
       };
 
       hierarchy.push(codeNode);

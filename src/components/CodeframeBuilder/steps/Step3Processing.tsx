@@ -5,15 +5,16 @@ import { useEffect } from 'react';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useCodeframePolling } from '@/hooks/useCodeframePolling';
 import { ProgressBar } from '../shared/ProgressBar';
-import type { GenerationResponse } from '@/types/codeframe';
+import type { GenerationResponse, CodingType } from '@/types/codeframe';
 
 interface Step3ProcessingProps {
   generation: GenerationResponse | null;
+  codingType?: CodingType;
   onComplete: () => void;
   onError: (error: Error) => void;
 }
 
-export function Step3Processing({ generation, onComplete, onError }: Step3ProcessingProps) {
+export function Step3Processing({ generation, codingType, onComplete, onError }: Step3ProcessingProps) {
   // Wait for generation data to be available
   const generationId = generation?.generation_id || null;
   const nAnswers = generation?.n_answers || 0;
@@ -97,10 +98,20 @@ export function Step3Processing({ generation, onComplete, onError }: Step3Proces
       </div>
 
       {/* Status Details */}
-      <div className="text-sm text-gray-500 dark:text-gray-400 space-y-1">
-        <p>{currentProgress}% complete</p>
+      <div className="space-y-2">
+        <p className="text-sm text-gray-500 dark:text-gray-400">{currentProgress}% complete</p>
+
+        {/* Detailed Current Step - like Playwright test */}
+        {!isComplete && status?.current_step && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3 max-w-2xl mx-auto">
+            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              {status.current_step}
+            </p>
+          </div>
+        )}
+
         {!isComplete && etaSeconds > 0 && (
-          <p>Estimated time remaining: {etaSeconds}s</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Estimated time remaining: {etaSeconds}s</p>
         )}
       </div>
 
@@ -134,26 +145,50 @@ export function Step3Processing({ generation, onComplete, onError }: Step3Proces
       {!isComplete && (
         <div className="max-w-md mx-auto mt-8">
           <div className="text-left space-y-3">
-            <ProcessingStep
-              title="Clustering responses"
-              isComplete={currentProgress > 20}
-              isCurrent={currentProgress <= 20}
-            />
-            <ProcessingStep
-              title="Generating themes with Claude AI"
-              isComplete={currentProgress > 60}
-              isCurrent={currentProgress > 20 && currentProgress <= 60}
-            />
-            <ProcessingStep
-              title="Validating MECE principles"
-              isComplete={currentProgress > 90}
-              isCurrent={currentProgress > 60 && currentProgress <= 90}
-            />
-            <ProcessingStep
-              title="Building hierarchy"
-              isComplete={currentProgress >= 100}
-              isCurrent={currentProgress > 90 && currentProgress < 100}
-            />
+            {codingType === 'brand' ? (
+              <>
+                {/* Brand extraction steps */}
+                <ProcessingStep
+                  title="Phase 1: Indexing to Pinecone"
+                  isComplete={currentProgress > 33}
+                  isCurrent={currentProgress <= 33}
+                />
+                <ProcessingStep
+                  title="Phase 2: AI + Google validation"
+                  isComplete={currentProgress > 66}
+                  isCurrent={currentProgress > 33 && currentProgress <= 66}
+                />
+                <ProcessingStep
+                  title="Phase 3: Building codeframe"
+                  isComplete={currentProgress >= 100}
+                  isCurrent={currentProgress > 66 && currentProgress < 100}
+                />
+              </>
+            ) : (
+              <>
+                {/* Open-ended / sentiment steps */}
+                <ProcessingStep
+                  title="Clustering responses"
+                  isComplete={currentProgress > 20}
+                  isCurrent={currentProgress <= 20}
+                />
+                <ProcessingStep
+                  title="Generating themes with Claude AI"
+                  isComplete={currentProgress > 60}
+                  isCurrent={currentProgress > 20 && currentProgress <= 60}
+                />
+                <ProcessingStep
+                  title="Validating MECE principles"
+                  isComplete={currentProgress > 90}
+                  isCurrent={currentProgress > 60 && currentProgress <= 90}
+                />
+                <ProcessingStep
+                  title="Building hierarchy"
+                  isComplete={currentProgress >= 100}
+                  isCurrent={currentProgress > 90 && currentProgress < 100}
+                />
+              </>
+            )}
           </div>
         </div>
       )}

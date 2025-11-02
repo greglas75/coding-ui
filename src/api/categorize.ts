@@ -106,7 +106,7 @@ export async function categorizeSingleAnswer(answerId: number, forceRegenerate: 
     const result = await categorizeAnswer({
       answer: answer.answer_text,
       answerTranslation: answer.translation_en, // ✅ Add English translation for better accuracy
-      categoryName: answer.category.name,
+      categoryName: answer.category.google_name || answer.category.name, // ✅ Use Google Search Name if available
       presetName: presetName, // Template preset (e.g., "LLM Proper Name")
       customTemplate: customTemplate, // Custom template (overrides preset if provided)
       model: selectedModel, // ✅ Use unified model selection (supports all providers)
@@ -137,6 +137,7 @@ export async function categorizeSingleAnswer(answerId: number, forceRegenerate: 
       searchQuery: result.searchQuery, // ✅ Save actual search query used
       visionResult: result.visionResult, // ✅ Save vision AI analysis
       categoryName: result.categoryName, // ✅ Save category name
+      multiSourceResult: result.multiSourceResult, // ✅ NEW: Save full multi-source validation
     };
 
     // 7. Save suggestions to database

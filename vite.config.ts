@@ -56,6 +56,28 @@ export default defineConfig({
 
   server: {
     proxy: {
+      // Python backend endpoints (validation)
+      '/api/validate': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/api/test-pinecone': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/api/embeddings': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/api/build_codeframe': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      // Node backend endpoints (everything else)
       '/api': {
         target: 'http://localhost:3020',
         changeOrigin: true,

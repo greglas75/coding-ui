@@ -6,17 +6,20 @@
 import { AlertCircle, CheckCircle, Cloud, Database, Info, Key } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { getPineconeAPIKey, setPineconeAPIKey } from '../utils/apiKeys';
+import { useSettingsSync } from '../hooks/useSettingsSync';
 
 export function PineconeSettings() {
   const [apiKey, setApiKey] = useState('');
-  const [environment, setEnvironment] = useState('');
+  const [environment, setEnvironment] = useState('us-east-1');
   const [indexName, setIndexName] = useState('tgm-brand-embeddings');
   const [showApiKey, setShowApiKey] = useState(false);
   const [isValid, setIsValid] = useState(false);
+  const { pushSettings } = useSettingsSync();
 
   useEffect(() => {
-    const savedApiKey = localStorage.getItem('pinecone_api_key') || '';
-    const savedEnvironment = localStorage.getItem('pinecone_environment') || '';
+    const savedApiKey = getPineconeAPIKey() || '';
+    const savedEnvironment = localStorage.getItem('pinecone_environment') || 'us-east-1';
     const savedIndexName = localStorage.getItem('pinecone_index_name') || 'tgm-brand-embeddings';
 
     setApiKey(savedApiKey);
@@ -25,23 +28,34 @@ export function PineconeSettings() {
     setIsValid(savedApiKey.length > 0 && savedEnvironment.length > 0);
   }, []);
 
-  const handleSave = () => {
-    localStorage.setItem('pinecone_api_key', apiKey);
+  const handleSave = async () => {
+    setPineconeAPIKey(apiKey);
     localStorage.setItem('pinecone_environment', environment);
     localStorage.setItem('pinecone_index_name', indexName);
 
-    toast.success('Pinecone settings saved!');
+    // Sync to server
+    try {
+      await pushSettings();
+      toast.success('Pinecone settings saved and synced!');
+    } catch (error) {
+      toast.success('Pinecone settings saved locally');
+    }
+
     setIsValid(apiKey.length > 0 && environment.length > 0);
   };
 
   const handleReset = () => {
     if (confirm('Reset Pinecone settings?')) {
       setApiKey('');
-      setEnvironment('');
+      setEnvironment('us-east-1');
       setIndexName('tgm-brand-embeddings');
-      localStorage.removeItem('pinecone_api_key');
+      setPineconeAPIKey('');
       localStorage.removeItem('pinecone_environment');
       localStorage.removeItem('pinecone_index_name');
+
+      // Sync deletion to server
+      pushSettings().catch(() => {});
+
       toast.info('Pinecone settings reset');
       setIsValid(false);
     }

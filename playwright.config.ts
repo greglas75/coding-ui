@@ -37,7 +37,7 @@ export default defineConfig({
   // Shared settings for all projects
 use: {
   // Base URL for your app
-  baseURL: 'http://localhost:5173',
+  baseURL: 'http://localhost:5174',
 
   // 🖥️ VIEWPORT - DUŻE OKNO (1920x1080)
   viewport: { width: 2560, height: 1440 },
@@ -96,7 +96,7 @@ use: {
   // Run your local dev server before starting the tests
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:5173',
+    url: 'http://localhost:5174',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },
