@@ -1083,75 +1083,75 @@ export function CodingGrid({
 
       {/* Desktop Table */}
       {isTestEnv ? (
-        <div
-          className="hidden md:block relative overflow-auto max-h-[60vh]"
-          data-grid-container
+      <div
+        className="hidden md:block relative overflow-auto max-h-[60vh]"
+        data-grid-container
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            simpleLogger.info('🧹 Clearing focus - clicked on table container');
+            setFocusedRowId(null);
+          }
+        }}
+      >
+        <table
+          className="w-full border-collapse min-w-[900px]"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
-              simpleLogger.info('🧹 Clearing focus - clicked on table container');
+              simpleLogger.info('🧹 Clearing focus - clicked on table element');
               setFocusedRowId(null);
             }
           }}
         >
-          <table
-            className="w-full border-collapse min-w-[900px]"
+          <TableHeader
+            cellPad={cellPad}
+            sortField={filtering.sortField}
+            sortOrder={filtering.sortOrder}
+            onSort={filtering.handleSort}
+            isAllSelected={batchSelection.isAllSelected(localAnswers.map((a) => String(a.id)))}
+            onSelectAll={() => {
+              if (batchSelection.isAllSelected(localAnswers.map((a) => String(a.id)))) {
+                batchSelection.clearSelection();
+              } else {
+                batchSelection.selectAll(localAnswers.map((a) => String(a.id)));
+              }
+            }}
+            onClearAll={batchSelection.clearSelection}
+            onBulkAICategorize={handleBatchAI}
+            isBulkCategorizing={batchProcessor.getProgress().status === 'running'}
+            visibleCount={localAnswers.length}
+          />
+          <tbody
+            data-answer-container
             onClick={(e) => {
               if (e.target === e.currentTarget) {
-                simpleLogger.info('🧹 Clearing focus - clicked on table element');
+                simpleLogger.info('🧹 Clearing focus - clicked on tbody element');
                 setFocusedRowId(null);
               }
             }}
           >
-            <TableHeader
-              cellPad={cellPad}
-              sortField={filtering.sortField}
-              sortOrder={filtering.sortOrder}
-              onSort={filtering.handleSort}
-              isAllSelected={batchSelection.isAllSelected(localAnswers.map((a) => String(a.id)))}
-              onSelectAll={() => {
-                if (batchSelection.isAllSelected(localAnswers.map((a) => String(a.id)))) {
-                  batchSelection.clearSelection();
-                } else {
-                  batchSelection.selectAll(localAnswers.map((a) => String(a.id)));
-                }
-              }}
-              onClearAll={batchSelection.clearSelection}
-              onBulkAICategorize={handleBatchAI}
-              isBulkCategorizing={batchProcessor.getProgress().status === 'running'}
-              visibleCount={localAnswers.length}
-            />
-            <tbody
-              data-answer-container
-              onClick={(e) => {
-                if (e.target === e.currentTarget) {
-                  simpleLogger.info('🧹 Clearing focus - clicked on tbody element');
-                  setFocusedRowId(null);
-                }
-              }}
-            >
-              {localAnswers.map((answer) => (
-                <DesktopRow
-                  key={answer.id}
-                  answer={answer}
-                  isFocused={focusedRowId === answer.id}
-                  isSelected={batchSelection.isSelected(String(answer.id))}
-                  isCategorizing={answerActions.isCategorizingRow[answer.id] || false}
-                  isAccepting={false}
-                  rowAnimation={rowAnimations[answer.id] || ''}
+            {localAnswers.map((answer) => (
+              <DesktopRow
+                key={answer.id}
+                answer={answer}
+                isFocused={focusedRowId === answer.id}
+                isSelected={batchSelection.isSelected(String(answer.id))}
+                isCategorizing={answerActions.isCategorizingRow[answer.id] || false}
+                isAccepting={false}
+                rowAnimation={rowAnimations[answer.id] || ''}
                   onFocus={() => handleRowFocus(answer.id)}
                   onClick={() => handleRowClick(answer.id)}
                   onToggleSelection={handleToggleSelection}
-                  onQuickStatus={(ans, key) => answerActions.handleQuickStatus(ans, key)}
-                  onCodeClick={() => modals.handleCodeClick(answer)}
-                  onRollback={() => handleQuickRollback(answer)}
-                  onAcceptSuggestion={(suggestion) => handleAcceptSuggestionWrapper(answer.id, suggestion)}
-                  onRegenerateSuggestions={() => answerActions.handleSingleAICategorize(answer.id)}
+                onQuickStatus={(ans, key) => answerActions.handleQuickStatus(ans, key)}
+                onCodeClick={() => modals.handleCodeClick(answer)}
+                onRollback={() => handleQuickRollback(answer)}
+                onAcceptSuggestion={(suggestion) => handleAcceptSuggestionWrapper(answer.id, suggestion)}
+                onRegenerateSuggestions={() => answerActions.handleSingleAICategorize(answer.id)}
                   formatDate={formatRowDate}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
       ) : (
         <div
           className="hidden md:block relative"
@@ -1227,33 +1227,33 @@ export function CodingGrid({
 
       {/* Mobile Cards */}
       {isTestEnv ? (
-        <div
-          className="md:hidden space-y-3 p-4"
-          data-grid-container
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              simpleLogger.info('🧹 Clearing focus - clicked on mobile container');
-              setFocusedRowId(null);
-            }
-          }}
-        >
-          {localAnswers.map((answer) => (
-            <MobileCard
-              key={answer.id}
-              answer={answer}
-              isFocused={focusedRowId === answer.id}
-              isSelected={batchSelection.isSelected(String(answer.id))}
-              rowAnimation={rowAnimations[answer.id] || ''}
-              onFocus={() => setFocusedRowId(answer.id)}
+      <div
+        className="md:hidden space-y-3 p-4"
+        data-grid-container
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            simpleLogger.info('🧹 Clearing focus - clicked on mobile container');
+            setFocusedRowId(null);
+          }
+        }}
+      >
+        {localAnswers.map((answer) => (
+          <MobileCard
+            key={answer.id}
+            answer={answer}
+            isFocused={focusedRowId === answer.id}
+            isSelected={batchSelection.isSelected(String(answer.id))}
+            rowAnimation={rowAnimations[answer.id] || ''}
+            onFocus={() => setFocusedRowId(answer.id)}
               onClick={() => setFocusedRowId(answer.id)}
               onToggleSelection={handleToggleSelection}
-              onQuickStatus={(ans, key) => answerActions.handleQuickStatus(ans, key)}
-              onCodeClick={() => modals.handleCodeClick(answer)}
-              onRollback={() => handleQuickRollback(answer)}
+            onQuickStatus={(ans, key) => answerActions.handleQuickStatus(ans, key)}
+            onCodeClick={() => modals.handleCodeClick(answer)}
+            onRollback={() => handleQuickRollback(answer)}
               formatDate={formatRowDate}
-            />
-          ))}
-        </div>
+          />
+        ))}
+      </div>
       ) : (
         <div
           className="md:hidden h-[70vh] p-4"

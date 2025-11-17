@@ -20,7 +20,7 @@ export function useBatchSelection(initialIds: string[] = []) {
       const filtered = Array.from(prev).filter(id => orderedIds.includes(id));
       if (filtered.length === prev.size) {
         return prev;
-      }
+    }
       return new Set(filtered);
     });
   }, [orderedIds]);
@@ -43,40 +43,40 @@ export function useBatchSelection(initialIds: string[] = []) {
 
   const toggleSelection = useCallback(
     (id: string, event?: React.MouseEvent) => {
-      if (event?.shiftKey && lastSelectedId) {
+    if (event?.shiftKey && lastSelectedId) {
         const startIdx = orderedIds.indexOf(lastSelectedId);
         const endIdx = orderedIds.indexOf(id);
 
-        if (startIdx !== -1 && endIdx !== -1) {
-          const [start, end] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+      if (startIdx !== -1 && endIdx !== -1) {
+        const [start, end] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
 
-          setSelectedIds(prev => {
-            const next = new Set(prev);
-            for (let i = start; i <= end; i++) {
-              next.add(orderedIds[i]);
-            }
-            return next;
-          });
-        }
-      } else if (event?.ctrlKey || event?.metaKey) {
         setSelectedIds(prev => {
           const next = new Set(prev);
-          if (next.has(id)) {
-            next.delete(id);
-          } else {
-            next.add(id);
+          for (let i = start; i <= end; i++) {
+              next.add(orderedIds[i]);
           }
           return next;
         });
-      } else {
-        setSelectedIds(prev => {
-          if (prev.has(id) && prev.size === 1) {
-            return new Set();
+      }
+    } else if (event?.ctrlKey || event?.metaKey) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        if (prev.has(id) && prev.size === 1) {
+          return new Set();
           }
           return new Set([id]);
-        });
-      }
-      setLastSelectedId(id);
+      });
+    }
+    setLastSelectedId(id);
     },
     [lastSelectedId, orderedIds]
   );
@@ -87,21 +87,21 @@ export function useBatchSelection(initialIds: string[] = []) {
 
   const isSelected = useCallback(
     (id: string) => {
-      return selectedIds.has(id);
+    return selectedIds.has(id);
     },
     [selectedIds]
   );
 
   const isAllSelected = useCallback(
     (ids: string[]) => {
-      return ids.length > 0 && ids.every(id => selectedIds.has(id));
+    return ids.length > 0 && ids.every(id => selectedIds.has(id));
     },
     [selectedIds]
   );
 
   const isPartiallySelected = useCallback(
     (ids: string[]) => {
-      return selectedIds.size > 0 && selectedIds.size < ids.length;
+    return selectedIds.size > 0 && selectedIds.size < ids.length;
     },
     [selectedIds]
   );

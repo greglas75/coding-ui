@@ -94,14 +94,14 @@ describe('BatchAIProcessor', () => {
           error: null,
         })
         .mockResolvedValueOnce({
-          data: [
-            { id: 1, answer_text: 'Nike shoes' },
-            { id: 2, answer_text: 'Nike shoes' }, // Duplicate
-            { id: 3, answer_text: 'Adidas shoes' },
-            { id: 4, answer_text: 'Nike shoes' }, // Duplicate
-          ],
-          error: null,
-        });
+        data: [
+          { id: 1, answer_text: 'Nike shoes' },
+          { id: 2, answer_text: 'Nike shoes' }, // Duplicate
+          { id: 3, answer_text: 'Adidas shoes' },
+          { id: 4, answer_text: 'Nike shoes' }, // Duplicate
+        ],
+        error: null,
+      });
 
       const processor = new BatchAIProcessor({
         concurrency: 2,

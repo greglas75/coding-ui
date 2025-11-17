@@ -175,16 +175,16 @@ describe('categorizeAnswer', () => {
   });
 
   it('should handle OpenAI rate limit error (429)', async () => {
-    const error: any = new Error('Rate limit exceeded');
-    error.status = 429;
+              const error: any = new Error('Rate limit exceeded');
+              error.status = 429;
     chatCompletionMock.mockRejectedValueOnce(error);
 
     await expect(categorizeAnswer(mockRequest)).rejects.toThrow('Rate limit reached');
   });
 
   it('should handle invalid API key error (401)', async () => {
-    const error: any = new Error('Invalid API key');
-    error.status = 401;
+              const error: any = new Error('Invalid API key');
+              error.status = 401;
     chatCompletionMock.mockRejectedValueOnce(error);
 
     await expect(categorizeAnswer(mockRequest)).rejects.toThrow('OpenAI API key is invalid');

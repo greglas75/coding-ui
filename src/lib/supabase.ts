@@ -3,15 +3,15 @@
  *
  * REFACTORED: This file now re-exports from domain repositories.
  * For new code, import directly from repositories/* or supabaseClient.ts
- * 
+ *
  * @deprecated Import from repositories/* or supabaseClient.ts instead
  */
 
 // Re-export client for backward compatibility
-export { supabase, getSupabaseClient } from './supabaseClient';
+export { getSupabaseClient, supabase } from './supabaseClient';
 
 // Re-export codes repository functions
-export { fetchCodes, createCode, saveCodesForAnswer } from '../repositories/codes';
+export { createCode, fetchCodes, saveCodesForAnswer } from '../repositories/codes';
 
 /**
  * Fetch AI suggestion for an answer
@@ -25,12 +25,12 @@ export { fetchCodes, createCode, saveCodesForAnswer } from '../repositories/code
  */
 export async function fetchAISuggestion(answerId: number) {
   const { data, error } = await supabase
-    .from("answers")
-    .select("ai_suggested_code")
-    .eq("id", answerId)
+    .from('answers')
+    .select('ai_suggested_code')
+    .eq('id', answerId)
     .single();
   if (error) {
-    simpleLogger.error("❌ Error fetching AI suggestion:", error);
+    simpleLogger.error('❌ Error fetching AI suggestion:', error);
     return [];
   }
   // Convert string to array if it exists
@@ -64,10 +64,7 @@ export async function paginatedQuery<T = any>(
   const start = page * limit;
   const end = start + limit - 1;
 
-  let query = supabase
-    .from(table)
-    .select('*', { count: 'exact' })
-    .range(start, end);
+  let query = supabase.from(table).select('*', { count: 'exact' }).range(start, end);
 
   // Apply filters
   if (filters) {
@@ -263,15 +260,16 @@ export async function fetchCodesOptimized(
 
     const codesWithCategories = codes.map(code => ({
       ...code,
-      category_ids: relationsMap.get(code.id) || []
+      category_ids: relationsMap.get(code.id) || [],
     }));
 
     // Filter by category
-    const filtered = filters.categoryId.length > 0
-      ? codesWithCategories.filter(code =>
-          filters.categoryId!.some(catId => code.category_ids.includes(catId))
-        )
-      : codesWithCategories;
+    const filtered =
+      filters.categoryId.length > 0
+        ? codesWithCategories.filter(code =>
+            filters.categoryId!.some(catId => code.category_ids.includes(catId))
+          )
+        : codesWithCategories;
 
     return {
       data: filtered,
@@ -311,11 +309,7 @@ export async function optimisticUpdate<T extends { id: number }>(
   setLocalState: (state: T[]) => void
 ) {
   // 1. Update UI immediately (optimistic)
-  setLocalState(
-    localState.map(item =>
-      item.id === id ? { ...item, ...updates } : item
-    )
-  );
+  setLocalState(localState.map(item => (item.id === id ? { ...item, ...updates } : item)));
 
   // 2. Update database in background
   try {
@@ -350,11 +344,7 @@ export async function optimisticUpdate<T extends { id: number }>(
  * @param updates - Updates to apply to all rows
  * @returns Success status and count
  */
-export async function batchUpdate(
-  table: string,
-  ids: number[],
-  updates: Record<string, any>
-) {
+export async function batchUpdate(table: string, ids: number[], updates: Record<string, any>) {
   if (ids.length === 0) return { success: true, count: 0 };
 
   try {
@@ -413,9 +403,7 @@ export async function searchWithCache<T = any>(
     supabaseQuery = supabaseQuery.ilike(columns[0], `%${query}%`);
   } else {
     // For multiple columns, use textSearch or multiple ilike with or
-    supabaseQuery = supabaseQuery.or(
-      columns.map(col => `${col}.ilike.%${query}%`).join(',')
-    );
+    supabaseQuery = supabaseQuery.or(columns.map(col => `${col}.ilike.%${query}%`).join(','));
   }
 
   const { data, error } = await supabaseQuery;
@@ -429,7 +417,7 @@ export async function searchWithCache<T = any>(
   cache.set(cacheKey, data || [], ttl);
 
   simpleLogger.info(`✅ [Supabase] Search found ${data?.length || 0} results for "${query}"`);
-  return data as T[] || [];
+  return (data as T[]) || [];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -477,13 +465,8 @@ export async function prefetchData(
  * @param filters - Optional filters
  * @returns Count
  */
-export async function fastCount(
-  table: string,
-  filters?: Record<string, any>
-): Promise<number> {
-  let query = supabase
-    .from(table)
-    .select('*', { count: 'exact', head: true });
+export async function fastCount(table: string, filters?: Record<string, any>): Promise<number> {
+  let query = supabase.from(table).select('*', { count: 'exact', head: true });
 
   // Apply filters
   if (filters) {
@@ -528,7 +511,7 @@ export async function updateSingleRow<T extends Record<string, any>>(
 ) {
   const updatePayload = {
     ...updates,
-    ...(options?.skipTimestamp ? {} : { updated_at: new Date().toISOString() })
+    ...(options?.skipTimestamp ? {} : { updated_at: new Date().toISOString() }),
   };
 
   if (options?.returnUpdated) {
@@ -547,10 +530,7 @@ export async function updateSingleRow<T extends Record<string, any>>(
     simpleLogger.info(`✅ [Supabase] Updated ${table}:${id}`);
     return { success: true, data };
   } else {
-    const { error } = await supabase
-      .from(table)
-      .update(updatePayload)
-      .eq('id', id);
+    const { error } = await supabase.from(table).update(updatePayload).eq('id', id);
 
     if (error) {
       simpleLogger.error(`❌ [Supabase] Update failed for ${table}:${id}:`, error);
@@ -583,7 +563,7 @@ export async function upsertRow<T extends Record<string, any>>(
     .from(table)
     .upsert(data, {
       onConflict: uniqueColumn,
-      ignoreDuplicates: false
+      ignoreDuplicates: false,
     })
     .select()
     .single();
@@ -691,9 +671,7 @@ class PerformanceMonitor {
   }
 
   getAverageTime(table: string, operation: string): number {
-    const filtered = this.metrics.filter(
-      m => m.table === table && m.operation === operation
-    );
+    const filtered = this.metrics.filter(m => m.table === table && m.operation === operation);
 
     if (filtered.length === 0) return 0;
 
@@ -711,10 +689,9 @@ class PerformanceMonitor {
     return {
       totalQueries: this.metrics.length,
       cacheHitRate: this.getCacheHitRate().toFixed(1) + '%',
-      avgDuration: (
-        this.metrics.reduce((sum, m) => sum + m.duration, 0) /
-        this.metrics.length
-      ).toFixed(0) + 'ms',
+      avgDuration:
+        (this.metrics.reduce((sum, m) => sum + m.duration, 0) / this.metrics.length).toFixed(0) +
+        'ms',
     };
   }
 }

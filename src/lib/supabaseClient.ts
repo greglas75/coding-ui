@@ -1,6 +1,6 @@
 /**
  * Supabase Client Singleton
- * 
+ *
  * Centralized client creation with singleton pattern.
  * Import this when you need the raw Supabase client.
  */
@@ -28,11 +28,11 @@ export function getSupabaseClient(): SupabaseClient {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true
+        detectSessionInUrl: true,
       },
       global: {
-        headers: { 'x-application-name': 'CodingApp' }
-      }
+        headers: { 'x-application-name': 'CodingApp' },
+      },
     });
 
     // Debug guard in development
@@ -46,4 +46,3 @@ export function getSupabaseClient(): SupabaseClient {
 
 // Export the singleton instance for backward compatibility
 export const supabase = getSupabaseClient();
-

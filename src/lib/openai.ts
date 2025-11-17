@@ -105,27 +105,27 @@ function getProviderAPIKey(provider: 'openai' | 'anthropic' | 'google'): string 
   return apiKey;
 }
 
-// ═══════════════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════════
 // HELPER: Run multi-source validation
-// ═══════════════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════════
 async function runMultiSourceValidation(
   request: CategorizeRequest
 ): Promise<MultiSourceValidationResult | null> {
   try {
-    simpleLogger.info(`🚀 Using Multi-Source Brand Validation (6-Tier System)`);
-    simpleLogger.info(`   Answer: "${request.answer}"`);
-    simpleLogger.info(`   Category: "${request.categoryName}"`);
-    simpleLogger.info(`   Language: "${request.context.language || 'en'}"`);
+            simpleLogger.info(`🚀 Using Multi-Source Brand Validation (6-Tier System)`);
+            simpleLogger.info(`   Answer: "${request.answer}"`);
+            simpleLogger.info(`   Category: "${request.categoryName}"`);
+            simpleLogger.info(`   Language: "${request.context.language || 'en'}"`);
 
     const multiSourceResult = await validateBrandMultiSource(
-      request.answer,
-      request.categoryName,
-      request.context.language || 'en'
-    );
+                request.answer,
+                request.categoryName,
+                request.context.language || 'en'
+              );
 
-    simpleLogger.info(`✅ Multi-source validation complete:`);
-    simpleLogger.info(`   Type: ${multiSourceResult.type}`);
-    simpleLogger.info(`   Confidence: ${multiSourceResult.confidence}%`);
+              simpleLogger.info(`✅ Multi-source validation complete:`);
+              simpleLogger.info(`   Type: ${multiSourceResult.type}`);
+              simpleLogger.info(`   Confidence: ${multiSourceResult.confidence}%`);
     if (
       multiSourceResult.tier !== undefined &&
       multiSourceResult.cost !== undefined &&
@@ -134,33 +134,33 @@ async function runMultiSourceValidation(
       simpleLogger.info(
         `   Tier: ${multiSourceResult.tier} (cost: $${multiSourceResult.cost.toFixed(5)}, time: ${multiSourceResult.time_ms}ms)`
       );
-    }
-    simpleLogger.info(`   UI Action: ${multiSourceResult.ui_action}`);
+              }
+              simpleLogger.info(`   UI Action: ${multiSourceResult.ui_action}`);
 
     return multiSourceResult;
-  } catch (error) {
-    simpleLogger.error('❌ Multi-source validation failed:', error);
+            } catch (error) {
+              simpleLogger.error('❌ Multi-source validation failed:', error);
     return null;
   }
-}
+            }
 
-// ═══════════════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════════
 // HELPER: Build search query
-// ═══════════════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════════
 function buildSearchQuery(request: CategorizeRequest): string {
-  const searchText = request.answerTranslation || request.answer;
-  const searchLower = searchText.toLowerCase().trim();
-  const categoryLower = request.categoryName.toLowerCase();
-  const alreadyIncludesCategory = searchLower.startsWith(categoryLower);
+            const searchText = request.answerTranslation || request.answer;
+            const searchLower = searchText.toLowerCase().trim();
+            const categoryLower = request.categoryName.toLowerCase();
+            const alreadyIncludesCategory = searchLower.startsWith(categoryLower);
 
   return alreadyIncludesCategory
-    ? searchText.trim()
-    : `${request.categoryName} ${searchText}`.trim();
+              ? searchText.trim()
+              : `${request.categoryName} ${searchText}`.trim();
 }
 
-// ═══════════════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════════
 // HELPER: Fetch web context and images (fallback system)
-// ═══════════════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════════
 async function fetchWebContextAndImages(
   request: CategorizeRequest,
   localizedQuery: string
@@ -169,88 +169,88 @@ async function fetchWebContextAndImages(
   let images: ImageResult[] = [];
   let visionResult: any = null;
 
-  try {
-    simpleLogger.info(`🌐 Fetching web context for: "${request.answer.substring(0, 50)}..."`);
-    simpleLogger.info(`🔍 Search query: "${localizedQuery}"`);
+              try {
+                simpleLogger.info(`🌐 Fetching web context for: "${request.answer.substring(0, 50)}..."`);
+                simpleLogger.info(`🔍 Search query: "${localizedQuery}"`);
 
-    // Build web context section
+                // Build web context section
     await buildWebContextSection(localizedQuery, {
-      enabled: true,
-      numResults: 6,
-    });
+                  enabled: true,
+                  numResults: 6,
+                });
 
-    // Get raw results for modal
-    const { googleSearch } = await import('../services/webContextProvider');
-    webContext = await googleSearch(localizedQuery, { numResults: 6 });
-    simpleLogger.info(`✅ Found ${webContext.length} web results`);
+                // Get raw results for modal
+                const { googleSearch } = await import('../services/webContextProvider');
+                webContext = await googleSearch(localizedQuery, { numResults: 6 });
+                simpleLogger.info(`✅ Found ${webContext.length} web results`);
 
-    // Fetch related images
-    simpleLogger.info(`🖼️ Fetching related images...`);
-    images = await googleImageSearch(localizedQuery, 6);
-    simpleLogger.info(`✅ Found ${images.length} images`);
+                // Fetch related images
+                simpleLogger.info(`🖼️ Fetching related images...`);
+                images = await googleImageSearch(localizedQuery, 6);
+                simpleLogger.info(`✅ Found ${images.length} images`);
 
-    // Vision AI analysis (if configured)
-    if (images.length > 0 && request.visionModel) {
-      simpleLogger.info(`👁️ Analyzing images with ${request.visionModel}...`);
-      try {
-        const { analyzeImagesWithGemini } = await import('../services/geminiVision');
-        const brandNames = request.codes.map((c: any) => c.name);
-        visionResult = await analyzeImagesWithGemini(
-          images,
-          request.answer,
-          brandNames,
-          request.visionModel
-        );
-        simpleLogger.info('✅ Vision analysis result:', visionResult);
-      } catch (visionError) {
-        simpleLogger.warn('⚠️ Vision analysis failed:', visionError);
-      }
-    }
-  } catch (error) {
-    simpleLogger.warn('⚠️ Web context fetch failed, continuing without it:', error);
-  }
+                // Vision AI analysis (if configured)
+                if (images.length > 0 && request.visionModel) {
+                  simpleLogger.info(`👁️ Analyzing images with ${request.visionModel}...`);
+                  try {
+                    const { analyzeImagesWithGemini } = await import('../services/geminiVision');
+                    const brandNames = request.codes.map((c: any) => c.name);
+                    visionResult = await analyzeImagesWithGemini(
+                      images,
+                      request.answer,
+                      brandNames,
+                      request.visionModel
+                    );
+                    simpleLogger.info('✅ Vision analysis result:', visionResult);
+                  } catch (visionError) {
+                    simpleLogger.warn('⚠️ Vision analysis failed:', visionError);
+                  }
+                }
+              } catch (error) {
+                simpleLogger.warn('⚠️ Web context fetch failed, continuing without it:', error);
+              }
 
   return { webContext, images, visionResult };
-}
+            }
 
-// ═══════════════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════════
 // HELPER: Build response from multi-source result
-// ═══════════════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════════
 function buildMultiSourceResponse(
   multiSourceResult: MultiSourceValidationResult,
   request: CategorizeRequest
 ): CategorizeResponse {
-  // Convert multi-source result to AI suggestion
-  const suggestion = convertToAISuggestion(multiSourceResult, request.codes);
-  const suggestions: AiCodeSuggestion[] = suggestion ? [suggestion] : [];
+              // Convert multi-source result to AI suggestion
+              const suggestion = convertToAISuggestion(multiSourceResult, request.codes);
+              const suggestions: AiCodeSuggestion[] = suggestion ? [suggestion] : [];
 
-  // Format sources for display
-  const sourcesDisplay = formatSourcesForDisplay(multiSourceResult);
+              // Format sources for display
+              const sourcesDisplay = formatSourcesForDisplay(multiSourceResult);
 
-  // Build reasoning with sources breakdown
-  let enhancedReasoning = multiSourceResult.reasoning;
-  enhancedReasoning += `\n\n📊 Sources Checked:`;
-  if (sourcesDisplay.pinecone) enhancedReasoning += `\n• Pinecone: ${sourcesDisplay.pinecone}`;
+              // Build reasoning with sources breakdown
+              let enhancedReasoning = multiSourceResult.reasoning;
+              enhancedReasoning += `\n\n📊 Sources Checked:`;
+              if (sourcesDisplay.pinecone) enhancedReasoning += `\n• Pinecone: ${sourcesDisplay.pinecone}`;
   if (sourcesDisplay.googleSearch)
     enhancedReasoning += `\n• Google Search: ${sourcesDisplay.googleSearch}`;
-  if (sourcesDisplay.visionAI) enhancedReasoning += `\n• Vision AI: ${sourcesDisplay.visionAI}`;
+              if (sourcesDisplay.visionAI) enhancedReasoning += `\n• Vision AI: ${sourcesDisplay.visionAI}`;
   if (sourcesDisplay.knowledgeGraph)
     enhancedReasoning += `\n• Knowledge Graph: ${sourcesDisplay.knowledgeGraph}`;
   if (sourcesDisplay.embeddings)
     enhancedReasoning += `\n• Embeddings: ${sourcesDisplay.embeddings}`;
 
-  enhancedReasoning += `\n\n💰 Cost: $${multiSourceResult.cost.toFixed(5)} | ⏱️ Time: ${multiSourceResult.time_ms}ms | 🏆 Tier: ${multiSourceResult.tier}`;
+              enhancedReasoning += `\n\n💰 Cost: $${multiSourceResult.cost.toFixed(5)} | ⏱️ Time: ${multiSourceResult.time_ms}ms | 🏆 Tier: ${multiSourceResult.tier}`;
 
-  // Update reasoning in suggestion
-  if (suggestions.length > 0 && suggestions[0]) {
-    suggestions[0].reasoning = enhancedReasoning;
-  }
+              // Update reasoning in suggestion
+              if (suggestions.length > 0 && suggestions[0]) {
+                suggestions[0].reasoning = enhancedReasoning;
+              }
 
-  simpleLogger.info(`✅ Returning ${suggestions.length} suggestions from multi-source validation`);
+              simpleLogger.info(`✅ Returning ${suggestions.length} suggestions from multi-source validation`);
 
-  return {
-    suggestions,
-    reasoning: enhancedReasoning,
+              return {
+                suggestions,
+                reasoning: enhancedReasoning,
     webContext: [],
     images: [],
     multiSourceResult,

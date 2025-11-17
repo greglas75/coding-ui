@@ -2,12 +2,11 @@
  * Codeframe Tree Component
  * Renders hierarchical tree structure with expand/collapse
  */
-import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Download } from 'lucide-react';
-import { TreeNode } from './TreeNode';
-import { BulkActions } from './BulkActions';
-import { BrandInsightsModal } from '../modals/BrandInsightsModal';
 import type { HierarchyNode } from '@/types/codeframe';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { BrandInsightsModal } from '../modals/BrandInsightsModal';
+import { BulkActions } from './BulkActions';
+import { TreeNode } from './TreeNode';
 
 interface CodeframeTreeProps {
   data: HierarchyNode[];
@@ -34,7 +33,7 @@ export function CodeframeTree({
   const brandCodes = useMemo(() => {
     const codes: HierarchyNode[] = [];
     const collectBrandCodes = (nodes: HierarchyNode[]) => {
-      nodes.forEach((node) => {
+      nodes.forEach(node => {
         if (node.node_type === 'code') {
           codes.push(node);
         }
@@ -50,12 +49,12 @@ export function CodeframeTree({
   // Get current brand code index for navigation
   const currentBrandIndex = useMemo(() => {
     if (!selectedBrandNode) return -1;
-    return brandCodes.findIndex((node) => node.id === selectedBrandNode.id);
+    return brandCodes.findIndex(node => node.id === selectedBrandNode.id);
   }, [brandCodes, selectedBrandNode]);
 
   // Toggle node expansion
   const toggleNode = useCallback((nodeId: string) => {
-    setExpandedNodes((prev) => {
+    setExpandedNodes(prev => {
       const next = new Set(prev);
       if (next.has(nodeId)) {
         next.delete(nodeId);
@@ -72,7 +71,7 @@ export function CodeframeTree({
       if (event?.ctrlKey || event?.metaKey) {
         // Multi-select
         if (selectedNodes.includes(nodeId)) {
-          onSelect(selectedNodes.filter((id) => id !== nodeId));
+          onSelect(selectedNodes.filter(id => id !== nodeId));
         } else {
           onSelect([...selectedNodes, nodeId]);
         }
@@ -97,27 +96,27 @@ export function CodeframeTree({
     setTimeout(() => setSelectedBrandNode(null), 300);
   }, []);
 
-  // Helper function to update brand approval status
-  const updateBrandApproval = useCallback(async (status: 'approved' | 'rejected') => {
+  // Handle brand approval
+  const handleApprove = useCallback(async () => {
     if (!selectedBrandNode) return;
 
     try {
-      // Call API to update brand status
+      // Call API to approve brand
       const response = await fetch(`/api/v1/codeframe/hierarchy/${selectedBrandNode.id}/approval`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status: 'approved' }),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || `Failed to ${status === 'approved' ? 'approve' : 'reject'} brand`);
+        throw new Error(error.message || 'Failed to approve brand');
       }
 
       const result = await response.json();
-      console.log(`Brand ${status} successfully:`, result);
+      console.log('Brand approved successfully:', result);
 
       // Navigate to next brand or close modal
       if (currentBrandIndex < brandCodes.length - 1) {
@@ -126,20 +125,44 @@ export function CodeframeTree({
         handleCloseModal();
       }
     } catch (error) {
-      console.error(`Failed to ${status === 'approved' ? 'approve' : 'reject'} brand:`, error);
-      alert(`Failed to ${status === 'approved' ? 'approve' : 'reject'} brand. Please try again.`);
+      console.error('Failed to approve brand:', error);
+      alert('Failed to approve brand. Please try again.');
     }
   }, [selectedBrandNode, currentBrandIndex, brandCodes, handleCloseModal]);
 
-  // Handle brand approval
-  const handleApprove = useCallback(async () => {
-    await updateBrandApproval('approved');
-  }, [updateBrandApproval]);
-
   // Handle brand rejection
   const handleReject = useCallback(async () => {
-    await updateBrandApproval('rejected');
-  }, [updateBrandApproval]);
+    if (!selectedBrandNode) return;
+
+    try {
+      // Call API to reject brand
+      const response = await fetch(`/api/v1/codeframe/hierarchy/${selectedBrandNode.id}/approval`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'rejected' }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to reject brand');
+      }
+
+      const result = await response.json();
+      console.log('Brand rejected successfully:', result);
+
+      // Navigate to next brand or close modal
+      if (currentBrandIndex < brandCodes.length - 1) {
+        setSelectedBrandNode(brandCodes[currentBrandIndex + 1]);
+      } else {
+        handleCloseModal();
+      }
+    } catch (error) {
+      console.error('Failed to reject brand:', error);
+      alert('Failed to reject brand. Please try again.');
+    }
+  }, [selectedBrandNode, currentBrandIndex, brandCodes, handleCloseModal]);
 
   // Navigate to previous brand
   const handlePrevious = useCallback(() => {
@@ -179,7 +202,16 @@ export function CodeframeTree({
     try {
       // Flatten tree structure into CSV rows
       const rows: string[][] = [];
-      rows.push(['ID', 'Name', 'Description', 'Type', 'Level', 'Confidence', 'Cluster Size', 'Parent ID']);
+      rows.push([
+        'ID',
+        'Name',
+        'Description',
+        'Type',
+        'Level',
+        'Confidence',
+        'Cluster Size',
+        'Parent ID',
+      ]);
 
       const flattenNode = (node: HierarchyNode, level: number = 0, parentId: string = '') => {
         rows.push([
@@ -190,20 +222,20 @@ export function CodeframeTree({
           level.toString(),
           node.confidence || '',
           node.cluster_size?.toString() || '',
-          parentId
+          parentId,
         ]);
 
         if (node.children) {
-          node.children.forEach((child) => flattenNode(child, level + 1, node.id));
+          node.children.forEach(child => flattenNode(child, level + 1, node.id));
         }
       };
 
-      data.forEach((node) => flattenNode(node));
+      data.forEach(node => flattenNode(node));
 
       // Convert to CSV format
-      const csvContent = rows.map((row) =>
-        row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')
-      ).join('\n');
+      const csvContent = rows
+        .map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
+        .join('\n');
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -224,7 +256,7 @@ export function CodeframeTree({
   const handleSelectAll = useCallback(() => {
     const allCodeIds = new Set<string>();
     const collectCodeIds = (nodes: HierarchyNode[]) => {
-      nodes.forEach((node) => {
+      nodes.forEach(node => {
         if (node.node_type === 'code') {
           allCodeIds.add(node.id);
         }
@@ -244,7 +276,7 @@ export function CodeframeTree({
   const handleExpandAll = useCallback(() => {
     const allCodeIds = new Set<string>();
     const collectCodeIds = (nodes: HierarchyNode[]) => {
-      nodes.forEach((node) => {
+      nodes.forEach(node => {
         if (node.node_type === 'code') {
           allCodeIds.add(node.id);
         }
@@ -257,7 +289,7 @@ export function CodeframeTree({
     // Also expand tree nodes
     const allNodeIds = new Set<string>();
     const collectAllIds = (nodes: HierarchyNode[]) => {
-      nodes.forEach((node) => {
+      nodes.forEach(node => {
         allNodeIds.add(node.id);
         if (node.children) collectAllIds(node.children);
       });
@@ -276,7 +308,7 @@ export function CodeframeTree({
     if (checkboxSelectedNodes.size === 0) return;
 
     try {
-      const promises = Array.from(checkboxSelectedNodes).map((nodeId) =>
+      const promises = Array.from(checkboxSelectedNodes).map(nodeId =>
         fetch(`/api/v1/codeframe/hierarchy/${nodeId}/approval`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -298,7 +330,7 @@ export function CodeframeTree({
     if (checkboxSelectedNodes.size === 0) return;
 
     try {
-      const promises = Array.from(checkboxSelectedNodes).map((nodeId) =>
+      const promises = Array.from(checkboxSelectedNodes).map(nodeId =>
         fetch(`/api/v1/codeframe/hierarchy/${nodeId}/approval`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -317,7 +349,7 @@ export function CodeframeTree({
 
   // Handle checkbox toggle for individual nodes
   const handleCheckboxToggle = useCallback((nodeId: string) => {
-    setCheckboxSelectedNodes((prev) => {
+    setCheckboxSelectedNodes(prev => {
       const next = new Set(prev);
       if (next.has(nodeId)) {
         next.delete(nodeId);
@@ -330,7 +362,7 @@ export function CodeframeTree({
 
   // Handle expand/collapse details for individual nodes
   const handleToggleDetails = useCallback((nodeId: string) => {
-    setExpandedDetailsNodes((prev) => {
+    setExpandedDetailsNodes(prev => {
       const next = new Set(prev);
       if (next.has(nodeId)) {
         next.delete(nodeId);
@@ -452,44 +484,52 @@ export function CodeframeTree({
             }
           }}
           onSelect={() => handleSelect(node.id)}
-          onRename={(newName) => onRename(node.id, newName)}
+          onRename={newName => onRename(node.id, newName)}
           onDelete={() => onDelete(node.id)}
           onViewDetails={node.node_type === 'code' ? () => handleViewDetails(node) : undefined}
-          onCheckboxToggle={node.node_type === 'code' ? () => handleCheckboxToggle(node.id) : undefined}
-          onApprove={node.node_type === 'code' ? async () => {
-            try {
-              await fetch(`/api/v1/codeframe/hierarchy/${node.id}/approval`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'approved' }),
-              });
-              console.log(`Approved brand: ${node.name}`);
-            } catch (error) {
-              console.error('Failed to approve brand:', error);
-              alert('Failed to approve brand. Please try again.');
-            }
-          } : undefined}
-          onReject={node.node_type === 'code' ? async () => {
-            try {
-              await fetch(`/api/v1/codeframe/hierarchy/${node.id}/approval`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'rejected' }),
-              });
-              console.log(`Rejected brand: ${node.name}`);
-            } catch (error) {
-              console.error('Failed to reject brand:', error);
-              alert('Failed to reject brand. Please try again.');
-            }
-          } : undefined}
+          onCheckboxToggle={
+            node.node_type === 'code' ? () => handleCheckboxToggle(node.id) : undefined
+          }
+          onApprove={
+            node.node_type === 'code'
+              ? async () => {
+                  try {
+                    await fetch(`/api/v1/codeframe/hierarchy/${node.id}/approval`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ status: 'approved' }),
+                    });
+                    console.log(`Approved brand: ${node.name}`);
+                  } catch (error) {
+                    console.error('Failed to approve brand:', error);
+                    alert('Failed to approve brand. Please try again.');
+                  }
+                }
+              : undefined
+          }
+          onReject={
+            node.node_type === 'code'
+              ? async () => {
+                  try {
+                    await fetch(`/api/v1/codeframe/hierarchy/${node.id}/approval`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ status: 'rejected' }),
+                    });
+                    console.log(`Rejected brand: ${node.name}`);
+                  } catch (error) {
+                    console.error('Failed to reject brand:', error);
+                    alert('Failed to reject brand. Please try again.');
+                  }
+                }
+              : undefined
+          }
           depth={depth}
         />
 
         {/* Render children if expanded */}
         {hasChildren && isExpanded && (
-          <div>
-            {node.children!.map((child) => renderNode(child, depth + 1))}
-          </div>
+          <div>{node.children!.map(child => renderNode(child, depth + 1))}</div>
         )}
       </div>
     );
@@ -497,7 +537,7 @@ export function CodeframeTree({
 
   // Auto-expand first level on mount
   useState(() => {
-    const firstLevelIds = data.map((node) => node.id);
+    const firstLevelIds = data.map(node => node.id);
     setExpandedNodes(new Set(firstLevelIds));
   });
 
@@ -528,7 +568,7 @@ export function CodeframeTree({
 
       {/* Tree */}
       <div className="overflow-auto max-h-[calc(100vh-400px)] min-h-[600px]">
-        {data.map((node) => renderNode(node, 0))}
+        {data.map(node => renderNode(node, 0))}
       </div>
 
       {/* Selection Info */}

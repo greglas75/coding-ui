@@ -84,18 +84,18 @@ export function CodeListPage() {
     }
 
     try {
-      simpleLogger.info("🟡 Renaming code:", id, "→", newName);
-      const { error } = await supabase
-        .from('codes')
-        .update({
-          name: newName.trim(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id);
+        simpleLogger.info("🟡 Renaming code:", id, "→", newName);
+        const { error } = await supabase
+          .from('codes')
+          .update({
+            name: newName.trim(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      simpleLogger.info("✅ Code name updated successfully:", newName);
+        simpleLogger.info("✅ Code name updated successfully:", newName);
       toast.success(`Code renamed to "${newName}"`);
 
       // Refetch to get updated data with usage counts
@@ -109,15 +109,15 @@ export function CodeListPage() {
   // Toggle whitelist status
   async function toggleWhitelist(id: number, isWhitelisted: boolean) {
     try {
-      const { error } = await supabase
-        .from('codes')
-        .update({
-          is_whitelisted: isWhitelisted,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id);
+        const { error } = await supabase
+          .from('codes')
+          .update({
+            is_whitelisted: isWhitelisted,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id);
 
-      if (error) throw error;
+        if (error) throw error;
 
       toast.success(isWhitelisted ? 'Added to whitelist' : 'Removed from whitelist');
       await refetchCodes();
@@ -130,30 +130,30 @@ export function CodeListPage() {
   // Update code categories
   async function updateCodeCategories(id: number, categoryIds: number[]) {
     try {
-      // Delete existing relations
-      const { error: deleteError } = await supabase
-        .from('codes_categories')
-        .delete()
-        .eq('code_id', id);
+    // Delete existing relations
+    const { error: deleteError } = await supabase
+      .from('codes_categories')
+      .delete()
+      .eq('code_id', id);
 
-      if (deleteError) {
-        simpleLogger.error('Error deleting category relations:', deleteError);
+    if (deleteError) {
+      simpleLogger.error('Error deleting category relations:', deleteError);
         throw deleteError;
-      }
+    }
 
-      // Insert new relations
-      if (categoryIds.length > 0) {
-        const relations = categoryIds.map(categoryId => ({
-          code_id: id,
-          category_id: categoryId
-        }));
+    // Insert new relations
+    if (categoryIds.length > 0) {
+      const relations = categoryIds.map(categoryId => ({
+        code_id: id,
+        category_id: categoryId
+      }));
 
-        const { error: insertError } = await supabase
-          .from('codes_categories')
-          .insert(relations);
+      const { error: insertError } = await supabase
+        .from('codes_categories')
+        .insert(relations);
 
-        if (insertError) {
-          simpleLogger.error('Error inserting category relations:', insertError);
+      if (insertError) {
+        simpleLogger.error('Error inserting category relations:', insertError);
           throw insertError;
         }
       }
@@ -190,21 +190,21 @@ export function CodeListPage() {
     setDeleting(true);
 
     try {
-      // Delete from codes_categories first (foreign key constraint)
-      const { error: relationsError } = await supabase
-        .from('codes_categories')
-        .delete()
-        .eq('code_id', codeToDelete.id);
+          // Delete from codes_categories first (foreign key constraint)
+          const { error: relationsError } = await supabase
+            .from('codes_categories')
+            .delete()
+            .eq('code_id', codeToDelete.id);
 
-      if (relationsError) throw relationsError;
+          if (relationsError) throw relationsError;
 
-      // Delete from codes
-      const { error } = await supabase
-        .from('codes')
-        .delete()
-        .eq('id', codeToDelete.id);
+          // Delete from codes
+          const { error } = await supabase
+            .from('codes')
+            .delete()
+            .eq('id', codeToDelete.id);
 
-      if (error) throw error;
+          if (error) throw error;
 
       toast.success(`Code "${codeToDelete.name}" deleted`);
 
@@ -225,20 +225,20 @@ export function CodeListPage() {
   // Add new code
   async function addCode(name: string, categoryIds: number[]) {
     try {
-      const { data, error } = await supabase
-        .from('codes')
-        .insert({ name })
-        .select()
-        .single();
+    const { data, error } = await supabase
+      .from('codes')
+      .insert({ name })
+      .select()
+      .single();
 
-      if (error) {
-        simpleLogger.error('Error adding code:', error);
+    if (error) {
+      simpleLogger.error('Error adding code:', error);
         throw error;
-      }
+    }
 
-      // Add category relations
-      if (categoryIds.length > 0) {
-        const relations = categoryIds.map(categoryId => ({
+    // Add category relations
+    if (categoryIds.length > 0) {
+      const relations = categoryIds.map(categoryId => ({
         code_id: data.id,
         category_id: categoryId
       }));
@@ -254,7 +254,7 @@ export function CodeListPage() {
     }
 
       toast.success(`Code "${name}" added`);
-      setModalOpen(false);
+    setModalOpen(false);
 
       // Refetch to get updated codes with usage counts
       await refetchCodes();
