@@ -230,14 +230,14 @@ export async function fetchAISuggestion(answerId: number) {
 
 /**
  * Pagination helper for large datasets
- * 
+ *
  * @param table - Table name
  * @param page - Page number (0-indexed)
  * @param limit - Items per page (default: 100)
  * @param filters - Optional filters
  * @param orderBy - Optional ordering
  * @returns Paginated results with count and hasMore flag
- * 
+ *
  * @example
  * const { data, count, hasMore } = await paginatedQuery('answers', 0, 100);
  */
@@ -351,7 +351,7 @@ export const cache = new SupabaseCache();
 
 /**
  * Fetch categories with caching
- * 
+ *
  * @param forceRefresh - Force refresh from database (default: false)
  * @returns Categories with source indicator (cache or database)
  */
@@ -392,7 +392,7 @@ export async function fetchCategoriesOptimized(forceRefresh = false) {
 
 /**
  * Fetch codes with pagination and filtering
- * 
+ *
  * @param page - Page number (default: 0)
  * @param limit - Items per page (default: 100)
  * @param filters - Optional filters (search, categoryId, onlyWhitelisted)
@@ -482,7 +482,7 @@ export async function fetchCodesOptimized(
 
 /**
  * Optimistic update - update UI immediately, then sync with database
- * 
+ *
  * @param table - Table name
  * @param id - Row ID
  * @param updates - Updates to apply
@@ -531,7 +531,7 @@ export async function optimisticUpdate<T extends { id: number }>(
 
 /**
  * Batch update multiple rows
- * 
+ *
  * @param table - Table name
  * @param ids - Array of row IDs
  * @param updates - Updates to apply to all rows
@@ -566,7 +566,7 @@ export async function batchUpdate(
 
 /**
  * Search with caching
- * 
+ *
  * @param query - Search query
  * @param table - Table name
  * @param columns - Columns to search in
@@ -625,7 +625,7 @@ export async function searchWithCache<T = any>(
 
 /**
  * Prefetch data and cache it
- * 
+ *
  * @param table - Table name
  * @param cacheKey - Cache key
  * @param query - Supabase query
@@ -659,7 +659,7 @@ export async function prefetchData(
 
 /**
  * Fast count without fetching data
- * 
+ *
  * @param table - Table name
  * @param filters - Optional filters
  * @returns Count
@@ -697,7 +697,7 @@ export async function fastCount(
 
 /**
  * Update single row with optional return
- * 
+ *
  * @param table - Table name
  * @param id - Row ID
  * @param updates - Updates to apply
@@ -755,7 +755,7 @@ export async function updateSingleRow<T extends Record<string, any>>(
 
 /**
  * Upsert row (insert or update)
- * 
+ *
  * @param table - Table name
  * @param data - Row data
  * @param uniqueColumn - Unique column for conflict resolution (default: 'id')
@@ -910,7 +910,7 @@ export const performanceMonitor = new PerformanceMonitor();
 
 /**
  * Wrapper with performance monitoring
- * 
+ *
  * @param table - Table name
  * @param operation - Operation name
  * @param queryFn - Query function to monitor
