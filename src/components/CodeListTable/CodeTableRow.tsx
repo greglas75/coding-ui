@@ -1,4 +1,5 @@
 import type { FC } from 'react';
+import { formatDate } from '../../lib/dateUtils';
 import { EditableNameCell } from '../shared/EditableTable/EditableNameCell';
 import { EditableCategoriesCell } from './EditableCategoriesCell';
 
@@ -49,18 +50,6 @@ export const CodeTableRow: FC<CodeTableRowProps> = ({
   onUpdateCategories,
   onDelete
 }) => {
-  const formatDate = (dateString: string | undefined): string => {
-    if (!dateString) return '—';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-CA', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).replace(',', '');
-  };
 
   return (
     <tr

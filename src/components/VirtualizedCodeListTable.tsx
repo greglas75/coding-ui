@@ -6,6 +6,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { FixedSizeList as List } from 'react-window';
 import type { Category, CodeWithCategories } from '../types';
+import { formatDate } from '../lib/dateUtils';
 import { simpleLogger } from '../utils/logger';
 
 interface VirtualizedCodeListTableProps {
@@ -306,18 +307,6 @@ export const VirtualizedCodeListTable = memo<VirtualizedCodeListTableProps>(({
     );
   }, []);
 
-  const formatDate = useCallback((dateString: string | null | undefined): string => {
-    if (!dateString) return '—';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-CA', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).replace(',', '');
-  }, []);
 
   // Memoize row data to prevent unnecessary re-renders
   const itemData = useMemo(() => ({

@@ -2,6 +2,7 @@ import { useCostDetailed } from '@/hooks/useCostDetailed';
 import axios from 'axios';
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { useState } from 'react';
+import { formatDate } from '../../lib/dateUtils';
 import { simpleLogger } from '../../utils/logger';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3020';

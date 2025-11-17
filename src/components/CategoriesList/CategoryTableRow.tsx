@@ -1,4 +1,5 @@
 import type { FC } from 'react';
+import { formatDate } from '../../lib/dateUtils';
 import { EditableNameCell } from '../shared/EditableTable/EditableNameCell';
 
 // CategoryWithCount must match the parent component's definition
@@ -39,18 +40,6 @@ export const CategoryTableRow: FC<CategoryTableRowProps> = ({
   onSelect,
   onDelete
 }) => {
-  const formatDate = (dateString: string | null | undefined): string => {
-    if (!dateString) return '—';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-CA', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).replace(',', '');
-  };
 
   return (
     <tr

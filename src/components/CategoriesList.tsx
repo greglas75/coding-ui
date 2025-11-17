@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Category } from '../types';
+import { formatDate } from '../lib/dateUtils';
 import { simpleLogger } from '../utils/logger';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
@@ -81,18 +82,6 @@ export function CategoriesList({
     setTempName('');
   }
 
-  function formatDate(dateString: string | null | undefined): string {
-    if (!dateString) return '—';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-CA', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).replace(',', '');
-  }
 
   return (
     <div className="h-full flex flex-col">
