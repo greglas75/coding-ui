@@ -97,27 +97,27 @@ export function CodeframeTree({
     setTimeout(() => setSelectedBrandNode(null), 300);
   }, []);
 
-  // Handle brand approval
-  const handleApprove = useCallback(async () => {
+  // Helper function to update brand approval status
+  const updateBrandApproval = useCallback(async (status: 'approved' | 'rejected') => {
     if (!selectedBrandNode) return;
 
     try {
-      // Call API to approve brand
+      // Call API to update brand status
       const response = await fetch(`/api/v1/codeframe/hierarchy/${selectedBrandNode.id}/approval`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ status: 'approved' }),
+        body: JSON.stringify({ status }),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to approve brand');
+        throw new Error(error.message || `Failed to ${status === 'approved' ? 'approve' : 'reject'} brand`);
       }
 
       const result = await response.json();
-      console.log('Brand approved successfully:', result);
+      console.log(`Brand ${status} successfully:`, result);
 
       // Navigate to next brand or close modal
       if (currentBrandIndex < brandCodes.length - 1) {
@@ -126,44 +126,20 @@ export function CodeframeTree({
         handleCloseModal();
       }
     } catch (error) {
-      console.error('Failed to approve brand:', error);
-      alert('Failed to approve brand. Please try again.');
+      console.error(`Failed to ${status === 'approved' ? 'approve' : 'reject'} brand:`, error);
+      alert(`Failed to ${status === 'approved' ? 'approve' : 'reject'} brand. Please try again.`);
     }
   }, [selectedBrandNode, currentBrandIndex, brandCodes, handleCloseModal]);
+
+  // Handle brand approval
+  const handleApprove = useCallback(async () => {
+    await updateBrandApproval('approved');
+  }, [updateBrandApproval]);
 
   // Handle brand rejection
   const handleReject = useCallback(async () => {
-    if (!selectedBrandNode) return;
-
-    try {
-      // Call API to reject brand
-      const response = await fetch(`/api/v1/codeframe/hierarchy/${selectedBrandNode.id}/approval`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: 'rejected' }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to reject brand');
-      }
-
-      const result = await response.json();
-      console.log('Brand rejected successfully:', result);
-
-      // Navigate to next brand or close modal
-      if (currentBrandIndex < brandCodes.length - 1) {
-        setSelectedBrandNode(brandCodes[currentBrandIndex + 1]);
-      } else {
-        handleCloseModal();
-      }
-    } catch (error) {
-      console.error('Failed to reject brand:', error);
-      alert('Failed to reject brand. Please try again.');
-    }
-  }, [selectedBrandNode, currentBrandIndex, brandCodes, handleCloseModal]);
+    await updateBrandApproval('rejected');
+  }, [updateBrandApproval]);
 
   // Navigate to previous brand
   const handlePrevious = useCallback(() => {

@@ -416,8 +416,9 @@ export function viewCorsBlacklist(): string[] {
   return domains;
 }
 
-// Expose functions to window for debugging
-if (typeof window !== 'undefined') {
+// Expose functions to window for debugging (DEV ONLY)
+if (import.meta.env.DEV && typeof window !== 'undefined') {
   (window as any).clearCorsBlacklist = clearCorsBlacklist;
   (window as any).viewCorsBlacklist = viewCorsBlacklist;
+  console.info('🛠️ Debug helpers available: window.clearCorsBlacklist(), window.viewCorsBlacklist()');
 }
