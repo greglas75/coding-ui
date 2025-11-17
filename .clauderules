@@ -1,7 +1,9 @@
 # .clauderules - AI Assistant Rules for coding-ui Project
 
 ## Project Overview
+
 Full-stack data coding application:
+
 - Frontend: React 19 + TypeScript + Vite + Tailwind + React Query
 - Backend: Express (Node.js) + Python FastAPI
 - Database: Supabase (PostgreSQL)
@@ -11,11 +13,13 @@ Full-stack data coding application:
 ## Critical Architecture Rules
 
 ### 1. Three-Server Architecture
+
 - Python backend: port 8000 (auto-reload enabled)
 - Node backend: port 3020 (requires manual restart)
 - React frontend: port 5173 (Vite HMR)
 
 **After changes:**
+
 - Python: auto-reloads, just wait 0.5s
 - Node: requires restart via `./scripts/deploy/restart-all.sh`
 - React: HMR handles it automatically
@@ -23,10 +27,12 @@ Full-stack data coding application:
 ### 2. File Organization (STRICT)
 
 **Root directory = configs + entry points ONLY**
+
 - ✅ Keep: `*.config.{js,ts}`, `package.json`, `tsconfig*.json`, `index.html`, `api-server.js`, `README.md`
 - ❌ Never: scripts, docs, tests, logs, backups
 
 **Always use correct locations:**
+
 - Scripts → `/scripts/{migrations|deploy|backup|debug|test}/`
 - Docs → `/docs/`
 - Tests → `/tests/` (unit) or `/e2e/` (E2E)
@@ -36,6 +42,7 @@ Full-stack data coding application:
 ### 3. Code Style & Patterns
 
 **React Components:**
+
 - Use TypeScript, PascalCase filenames
 - Prefer function components with hooks
 - Use React Query for server state
@@ -43,17 +50,20 @@ Full-stack data coding application:
 - Import with `@/` alias: `import { Foo } from '@/components/Foo'`
 
 **State Management:**
+
 - Server state → React Query (`useQuery`, `useMutation`)
 - Client state → Zustand stores in `/src/stores/`
 - Form state → React Hook Form or controlled components
 
 **API Calls:**
+
 - Frontend → Backend: Use services in `/src/services/`
 - Backend → Supabase: Use Supabase client
 - Always handle errors with try-catch
 - Use Sentry for error tracking
 
 **Naming Conventions:**
+
 - React components: `PascalCase.tsx`
 - Hooks: `useCamelCase.ts`
 - Utils/services: `camelCase.ts`
@@ -63,36 +73,41 @@ Full-stack data coding application:
 ### 4. Import Rules
 
 **Frontend (React/TypeScript):**
+
 ```typescript
 // ✅ Use absolute imports with @ alias
-import { useAuth } from '@/hooks/useAuth'
-import { Button } from '@/components/Button'
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/Button';
 
 // ❌ Avoid deep relative imports
-import { useAuth } from '../../../hooks/useAuth'
+import { useAuth } from '../../../hooks/useAuth';
 ```
 
 **Backend (Node/Express):**
+
 ```javascript
 // Use relative imports from file location
-const config = require('../config')
-const { logger } = require('./utils/logger')
+const config = require('../config');
+const { logger } = require('./utils/logger');
 ```
 
 ### 5. Git & Commits
 
 **Before committing:**
+
 - Run type-check: `npm run type-check`
 - Run tests: `npm run test:run`
 - Verify no misplaced files in root
 - No log files, build artifacts, or temp files
 
 **Commit messages:**
+
 - Format: `type: description`
 - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
 - Be specific about what changed and why
 
 **File moves:**
+
 - Always use `git mv` to preserve history
 - Update imports and package.json scripts
 - Test after moving
@@ -100,6 +115,7 @@ const { logger } = require('./utils/logger')
 ### 6. Testing Requirements
 
 **After ANY code changes:**
+
 ```bash
 # Test affected service
 curl http://localhost:8000/health      # Python
@@ -112,6 +128,7 @@ npm run test:e2e                       # E2E tests
 ```
 
 **Confirm changes:**
+
 ```
 ✅ Changes applied
 - Files modified: [list]
@@ -141,9 +158,47 @@ npm run test:e2e                       # E2E tests
 - Implement proper loading states
 - Use Suspense for code splitting
 
+### 8.1 File Size & Modularization (CRITICAL)
+
+**Hard Limits:**
+
+- Max 250 lines per file (hard limit)
+- Max 50 lines per function
+- Max 3 levels of nesting
+- If file exceeds limits → automatically split into modules
+
+**When to Split:**
+
+- Component file >200 lines → extract hooks, types, utils, sub-components
+- Utility file >150 lines → split by domain/responsibility
+- API file >300 lines → split by resource/endpoint group
+
+**Structure:**
+
+- One component = one file
+- Shared utilities in `/lib` or `/utils`
+- Types in separate `.types.ts` files when >100 lines
+- Complex logic → custom hooks or services
+
+**Naming:**
+
+- `ComponentName.component.tsx` (main)
+- `ComponentName.hooks.ts` (hooks)
+- `ComponentName.utils.ts` (helpers)
+- `ComponentName.types.ts` (types)
+- `use-component-name.ts` (standalone hooks)
+
+**Before creating/modifying:**
+
+1. Check if file will exceed 250 lines
+2. If yes, plan modular structure first
+3. Ask for approval if major restructuring needed
+4. Keep related files in same directory
+
 ### 9. Package.json Scripts
 
 **When adding scripts referencing files:**
+
 ```json
 {
   "deploy": "./scripts/deploy/deploy.sh",
@@ -155,12 +210,14 @@ npm run test:e2e                       # E2E tests
 ### 10. Documentation Rules
 
 **When creating/modifying features:**
+
 - Update relevant docs in `/docs/`
 - Add JSDoc comments for complex functions
 - Update API documentation if endpoints change
 - Keep `PROJECT_STRUCTURE.md` current
 
 **Never:**
+
 - Create docs in root directory
 - Create duplicate documentation
 - Leave outdated docs
@@ -168,6 +225,7 @@ npm run test:e2e                       # E2E tests
 ## Quick Reference
 
 **Project Structure:**
+
 ```
 /
 ├── src/              # React app
@@ -182,6 +240,7 @@ npm run test:e2e                       # E2E tests
 ```
 
 **Common Tasks:**
+
 - Start dev: `npm run dev:full`
 - Restart all: `./scripts/deploy/restart-all.sh`
 - Run tests: `npm run test:all`
@@ -195,4 +254,5 @@ npm run test:e2e                       # E2E tests
 - Contributing: `.github/CONTRIBUTING.md` (if exists)
 
 ---
+
 Last Updated: 2025-11-17

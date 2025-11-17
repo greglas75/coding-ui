@@ -299,7 +299,8 @@ export function CodeframeBuilderModal({
                     <Loader2 size={96} className="text-blue-600 animate-spin" />
                     <div className="absolute inset-0 flex items-center justify-center">
                       <span className="text-sm font-bold text-blue-900 dark:text-blue-100">
-                        {aiDiscovery.verificationProgress.current}/{aiDiscovery.verificationProgress.total}
+                        {aiDiscovery.verificationProgress.current}/
+                        {aiDiscovery.verificationProgress.total}
                       </span>
                     </div>
                   </div>
@@ -320,114 +321,117 @@ export function CodeframeBuilderModal({
                 </div>
               )}
 
-              {aiDiscovery.verificationStep === 'done' && aiDiscovery.discoveredCodes.length > 0 && (
-                <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-4">
-                  {/* Statistics Grid */}
-                  <div className="mb-4">
-                    <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 mb-3">
-                      Verification Results
-                    </h3>
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                          {aiDiscovery.discoveredCodes.length}
-                        </div>
-                        <div className="text-xs text-green-800 dark:text-green-300">
-                          Verified Brands
-                        </div>
-                      </div>
-                      <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                        <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                          {aiDiscovery.rejectedCodes.length}
-                        </div>
-                        <div className="text-xs text-red-800 dark:text-red-300">Rejected</div>
-                      </div>
-                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                        <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                          {Math.round(
-                            (aiDiscovery.discoveredCodes.length /
-                              (aiDiscovery.discoveredCodes.length + aiDiscovery.rejectedCodes.length)) *
-                              100
-                          )}
-                          %
-                        </div>
-                        <div className="text-xs text-blue-800 dark:text-blue-300">Accuracy</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Verified brands with logos */}
-                  <div className="space-y-2 mb-4">
-                    <h4 className="font-medium text-sm text-zinc-900 dark:text-zinc-100">
-                      Verified Brands:
-                    </h4>
-                    <div className="max-h-64 overflow-y-auto space-y-2">
-                      {aiDiscovery.discoveredCodes.map((code, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg"
-                        >
-                          {code.logo_url && (
-                            <img
-                              src={code.logo_url}
-                              alt={code.official_name || code.name}
-                              className="w-10 h-10 object-contain flex-shrink-0"
-                              onError={e => {
-                                e.currentTarget.style.display = 'none';
-                              }}
-                            />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-zinc-900 dark:text-zinc-100">
-                              {code.official_name || code.name}
-                            </div>
-                            <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                              {code.frequency && `${code.frequency} mentions • `}
-                              {code.verification_source}
-                            </div>
+              {aiDiscovery.verificationStep === 'done' &&
+                aiDiscovery.discoveredCodes.length > 0 && (
+                  <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-4">
+                    {/* Statistics Grid */}
+                    <div className="mb-4">
+                      <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 mb-3">
+                        Verification Results
+                      </h3>
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                          <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                            {aiDiscovery.discoveredCodes.length}
                           </div>
-                          <span className="text-green-600 dark:text-green-400 text-xs font-medium flex-shrink-0">
-                            ✓ {Math.round((code.confidence || 0) * 100)}%
-                          </span>
+                          <div className="text-xs text-green-800 dark:text-green-300">
+                            Verified Brands
+                          </div>
                         </div>
-                      ))}
+                        <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                          <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                            {aiDiscovery.rejectedCodes.length}
+                          </div>
+                          <div className="text-xs text-red-800 dark:text-red-300">Rejected</div>
+                        </div>
+                        <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                            {Math.round(
+                              (aiDiscovery.discoveredCodes.length /
+                                (aiDiscovery.discoveredCodes.length +
+                                  aiDiscovery.rejectedCodes.length)) *
+                                100
+                            )}
+                            %
+                          </div>
+                          <div className="text-xs text-blue-800 dark:text-blue-300">Accuracy</div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Rejected codes collapsible */}
-                  {aiDiscovery.rejectedCodes.length > 0 && (
-                    <details className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
-                      <summary className="text-sm cursor-pointer text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 font-medium">
-                        Show {aiDiscovery.rejectedCodes.length} rejected codes
-                      </summary>
-                      <div className="mt-3 space-y-1.5">
-                        {aiDiscovery.rejectedCodes.map((code, index) => (
+                    {/* Verified brands with logos */}
+                    <div className="space-y-2 mb-4">
+                      <h4 className="font-medium text-sm text-zinc-900 dark:text-zinc-100">
+                        Verified Brands:
+                      </h4>
+                      <div className="max-h-64 overflow-y-auto space-y-2">
+                        {aiDiscovery.discoveredCodes.map((code, index) => (
                           <div
                             key={index}
-                            className="text-xs p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded"
+                            className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg"
                           >
-                            <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                              {code.name}
-                            </span>
-                            <span className="text-zinc-600 dark:text-zinc-400">
-                              {' '}
-                              - {code.reason}
+                            {code.logo_url && (
+                              <img
+                                src={code.logo_url}
+                                alt={code.official_name || code.name}
+                                className="w-10 h-10 object-contain flex-shrink-0"
+                                onError={e => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-zinc-900 dark:text-zinc-100">
+                                {code.official_name || code.name}
+                              </div>
+                              <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                                {code.frequency && `${code.frequency} mentions • `}
+                                {code.verification_source}
+                              </div>
+                            </div>
+                            <span className="text-green-600 dark:text-green-400 text-xs font-medium flex-shrink-0">
+                              ✓ {Math.round((code.confidence || 0) * 100)}%
                             </span>
                           </div>
                         ))}
                       </div>
-                    </details>
-                  )}
-                </div>
-              )}
+                    </div>
 
-              {aiDiscovery.verificationStep === 'done' && aiDiscovery.discoveredCodes.length === 0 && (
-                <div className="text-center py-8 text-zinc-500 dark:text-zinc-400">
-                  <AlertCircle size={32} className="mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No verified brands found</p>
-                  <p className="text-xs mt-1">Try adjusting settings and scanning again</p>
-                </div>
-              )}
+                    {/* Rejected codes collapsible */}
+                    {aiDiscovery.rejectedCodes.length > 0 && (
+                      <details className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
+                        <summary className="text-sm cursor-pointer text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 font-medium">
+                          Show {aiDiscovery.rejectedCodes.length} rejected codes
+                        </summary>
+                        <div className="mt-3 space-y-1.5">
+                          {aiDiscovery.rejectedCodes.map((code, index) => (
+                            <div
+                              key={index}
+                              className="text-xs p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded"
+                            >
+                              <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                                {code.name}
+                              </span>
+                              <span className="text-zinc-600 dark:text-zinc-400">
+                                {' '}
+                                - {code.reason}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                )}
+
+              {aiDiscovery.verificationStep === 'done' &&
+                aiDiscovery.discoveredCodes.length === 0 && (
+                  <div className="text-center py-8 text-zinc-500 dark:text-zinc-400">
+                    <AlertCircle size={32} className="mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No verified brands found</p>
+                    <p className="text-xs mt-1">Try adjusting settings and scanning again</p>
+                  </div>
+                )}
             </div>
           )}
 
@@ -517,15 +521,19 @@ export function CodeframeBuilderModal({
             </button>
           )}
 
-          {activeTab === 'ai' && aiDiscovery.verificationStep === 'done' && aiDiscovery.discoveredCodes.length > 0 && (
-            <button
-              onClick={aiDiscovery.saveCodes}
-              disabled={loading}
-              className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-md transition font-medium"
-            >
-              {loading ? 'Creating...' : `Create ${aiDiscovery.discoveredCodes.length} Verified Brands`}
-            </button>
-          )}
+          {activeTab === 'ai' &&
+            aiDiscovery.verificationStep === 'done' &&
+            aiDiscovery.discoveredCodes.length > 0 && (
+              <button
+                onClick={aiDiscovery.saveCodes}
+                disabled={loading}
+                className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-md transition font-medium"
+              >
+                {loading
+                  ? 'Creating...'
+                  : `Create ${aiDiscovery.discoveredCodes.length} Verified Brands`}
+              </button>
+            )}
 
           {activeTab === 'paste' && pasteEntry.parsedCodes.length > 0 && (
             <button

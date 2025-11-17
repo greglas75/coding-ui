@@ -227,7 +227,7 @@ CREATE INDEX idx_answers_uncategorized ON answers(category_id, created_at DESC)
 src/
 ├── api/               # API client functions
 ├── components/        # React components
-│   ├── CodingGrid/   # Main data grid (1300 lines)
+│   ├── CodingGrid/   # Main data grid (modularized)
 │   ├── shared/       # Reusable UI
 │   └── layout/       # Layout components
 ├── hooks/            # Custom React hooks

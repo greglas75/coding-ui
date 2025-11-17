@@ -2,12 +2,13 @@
 
 ## 🎯 Project Context
 
-**Type**: Enterprise SaaS for Research Data Categorization  
-**Stage**: Production / Active Development  
-**Core Value**: AI-powered categorization of research data with collaborative analysis  
+**Type**: Enterprise SaaS for Research Data Categorization
+**Stage**: Production / Active Development
+**Core Value**: AI-powered categorization of research data with collaborative analysis
 **Scale**: Handles 10k+ rows, 286 E2E tests, production-ready
 
 ### Key Business Features
+
 - Categories & hierarchical code management
 - AI-powered auto-categorization (GPT-4)
 - Batch operations for 1000+ items
@@ -20,12 +21,14 @@
 ## 🛠️ Technology Stack
 
 ### Frontend Core
+
 - **Framework**: React 19.1.1 (latest) + TypeScript
 - **Build**: Vite (ultra-fast HMR)
 - **Routing**: React Router DOM 7.9.3
 - **State**: TanStack Query 5.90.2 + Zustand + Context
 
 ### UI & Styling
+
 - **CSS**: Tailwind CSS v4 (utility-first)
 - **Components**: @headlessui/react 2.2.9 (unstyled, accessible)
 - **Icons**: Lucide React
@@ -34,6 +37,7 @@
 - **Theme**: Dark mode built-in
 
 ### Performance Stack
+
 - **Virtual Scrolling**: react-window + react-virtualized-auto-sizer
 - **Code Splitting**: Manual chunks (react, query, supabase, ui)
 - **Lazy Loading**: Route-based + component-level
@@ -41,6 +45,7 @@
 - **Caching**: IndexedDB (idb 8.0.3) + TanStack Query
 
 ### Backend
+
 - **Server**: Express.js 4.18.2 (ES Modules)
 - **Database**: Supabase (PostgreSQL + Real-time + RLS)
 - **AI**: OpenAI 6.2.0 (GPT-4/3.5)
@@ -49,12 +54,14 @@
 - **Storage**: Crypto-js 4.2.0 (encrypted)
 
 ### Data Processing
+
 - **Excel**: ExcelJS 4.4.0 + XLSX 0.18.5
 - **CSV**: PapaParse 5.5.3
 - **Export**: Multi-format (Excel, CSV, JSON)
 - **Import**: Batch validation
 
 ### Quality Assurance
+
 - **Unit**: Vitest 3.2.4 + Testing Library
 - **E2E**: Playwright 1.40.0 (286 tests)
 - **Monitoring**: Sentry 10.17.0
@@ -67,38 +74,41 @@
 ### TypeScript Rules (STRICT)
 
 #### Type-First Development
+
 ```typescript
 // ✅ ALWAYS define schemas with Zod, then infer types
-import { z } from 'zod'
+import { z } from 'zod';
 
 export const CategorySchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(3).max(100),
   codes: z.array(CodeSchema),
   createdAt: z.date(),
-})
+});
 
 // ✅ Infer TypeScript type from Zod schema (SINGLE SOURCE OF TRUTH)
-export type Category = z.infer<typeof CategorySchema>
+export type Category = z.infer<typeof CategorySchema>;
 
 // ❌ NEVER duplicate types manually
-interface Category {  // DON'T DO THIS - use z.infer instead
-  id: string
-  name: string
+interface Category {
+  // DON'T DO THIS - use z.infer instead
+  id: string;
+  name: string;
 }
 ```
 
 #### Strict Typing Rules
+
 ```typescript
 // ✅ NO 'any' - use 'unknown' if needed
 function processData(data: unknown): CategoryData {
-  return CategorySchema.parse(data) // Validates at runtime
+  return CategorySchema.parse(data); // Validates at runtime
 }
 
 // ✅ ALWAYS type function returns explicitly
 async function fetchCategories(): Promise<Category[]> {
-  const { data } = await supabase.from('categories').select()
-  return CategorySchema.array().parse(data)
+  const { data } = await supabase.from('categories').select();
+  return CategorySchema.array().parse(data);
 }
 
 // ✅ Use discriminated unions for complex states
@@ -106,11 +116,11 @@ type LoadingState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'success'; data: Category[] }
-  | { status: 'error'; error: Error }
+  | { status: 'error'; error: Error };
 
 // ❌ NEVER do this
-const data: any = await fetch()
-let result  // No implicit any allowed
+const data: any = await fetch();
+let result; // No implicit any allowed
 ```
 
 ---
@@ -130,105 +140,106 @@ Is this SERVER data? (API, Database)
 ```
 
 ### 1. TanStack Query - Server State ONLY
+
 ```typescript
 // ✅ Use for ALL server/database data
 const { data, isLoading, error } = useQuery({
   queryKey: ['categories', userId],
   queryFn: async () => {
-    const { data } = await supabase
-      .from('categories')
-      .select('*')
-      .eq('user_id', userId)
-    return CategorySchema.array().parse(data)
+    const { data } = await supabase.from('categories').select('*').eq('user_id', userId);
+    return CategorySchema.array().parse(data);
   },
-  staleTime: 5 * 60 * 1000,     // 5 min - data is "fresh"
-  cacheTime: 10 * 60 * 1000,    // 10 min - cache retention
+  staleTime: 5 * 60 * 1000, // 5 min - data is "fresh"
+  cacheTime: 10 * 60 * 1000, // 10 min - cache retention
   refetchOnWindowFocus: false,
-})
+});
 
 // ✅ Mutations with optimistic updates
 const mutation = useMutation({
   mutationFn: createCategory,
-  onMutate: async (newCategory) => {
-    await queryClient.cancelQueries(['categories'])
-    const previous = queryClient.getQueryData(['categories'])
-    
-    queryClient.setQueryData(['categories'], (old: Category[]) => 
-      [...old, newCategory]
-    )
-    
-    return { previous }
+  onMutate: async newCategory => {
+    await queryClient.cancelQueries(['categories']);
+    const previous = queryClient.getQueryData(['categories']);
+
+    queryClient.setQueryData(['categories'], (old: Category[]) => [...old, newCategory]);
+
+    return { previous };
   },
   onError: (err, variables, context) => {
-    queryClient.setQueryData(['categories'], context?.previous)
+    queryClient.setQueryData(['categories'], context?.previous);
   },
   onSettled: () => {
-    queryClient.invalidateQueries(['categories'])
-  }
-})
+    queryClient.invalidateQueries(['categories']);
+  },
+});
 ```
 
 ### 2. Zustand - Global Client State ONLY
+
 ```typescript
 // ✅ Use for UI state that needs to be global
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 interface AppStore {
   // UI Preferences
-  theme: 'light' | 'dark'
-  sidebarOpen: boolean
-  
+  theme: 'light' | 'dark';
+  sidebarOpen: boolean;
+
   // User Session (NOT auth tokens - those in secure cookies)
-  currentView: 'grid' | 'list'
-  selectedIds: string[]
-  
+  currentView: 'grid' | 'list';
+  selectedIds: string[];
+
   // Actions
-  toggleTheme: () => void
-  toggleSidebar: () => void
-  setView: (view: 'grid' | 'list') => void
-  toggleSelection: (id: string) => void
-  clearSelection: () => void
+  toggleTheme: () => void;
+  toggleSidebar: () => void;
+  setView: (view: 'grid' | 'list') => void;
+  toggleSelection: (id: string) => void;
+  clearSelection: () => void;
 }
 
 export const useAppStore = create<AppStore>()(
   persist(
-    (set) => ({
+    set => ({
       theme: 'light',
       sidebarOpen: true,
       currentView: 'grid',
       selectedIds: [],
-      
-      toggleTheme: () => set((state) => ({ 
-        theme: state.theme === 'light' ? 'dark' : 'light' 
-      })),
-      
-      toggleSidebar: () => set((state) => ({ 
-        sidebarOpen: !state.sidebarOpen 
-      })),
-      
-      setView: (view) => set({ currentView: view }),
-      
-      toggleSelection: (id) => set((state) => ({
-        selectedIds: state.selectedIds.includes(id)
-          ? state.selectedIds.filter(x => x !== id)
-          : [...state.selectedIds, id]
-      })),
-      
-      clearSelection: () => set({ selectedIds: [] })
+
+      toggleTheme: () =>
+        set(state => ({
+          theme: state.theme === 'light' ? 'dark' : 'light',
+        })),
+
+      toggleSidebar: () =>
+        set(state => ({
+          sidebarOpen: !state.sidebarOpen,
+        })),
+
+      setView: view => set({ currentView: view }),
+
+      toggleSelection: id =>
+        set(state => ({
+          selectedIds: state.selectedIds.includes(id)
+            ? state.selectedIds.filter(x => x !== id)
+            : [...state.selectedIds, id],
+        })),
+
+      clearSelection: () => set({ selectedIds: [] }),
     }),
     {
       name: 'app-storage',
-      partialize: (state) => ({ 
+      partialize: state => ({
         theme: state.theme,
-        currentView: state.currentView 
-      }) // Only persist these
+        currentView: state.currentView,
+      }), // Only persist these
     }
   )
-)
+);
 ```
 
 ### 3. React Context - Localized Shared State ONLY
+
 ```typescript
 // ✅ Use ONLY for state shared in small component subtrees (2-3 levels)
 // ⚠️ AVOID for global state - causes unnecessary re-renders!
@@ -245,11 +256,11 @@ const FormContext = createContext<FormContextType | null>(null)
 function MultiStepForm({ children }: { children: ReactNode }) {
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState<Partial<FormData>>({})
-  
+
   const updateFormData = (data: Partial<FormData>) => {
     setFormData(prev => ({ ...prev, ...data }))
   }
-  
+
   return (
     <FormContext.Provider value={{ step, formData, updateFormData }}>
       {children}
@@ -262,12 +273,13 @@ function MultiStepForm({ children }: { children: ReactNode }) {
 ```
 
 ### 4. Local State - Component-Specific
+
 ```typescript
 // ✅ Use for UI state that doesn't need to be shared
 function SearchBar() {
   const [query, setQuery] = useState('')
   const [isFocused, setIsFocused] = useState(false)
-  
+
   return (
     <input
       value={query}
@@ -284,6 +296,7 @@ function SearchBar() {
 ## 🎨 Tailwind CSS Standards
 
 ### Configuration (tailwind.config.js)
+
 ```typescript
 // ✅ ALL design tokens in config - NO magic values!
 export default {
@@ -302,15 +315,16 @@ export default {
         '18': '4.5rem', // Custom spacing
       },
       fontSize: {
-        'xs': ['0.75rem', { lineHeight: '1rem' }],
+        xs: ['0.75rem', { lineHeight: '1rem' }],
         '2xl': ['1.5rem', { lineHeight: '2rem' }],
-      }
-    }
-  }
-}
+      },
+    },
+  },
+};
 ```
 
 ### Component Patterns
+
 ```typescript
 // ✅ GOOD: Reusable component with variants (max ~15 classes inline)
 import { cn } from '@/lib/utils'
@@ -354,6 +368,7 @@ export function Button({ variant = 'primary', size = 'md', className, ...props }
 ```
 
 ### @apply Usage (Sparingly!)
+
 ```css
 /* ✅ ONLY use @apply for truly reusable patterns */
 @layer components {
@@ -366,6 +381,7 @@ export function Button({ variant = 'primary', size = 'md', className, ...props }
 ```
 
 ### Responsive Design (Mobile-First)
+
 ```typescript
 // ✅ Mobile-first breakpoints
 <div className="w-full md:w-1/2 lg:w-1/3">
@@ -383,6 +399,7 @@ export function Button({ variant = 'primary', size = 'md', className, ...props }
 ## 🧪 Testing Strategy (CRITICAL UPDATE)
 
 ### Testing Trophy Philosophy
+
 ```
      /\
     /  \  E2E Tests (5-10%) - Critical user flows
@@ -393,42 +410,44 @@ export function Button({ variant = 'primary', size = 'md', className, ...props }
 ```
 
 ### 1. Unit Tests - 60% Coverage Target
+
 ```typescript
 // ✅ TEST: All utils, pure functions, custom hooks
-import { describe, it, expect } from 'vitest'
-import { categorizeAnswer } from '@/lib/ai'
+import { describe, it, expect } from 'vitest';
+import { categorizeAnswer } from '@/lib/ai';
 
 describe('categorizeAnswer', () => {
   it('should return correct category for known patterns', () => {
-    const result = categorizeAnswer('Yes, I agree')
-    expect(result.category).toBe('Agreement')
-    expect(result.confidence).toBeGreaterThan(0.8)
-  })
-  
+    const result = categorizeAnswer('Yes, I agree');
+    expect(result.category).toBe('Agreement');
+    expect(result.confidence).toBeGreaterThan(0.8);
+  });
+
   it('should handle edge cases', () => {
-    expect(() => categorizeAnswer('')).toThrow('Empty input')
-    expect(() => categorizeAnswer(null)).toThrow('Invalid input')
-  })
-})
+    expect(() => categorizeAnswer('')).toThrow('Empty input');
+    expect(() => categorizeAnswer(null)).toThrow('Invalid input');
+  });
+});
 
 // ✅ TEST: Custom hooks with React Testing Library
-import { renderHook, waitFor } from '@testing-library/react'
-import { useCategories } from '@/hooks/useCategories'
+import { renderHook, waitFor } from '@testing-library/react';
+import { useCategories } from '@/hooks/useCategories';
 
 describe('useCategories', () => {
   it('should fetch and cache categories', async () => {
-    const { result } = renderHook(() => useCategories())
-    
+    const { result } = renderHook(() => useCategories());
+
     await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true)
-    })
-    
-    expect(result.current.data).toHaveLength(5)
-  })
-})
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.data).toHaveLength(5);
+  });
+});
 ```
 
 ### 2. Integration Tests - 30% Coverage Target
+
 ```typescript
 // ✅ TEST: Component interactions, user workflows
 import { render, screen, userEvent } from '@testing-library/react'
@@ -438,75 +457,79 @@ describe('CategoryManager Integration', () => {
   it('should create, edit, and delete category', async () => {
     const user = userEvent.setup()
     render(<CategoryManager />)
-    
+
     // Create
     await user.click(screen.getByRole('button', { name: /create/i }))
     await user.type(screen.getByLabelText(/name/i), 'New Category')
     await user.click(screen.getByRole('button', { name: /save/i }))
-    
+
     expect(screen.getByText('New Category')).toBeInTheDocument()
-    
+
     // Edit
     await user.click(screen.getByRole('button', { name: /edit/i }))
     await user.clear(screen.getByLabelText(/name/i))
     await user.type(screen.getByLabelText(/name/i), 'Updated')
     await user.click(screen.getByRole('button', { name: /save/i }))
-    
+
     expect(screen.getByText('Updated')).toBeInTheDocument()
-    
+
     // Delete
     await user.click(screen.getByRole('button', { name: /delete/i }))
     await user.click(screen.getByRole('button', { name: /confirm/i }))
-    
+
     expect(screen.queryByText('Updated')).not.toBeInTheDocument()
   })
 })
 ```
 
 ### 3. E2E Tests - 10% Coverage Target (Critical Flows)
+
 ```typescript
 // ✅ TEST: Happy paths, critical business flows
-import { test, expect } from '@playwright/test'
+import { test, expect } from '@playwright/test';
 
 test('complete categorization workflow', async ({ page }) => {
-  await page.goto('/categories')
-  
+  await page.goto('/categories');
+
   // Upload data
-  await page.setInputFiles('input[type="file"]', 'test-data.csv')
-  await expect(page.getByText('100 rows imported')).toBeVisible()
-  
+  await page.setInputFiles('input[type="file"]', 'test-data.csv');
+  await expect(page.getByText('100 rows imported')).toBeVisible();
+
   // Apply AI categorization
-  await page.click('[data-testid="select-all"]')
-  await page.click('[data-testid="ai-categorize"]')
-  
-  await expect(page.getByText('Categorizing...')).toBeVisible()
-  await expect(page.getByText('100 categorized')).toBeVisible({ timeout: 30000 })
-  
+  await page.click('[data-testid="select-all"]');
+  await page.click('[data-testid="ai-categorize"]');
+
+  await expect(page.getByText('Categorizing...')).toBeVisible();
+  await expect(page.getByText('100 categorized')).toBeVisible({ timeout: 30000 });
+
   // Export results
-  const downloadPromise = page.waitForEvent('download')
-  await page.click('[data-testid="export"]')
-  const download = await downloadPromise
-  
-  expect(download.suggestedFilename()).toContain('categories')
-})
+  const downloadPromise = page.waitForEvent('download');
+  await page.click('[data-testid="export"]');
+  const download = await downloadPromise;
+
+  expect(download.suggestedFilename()).toContain('categories');
+});
 ```
 
 ### Test Requirements by Code Type
-| Code Type | Unit Tests | Integration Tests | E2E Tests |
-|-----------|-----------|------------------|-----------|
-| Utils/Helpers | ✅ Required | ❌ No | ❌ No |
-| Custom Hooks | ✅ Required | ✅ Recommended | ❌ No |
-| Reusable Components | ✅ Required | ✅ Required | ❌ No |
-| Feature Components | ⚠️ Optional | ✅ Required | ⚠️ Critical only |
-| API Routes | ✅ Required | ✅ Required | ⚠️ Critical only |
-| User Flows | ❌ No | ✅ Required | ✅ Required |
+
+| Code Type           | Unit Tests  | Integration Tests | E2E Tests        |
+| ------------------- | ----------- | ----------------- | ---------------- |
+| Utils/Helpers       | ✅ Required | ❌ No             | ❌ No            |
+| Custom Hooks        | ✅ Required | ✅ Recommended    | ❌ No            |
+| Reusable Components | ✅ Required | ✅ Required       | ❌ No            |
+| Feature Components  | ⚠️ Optional | ✅ Required       | ⚠️ Critical only |
+| API Routes          | ✅ Required | ✅ Required       | ⚠️ Critical only |
+| User Flows          | ❌ No       | ✅ Required       | ✅ Required      |
 
 ---
 
 ## 📚 Component Documentation with Storybook (CRITICAL)
 
 ### Why Storybook for 100+ Components?
+
 With over 100 React components, maintaining UI consistency without a visual testing tool is nearly impossible. Storybook solves:
+
 - 🎨 **Visual Testing** - See all component states in isolation
 - 📖 **Living Documentation** - Auto-generated docs from props
 - 🔍 **Design System Enforcement** - Ensure consistent patterns
@@ -515,6 +538,7 @@ With over 100 React components, maintaining UI consistency without a visual test
 - ♿ **Accessibility Testing** - Built-in a11y addon
 
 ### Storybook Setup (Installation)
+
 ```bash
 # Install Storybook
 npx storybook@latest init
@@ -530,9 +554,10 @@ pnpm add -D @storybook/testing-library @storybook/jest
 ```
 
 ### Storybook Configuration
+
 ```typescript
 // .storybook/main.ts
-import type { StorybookConfig } from '@storybook/react-vite'
+import type { StorybookConfig } from '@storybook/react-vite';
 
 const config: StorybookConfig = {
   stories: ['../src/**/*.mdx', '../src/**/*.stories.@(js|jsx|ts|tsx)'],
@@ -549,15 +574,15 @@ const config: StorybookConfig = {
   docs: {
     autodocs: 'tag', // Auto-generate docs
   },
-}
+};
 
-export default config
+export default config;
 ```
 
 ```typescript
 // .storybook/preview.ts
-import type { Preview } from '@storybook/react'
-import '../src/index.css' // Import Tailwind CSS
+import type { Preview } from '@storybook/react';
+import '../src/index.css'; // Import Tailwind CSS
 
 const preview: Preview = {
   parameters: {
@@ -576,18 +601,19 @@ const preview: Preview = {
       ],
     },
   },
-}
+};
 
-export default preview
+export default preview;
 ```
 
 ### Story Writing Standards
 
 #### Basic Story (Button Example)
+
 ```typescript
 // src/components/ui/Button.stories.tsx
-import type { Meta, StoryObj } from '@storybook/react'
-import { Button } from './Button'
+import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from './Button';
 
 /**
  * Button component with multiple variants and sizes.
@@ -616,10 +642,10 @@ const meta = {
       description: 'Disabled state',
     },
   },
-} satisfies Meta<typeof Button>
+} satisfies Meta<typeof Button>;
 
-export default meta
-type Story = StoryObj<typeof meta>
+export default meta;
+type Story = StoryObj<typeof meta>;
 
 // Default story
 export const Primary: Story = {
@@ -627,21 +653,21 @@ export const Primary: Story = {
     variant: 'primary',
     children: 'Click me',
   },
-}
+};
 
 export const Secondary: Story = {
   args: {
     variant: 'secondary',
     children: 'Click me',
   },
-}
+};
 
 export const Danger: Story = {
   args: {
     variant: 'danger',
     children: 'Delete',
   },
-}
+};
 
 export const Disabled: Story = {
   args: {
@@ -649,7 +675,7 @@ export const Disabled: Story = {
     disabled: true,
     children: 'Disabled',
   },
-}
+};
 
 export const Small: Story = {
   args: {
@@ -657,7 +683,7 @@ export const Small: Story = {
     size: 'sm',
     children: 'Small Button',
   },
-}
+};
 
 export const Large: Story = {
   args: {
@@ -665,7 +691,7 @@ export const Large: Story = {
     size: 'lg',
     children: 'Large Button',
   },
-}
+};
 
 // Interactive story with play function
 export const WithClick: Story = {
@@ -674,20 +700,21 @@ export const WithClick: Story = {
     children: 'Click to test',
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const button = canvas.getByRole('button')
-    
-    await userEvent.click(button)
-    await expect(button).toHaveAttribute('aria-pressed', 'true')
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole('button');
+
+    await userEvent.click(button);
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
   },
-}
+};
 ```
 
 #### Complex Component Story (DataTable Example)
+
 ```typescript
 // src/components/DataTable.stories.tsx
-import type { Meta, StoryObj } from '@storybook/react'
-import { DataTable } from './DataTable'
+import type { Meta, StoryObj } from '@storybook/react';
+import { DataTable } from './DataTable';
 
 const meta = {
   title: 'Components/DataTable',
@@ -696,16 +723,16 @@ const meta = {
     layout: 'fullscreen',
   },
   tags: ['autodocs'],
-} satisfies Meta<typeof DataTable>
+} satisfies Meta<typeof DataTable>;
 
-export default meta
-type Story = StoryObj<typeof meta>
+export default meta;
+type Story = StoryObj<typeof meta>;
 
 const mockData = [
   { id: '1', name: 'Category 1', count: 150 },
   { id: '2', name: 'Category 2', count: 89 },
   { id: '3', name: 'Category 3', count: 234 },
-]
+];
 
 export const Default: Story = {
   args: {
@@ -715,7 +742,7 @@ export const Default: Story = {
       { key: 'count', label: 'Count' },
     ],
   },
-}
+};
 
 export const WithSelection: Story = {
   args: {
@@ -725,9 +752,9 @@ export const WithSelection: Story = {
       { key: 'count', label: 'Count' },
     ],
     selectable: true,
-    onSelectionChange: (ids) => console.log('Selected:', ids),
+    onSelectionChange: ids => console.log('Selected:', ids),
   },
-}
+};
 
 export const LargeDataset: Story = {
   args: {
@@ -742,7 +769,7 @@ export const LargeDataset: Story = {
     ],
     virtualized: true,
   },
-}
+};
 
 export const Loading: Story = {
   args: {
@@ -753,7 +780,7 @@ export const Loading: Story = {
     ],
     loading: true,
   },
-}
+};
 
 export const Empty: Story = {
   args: {
@@ -763,10 +790,11 @@ export const Empty: Story = {
       { key: 'count', label: 'Count' },
     ],
   },
-}
+};
 ```
 
 #### Modal Story (with Providers)
+
 ```typescript
 // src/components/Modal.stories.tsx
 import type { Meta, StoryObj } from '@storybook/react'
@@ -812,6 +840,7 @@ export const WithActions: Story = {
 ```
 
 ### Story Organization
+
 ```
 src/
 ├── components/
@@ -832,6 +861,7 @@ src/
 ```
 
 ### Storybook Naming Convention
+
 ```
 UI Components:       UI/Button, UI/Input, UI/Modal
 Feature Components:  Features/CategoryList, Features/CodeManager
@@ -842,6 +872,7 @@ Layouts:            Layouts/DashboardLayout, Layouts/AuthLayout
 ### Required Stories for Each Component
 
 #### Minimum Required Stories
+
 1. **Default** - Standard use case
 2. **With Props** - Common variations
 3. **States** - Loading, error, empty, disabled
@@ -849,10 +880,12 @@ Layouts:            Layouts/DashboardLayout, Layouts/AuthLayout
 5. **Dark Mode** - If theme support exists
 
 #### For Interactive Components (Additional)
+
 6. **With Interactions** - User actions (click, type, hover)
 7. **Accessibility** - Keyboard navigation, screen reader
 
 ### Accessibility Testing in Storybook
+
 ```typescript
 // Stories with a11y checks
 export const AccessibilityTest: Story = {
@@ -875,10 +908,11 @@ export const AccessibilityTest: Story = {
       },
     },
   },
-}
+};
 ```
 
 ### Running Storybook
+
 ```bash
 # Development
 npm run storybook
@@ -891,6 +925,7 @@ npx chromatic --project-token=YOUR_TOKEN
 ```
 
 ### Integration with CI/CD
+
 ```yaml
 # .github/workflows/storybook.yml
 name: Storybook
@@ -905,13 +940,13 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
-      
+
       - name: Install dependencies
         run: pnpm install
-      
+
       - name: Build Storybook
         run: pnpm build-storybook
-      
+
       - name: Run visual tests (Chromatic)
         run: npx chromatic --project-token=${{ secrets.CHROMATIC_TOKEN }}
 ```
@@ -919,6 +954,7 @@ jobs:
 ### Storybook Best Practices
 
 #### DO:
+
 - ✅ Write stories for ALL reusable components
 - ✅ Include all variants and states
 - ✅ Add JSDoc descriptions
@@ -929,6 +965,7 @@ jobs:
 - ✅ Use decorators for global providers (Context, Theme)
 
 #### DON'T:
+
 - ❌ Skip stories for "simple" components
 - ❌ Use real API calls (mock data instead)
 - ❌ Include app-specific logic
@@ -936,8 +973,10 @@ jobs:
 - ❌ Ignore accessibility warnings
 
 ### Story Requirements in PRs
+
 ```markdown
 ## ✅ Storybook Checklist (for new components)
+
 - [ ] Story file created (`Component.stories.tsx`)
 - [ ] Default story with common props
 - [ ] Stories for all variants/states
@@ -949,6 +988,7 @@ jobs:
 ```
 
 ### Benefits for Team
+
 - **Designers**: Review components before integration
 - **Developers**: Build components in isolation, faster iteration
 - **QA**: Visual testing, test all states/variants
@@ -958,6 +998,7 @@ jobs:
 ---
 
 ### Installation & Lockfile
+
 ```bash
 # ✅ Use pnpm for deterministic installs
 pnpm install
@@ -969,6 +1010,7 @@ git add pnpm-lock.yaml
 ```
 
 ### Adding Dependencies
+
 ```bash
 # ⚠️ BEFORE adding ANY dependency:
 # 1. Check bundle size: https://bundlephobia.com
@@ -981,6 +1023,7 @@ pnpm add lodash-es  # Reason: Tree-shakeable utils for data processing
 ```
 
 ### Security Audits (Run Weekly)
+
 ```bash
 # Check for vulnerabilities
 pnpm audit
@@ -993,6 +1036,7 @@ pnpm outdated
 ```
 
 ### Dependency Rules
+
 - ✅ **Prefer**: Lightweight, well-maintained, tree-shakeable packages
 - ⚠️ **Avoid**: Large bundles (>100kb unpacked), abandoned packages, packages with known vulnerabilities
 - ❌ **NEVER**: Add dependencies without team review for non-trivial packages
@@ -1002,6 +1046,7 @@ pnpm outdated
 ## 🔐 Environment Variables & Secrets (CRITICAL)
 
 ### .env File Structure
+
 ```bash
 # ✅ ALWAYS use .env.example (committed to git)
 # .env.example
@@ -1018,6 +1063,7 @@ VITE_OPENAI_API_KEY=sk-proj-...
 ```
 
 ### .gitignore (CRITICAL)
+
 ```bash
 # ✅ MUST be in .gitignore
 .env
@@ -1033,23 +1079,25 @@ secrets/
 ```
 
 ### Usage in Code
+
 ```typescript
 // ✅ Validate env vars at startup (fail fast)
-import { z } from 'zod'
+import { z } from 'zod';
 
 const EnvSchema = z.object({
   VITE_SUPABASE_URL: z.string().url(),
   VITE_SUPABASE_ANON_KEY: z.string().min(20),
   VITE_OPENAI_API_KEY: z.string().startsWith('sk-'),
-})
+});
 
-export const env = EnvSchema.parse(import.meta.env)
+export const env = EnvSchema.parse(import.meta.env);
 
 // ❌ NEVER hardcode secrets
-const apiKey = 'sk-proj-abc123' // NEVER DO THIS!
+const apiKey = 'sk-proj-abc123'; // NEVER DO THIS!
 ```
 
 ### Rotating Secrets
+
 ```bash
 # If secrets leaked:
 # 1. Immediately revoke in provider (Supabase, OpenAI)
@@ -1063,21 +1111,22 @@ const apiKey = 'sk-proj-abc123' // NEVER DO THIS!
 ## 📝 Code Documentation Standards (NEW)
 
 ### JSDoc for Public APIs
-```typescript
+
+````typescript
 /**
  * Categorizes answers using OpenAI GPT-4 with batch processing.
- * 
+ *
  * @param answers - Array of answer strings to categorize (max 1000)
  * @param options - Configuration options
  * @param options.model - OpenAI model to use (default: 'gpt-4')
  * @param options.batchSize - Number of concurrent requests (default: 10)
  * @param options.confidenceThreshold - Minimum confidence score (0-1, default: 0.7)
- * 
+ *
  * @returns Promise resolving to categorized results with confidence scores
- * 
+ *
  * @throws {Error} If answers array is empty or exceeds 1000 items
  * @throws {OpenAIError} If API rate limit exceeded
- * 
+ *
  * @example
  * ```typescript
  * const results = await batchCategorize(
@@ -1092,14 +1141,15 @@ export async function batchCategorize(
 ): Promise<CategorizedResult[]> {
   // Implementation
 }
-```
+````
 
 ### Component Props Documentation
+
 ```typescript
 /**
  * Virtualized data table with sorting, filtering, and selection.
  * Handles 10k+ rows efficiently using react-window.
- * 
+ *
  * @component
  */
 interface DataTableProps<T> {
@@ -1107,65 +1157,73 @@ interface DataTableProps<T> {
    * Array of data items to display
    * @remarks For optimal performance, keep data memoized
    */
-  data: T[]
-  
+  data: T[];
+
   /**
    * Column definitions with sorting/filtering config
    */
-  columns: ColumnDef<T>[]
-  
+  columns: ColumnDef<T>[];
+
   /**
    * Callback when row selection changes
    * @param selectedIds - Array of selected row IDs
    */
-  onSelectionChange?: (selectedIds: string[]) => void
-  
+  onSelectionChange?: (selectedIds: string[]) => void;
+
   /**
    * Enable virtual scrolling (required for 1000+ rows)
    * @default true
    */
-  virtualized?: boolean
+  virtualized?: boolean;
 }
 
-export function DataTable<T>({ data, columns, onSelectionChange, virtualized = true }: DataTableProps<T>) {
+export function DataTable<T>({
+  data,
+  columns,
+  onSelectionChange,
+  virtualized = true,
+}: DataTableProps<T>) {
   // Implementation
 }
 ```
 
 ### Complex Logic Comments
+
 ```typescript
 // ✅ GOOD: Explain WHY, not WHAT
 // We batch AI requests to avoid rate limits (100 req/min)
 // Each batch processes 10 items concurrently, then waits 6s
 for (const batch of batches) {
-  await Promise.all(batch.map(categorize))
-  await sleep(6000) // Rate limit: 10 req/6s = 100 req/min
+  await Promise.all(batch.map(categorize));
+  await sleep(6000); // Rate limit: 10 req/6s = 100 req/min
 }
 
 // ❌ BAD: Stating the obvious
 // Loop through batches
 for (const batch of batches) {
   // Call categorize on each item
-  await Promise.all(batch.map(categorize))
+  await Promise.all(batch.map(categorize));
 }
 ```
 
 ### Documentation Requirements
-| Code Type | Documentation Required |
-|-----------|----------------------|
-| Public API functions | ✅ Full JSDoc with examples |
-| Reusable components | ✅ Props documentation |
-| Custom hooks | ✅ JSDoc with usage notes |
-| Utils/helpers | ✅ JSDoc for complex functions |
-| Types/interfaces | ✅ TSDoc comments for non-obvious fields |
-| Complex algorithms | ✅ Inline comments explaining logic |
-| Simple getters/setters | ❌ Self-explanatory, no docs needed |
+
+| Code Type              | Documentation Required                   |
+| ---------------------- | ---------------------------------------- |
+| Public API functions   | ✅ Full JSDoc with examples              |
+| Reusable components    | ✅ Props documentation                   |
+| Custom hooks           | ✅ JSDoc with usage notes                |
+| Utils/helpers          | ✅ JSDoc for complex functions           |
+| Types/interfaces       | ✅ TSDoc comments for non-obvious fields |
+| Complex algorithms     | ✅ Inline comments explaining logic      |
+| Simple getters/setters | ❌ Self-explanatory, no docs needed      |
 
 ---
 
 ## 🔄 Code Review & Pull Request Standards (CRITICAL)
 
 ### Repository PR Template Setup
+
 ```bash
 # Create PR template in repository
 mkdir -p .github
@@ -1267,6 +1325,7 @@ EOF
 ```
 
 ### PR Naming Convention
+
 ```
 <type>/<ticket>-<short-description>
 
@@ -1280,20 +1339,25 @@ test/CAT-555-add-category-tests
 ```
 
 ### PR Template (Required)
+
 ```markdown
 ## 📝 Description
+
 Brief description of changes and motivation.
 
 ## 🎯 Related Ticket
+
 Link to Jira/Linear: [CAT-123](https://jira.com/CAT-123)
 
 ## 🧪 How to Test
+
 1. Navigate to /categories
 2. Click "Batch Categorize"
 3. Verify AI suggestions appear within 5s
 4. Check console for errors
 
 ## ✅ Checklist
+
 - [ ] Code follows project standards (.cursorrules)
 - [ ] Tests added/updated (unit + integration)
 - [ ] Documentation updated (JSDoc, README)
@@ -1304,18 +1368,22 @@ Link to Jira/Linear: [CAT-123](https://jira.com/CAT-123)
 - [ ] Browser tested (Chrome, Firefox, Safari)
 
 ## 📸 Screenshots (if UI changes)
+
 [Before/After screenshots]
 
 ## 🚨 Breaking Changes
+
 List any breaking changes and migration steps.
 
 ## 📚 Additional Notes
+
 Any other context reviewers should know.
 ```
 
 ### Code Review Rules
 
 #### For Authors
+
 - ✅ **Self-review first** - Review your own PR before requesting review
   - Check for console.logs, debugger statements
   - Verify all tests pass locally
@@ -1340,6 +1408,7 @@ Any other context reviewers should know.
   - If must force-push, notify reviewers
 
 #### For Reviewers
+
 - ✅ **Review within 24h** - Don't block teammates
   - Prioritize review requests
   - If busy, delegate or notify author
@@ -1364,6 +1433,7 @@ Any other context reviewers should know.
   - Without "nit:" - Author should address
 
 #### Review Focus Areas
+
 1. **Correctness** - Does it work? Does it solve the problem?
 2. **Testing** - Are there tests? Do they cover edge cases?
 3. **Security** - Input validation? XSS prevention? Auth checks?
@@ -1373,6 +1443,7 @@ Any other context reviewers should know.
 7. **Documentation** - JSDoc? README updates? Migration guide?
 
 #### Approval Requirements
+
 ```yaml
 # Required checks (must pass before merge)
 - unit-tests: required
@@ -1393,6 +1464,7 @@ Any other context reviewers should know.
 ```
 
 #### Critical Changes (Require 2+ Approvals)
+
 - Database schema changes
 - Authentication/authorization changes
 - Security-related changes
@@ -1401,6 +1473,7 @@ Any other context reviewers should know.
 - Infrastructure/deployment changes
 
 ### Git Commit Convention
+
 ```bash
 # Format: <type>(<scope>): <subject>
 
@@ -1414,6 +1487,7 @@ perf(virtual-scroll): optimize rendering for 10k rows
 ```
 
 **Types:**
+
 - `feat`: New feature (user-facing)
 - `fix`: Bug fix (user-facing)
 - `refactor`: Code change that neither fixes a bug nor adds a feature
@@ -1426,16 +1500,18 @@ perf(virtual-scroll): optimize rendering for 10k rows
 - `build`: Build system changes
 
 **Scope examples:**
+
 - `categories`, `codes`, `ai`, `api`, `ui`, `hooks`, `utils`, `db`, `auth`
 
 ### PR Size Guidelines
-| Size | Lines Changed | Review Time | Notes |
-|------|--------------|-------------|-------|
-| XS | <50 | 5-10 min | Quick fixes, typos |
-| S | 50-200 | 15-30 min | Single feature, bug fix |
-| M | 200-400 | 30-60 min | Multiple related changes |
-| L | 400-800 | 1-2 hours | Complex feature |
-| XL | 800+ | 2+ hours | Should be split into smaller PRs |
+
+| Size | Lines Changed | Review Time | Notes                            |
+| ---- | ------------- | ----------- | -------------------------------- |
+| XS   | <50           | 5-10 min    | Quick fixes, typos               |
+| S    | 50-200        | 15-30 min   | Single feature, bug fix          |
+| M    | 200-400       | 30-60 min   | Multiple related changes         |
+| L    | 400-800       | 1-2 hours   | Complex feature                  |
+| XL   | 800+          | 2+ hours    | Should be split into smaller PRs |
 
 **Target:** Keep most PRs in S-M range (50-400 lines)
 
@@ -1444,6 +1520,7 @@ perf(virtual-scroll): optimize rendering for 10k rows
 ## 🔒 Security Requirements (ENHANCED)
 
 ### XSS Prevention
+
 ```typescript
 // ✅ ALWAYS sanitize user input before rendering
 import DOMPurify from 'isomorphic-dompurify'
@@ -1461,6 +1538,7 @@ function renderUserContent(html: string) {
 ```
 
 ### API Security Checklist
+
 - [x] Rate limiting (express-rate-limit): 100 req/15min per IP
 - [x] Helmet security headers
 - [x] CORS whitelist (production domains only)
@@ -1472,6 +1550,7 @@ function renderUserContent(html: string) {
 - [x] Authentication tokens in httpOnly cookies (not localStorage)
 
 ### Supabase RLS Patterns
+
 ```sql
 -- ✅ ALWAYS use Row Level Security
 CREATE POLICY "Users can only see their categories"
@@ -1493,13 +1572,14 @@ CREATE POLICY "Users can delete their own categories"
 ```
 
 ### Authentication Patterns
+
 ```typescript
 // ✅ GOOD: Tokens in httpOnly cookies
 // Server sets: res.cookie('token', jwt, { httpOnly: true, secure: true })
 // Client automatically sends with requests
 
 // ❌ BAD: Tokens in localStorage
-localStorage.setItem('token', jwt) // Vulnerable to XSS!
+localStorage.setItem('token', jwt); // Vulnerable to XSS!
 ```
 
 ---
@@ -1507,39 +1587,42 @@ localStorage.setItem('token', jwt) // Vulnerable to XSS!
 ## ⚡ Performance Rules
 
 ### React Query Configuration
+
 ```typescript
 // ✅ Optimize cache settings
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000,     // 5 min - data is "fresh"
-      cacheTime: 10 * 60 * 1000,    // 10 min - cache retention
-      refetchOnWindowFocus: false,   // Avoid unnecessary refetches
-      retry: 1,                      // Retry once on failure
-      refetchOnMount: true,          // Refetch stale data on mount
-    }
-  }
-})
+      staleTime: 5 * 60 * 1000, // 5 min - data is "fresh"
+      cacheTime: 10 * 60 * 1000, // 10 min - cache retention
+      refetchOnWindowFocus: false, // Avoid unnecessary refetches
+      retry: 1, // Retry once on failure
+      refetchOnMount: true, // Refetch stale data on mount
+    },
+  },
+});
 ```
 
 ### Debouncing Pattern
+
 ```typescript
 // ✅ ALWAYS debounce search/filters (300ms)
-import { useDebounce } from '@/hooks/useDebounce'
+import { useDebounce } from '@/hooks/useDebounce';
 
 function SearchBar() {
-  const [search, setSearch] = useState('')
-  const debouncedSearch = useDebounce(search, 300)
-  
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
+
   const { data } = useQuery({
     queryKey: ['search', debouncedSearch],
     queryFn: () => searchAPI(debouncedSearch),
     enabled: debouncedSearch.length > 0, // Don't search empty string
-  })
+  });
 }
 ```
 
 ### Virtual Scrolling (Required for 1000+ rows)
+
 ```typescript
 // ✅ Use react-window for large lists
 import { FixedSizeList } from 'react-window'
@@ -1569,6 +1652,7 @@ function LargeDataTable({ data }: { data: Item[] }) {
 ```
 
 ### Code Splitting (Vite Configuration)
+
 ```typescript
 // vite.config.ts
 export default defineConfig({
@@ -1577,16 +1661,16 @@ export default defineConfig({
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'query': ['@tanstack/react-query'],
-          'supabase': ['@supabase/supabase-js'],
-          'ui': ['@headlessui/react', 'lucide-react'],
-          'charts': ['recharts'],
-          'excel': ['exceljs', 'xlsx'],
-        }
-      }
-    }
-  }
-})
+          query: ['@tanstack/react-query'],
+          supabase: ['@supabase/supabase-js'],
+          ui: ['@headlessui/react', 'lucide-react'],
+          charts: ['recharts'],
+          excel: ['exceljs', 'xlsx'],
+        },
+      },
+    },
+  },
+});
 ```
 
 ---
@@ -1594,105 +1678,108 @@ export default defineConfig({
 ## 🤖 AI Integration Patterns
 
 ### OpenAI API Usage
+
 ```typescript
 // ✅ Batch processing for AI requests
-import pMap from 'p-map'
+import pMap from 'p-map';
 
 async function batchCategorize(answers: string[], options?: Options) {
-  const BATCH_SIZE = 10
-  const RATE_LIMIT_DELAY = 6000 // 6s between batches = 100 req/min
-  
-  const batches = chunk(answers, BATCH_SIZE)
-  const results: CategorizedResult[] = []
-  
+  const BATCH_SIZE = 10;
+  const RATE_LIMIT_DELAY = 6000; // 6s between batches = 100 req/min
+
+  const batches = chunk(answers, BATCH_SIZE);
+  const results: CategorizedResult[] = [];
+
   for (const batch of batches) {
     const batchResults = await pMap(
       batch,
-      async (answer) => {
+      async answer => {
         const response = await openai.chat.completions.create({
           model: options?.model ?? 'gpt-4',
           messages: [
             { role: 'system', content: CATEGORIZATION_PROMPT },
-            { role: 'user', content: answer }
+            { role: 'user', content: answer },
           ],
           temperature: 0.3, // Low for consistent categorization
-        })
-        
-        return parseAIResponse(response)
+        });
+
+        return parseAIResponse(response);
       },
       { concurrency: BATCH_SIZE }
-    )
-    
-    results.push(...batchResults)
-    
+    );
+
+    results.push(...batchResults);
+
     // Rate limiting
     if (batches.indexOf(batch) < batches.length - 1) {
-      await sleep(RATE_LIMIT_DELAY)
+      await sleep(RATE_LIMIT_DELAY);
     }
   }
-  
-  return results
+
+  return results;
 }
 ```
 
 ### AI Response Validation
+
 ```typescript
 // ✅ ALWAYS validate AI responses with Zod
-import { z } from 'zod'
+import { z } from 'zod';
 
 const AIResponseSchema = z.object({
   category: z.string().min(1),
   code: z.string().min(1),
   confidence: z.number().min(0).max(1),
   reasoning: z.string().optional(),
-})
+});
 
-type AIResponse = z.infer<typeof AIResponseSchema>
+type AIResponse = z.infer<typeof AIResponseSchema>;
 
 function parseAIResponse(response: unknown): AIResponse {
   try {
-    return AIResponseSchema.parse(response)
+    return AIResponseSchema.parse(response);
   } catch (error) {
     Sentry.captureException(error, {
       tags: { feature: 'ai-parsing' },
-      extra: { response }
-    })
-    throw new Error('Invalid AI response format')
+      extra: { response },
+    });
+    throw new Error('Invalid AI response format');
   }
 }
 ```
 
 ### Cost Tracking
+
 ```typescript
 // ✅ Track OpenAI costs per request
-import { calculateCost } from '@/lib/openai/pricing'
+import { calculateCost } from '@/lib/openai/pricing';
 
 async function categorizeWithTracking(text: string, userId: string) {
-  const startTime = Date.now()
-  
+  const startTime = Date.now();
+
   const response = await openai.chat.completions.create({
     model: 'gpt-4',
     messages: [
       { role: 'system', content: PROMPT },
-      { role: 'user', content: text }
-    ]
-  })
-  
+      { role: 'user', content: text },
+    ],
+  });
+
   const cost = calculateCost({
     model: 'gpt-4',
     inputTokens: response.usage?.prompt_tokens ?? 0,
     outputTokens: response.usage?.completion_tokens ?? 0,
-  })
-  
+  });
+
   await logAIUsage({
     userId,
     model: 'gpt-4',
     cost,
     latency: Date.now() - startTime,
     timestamp: new Date(),
-  })
-  
-  return response
+  });
+
+  return response;
 }
 ```
 
@@ -1701,6 +1788,7 @@ async function categorizeWithTracking(text: string, userId: string) {
 ## ♿ Accessibility (WCAG 2.1 AA Compliance)
 
 ### ARIA Requirements
+
 ```typescript
 // ✅ Proper ARIA labels and roles
 <button
@@ -1716,9 +1804,9 @@ async function categorizeWithTracking(text: string, userId: string) {
 </p>
 
 // ✅ Live regions for dynamic content
-<div 
-  role="status" 
-  aria-live="polite" 
+<div
+  role="status"
+  aria-live="polite"
   aria-atomic="true"
 >
   {message}
@@ -1756,11 +1844,12 @@ function Modal({ children, onClose }: ModalProps) {
 ```
 
 ### Keyboard Navigation
+
 ```typescript
 // ✅ Full keyboard support
 function DataGrid({ data }: { data: Item[] }) {
   const [focusedIndex, setFocusedIndex] = useState(0)
-  
+
   const handleKeyDown = (e: KeyboardEvent) => {
     switch(e.key) {
       case 'ArrowDown':
@@ -1781,7 +1870,7 @@ function DataGrid({ data }: { data: Item[] }) {
         break
     }
   }
-  
+
   return (
     <div
       role="grid"
@@ -1805,6 +1894,7 @@ function DataGrid({ data }: { data: Item[] }) {
 ```
 
 ### Color Contrast
+
 ```typescript
 // ✅ WCAG AA minimum contrast ratios
 // - Normal text: 4.5:1
@@ -1830,60 +1920,62 @@ colors: {
 ## 📊 Data Processing Patterns
 
 ### Excel Export
+
 ```typescript
 // ✅ Use ExcelJS for complex exports
-import ExcelJS from 'exceljs'
+import ExcelJS from 'exceljs';
 
 async function exportToExcel(data: CategoryData[]) {
-  const workbook = new ExcelJS.Workbook()
-  const worksheet = workbook.addWorksheet('Categories')
-  
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Categories');
+
   // Define columns
   worksheet.columns = [
     { header: 'Category', key: 'category', width: 30 },
     { header: 'Code', key: 'code', width: 15 },
     { header: 'Count', key: 'count', width: 10 },
     { header: 'Confidence', key: 'confidence', width: 12 },
-  ]
-  
+  ];
+
   // Add data
-  worksheet.addRows(data)
-  
+  worksheet.addRows(data);
+
   // Style header row
-  worksheet.getRow(1).font = { bold: true, size: 12 }
+  worksheet.getRow(1).font = { bold: true, size: 12 };
   worksheet.getRow(1).fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: 'FFE0E0E0' }
-  }
-  worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' }
-  
+    fgColor: { argb: 'FFE0E0E0' },
+  };
+  worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
   // Add borders
-  worksheet.eachRow((row) => {
-    row.eachCell((cell) => {
+  worksheet.eachRow(row => {
+    row.eachCell(cell => {
       cell.border = {
         top: { style: 'thin' },
         left: { style: 'thin' },
         bottom: { style: 'thin' },
-        right: { style: 'thin' }
-      }
-    })
-  })
-  
+        right: { style: 'thin' },
+      };
+    });
+  });
+
   // Auto-filter
   worksheet.autoFilter = {
     from: 'A1',
-    to: `D${data.length + 1}`
-  }
-  
-  return workbook.xlsx.writeBuffer()
+    to: `D${data.length + 1}`,
+  };
+
+  return workbook.xlsx.writeBuffer();
 }
 ```
 
 ### CSV Parsing
+
 ```typescript
 // ✅ Use PapaParse with robust configuration
-import Papa from 'papaparse'
+import Papa from 'papaparse';
 
 async function parseCSV(file: File): Promise<CategoryData[]> {
   return new Promise((resolve, reject) => {
@@ -1892,20 +1984,20 @@ async function parseCSV(file: File): Promise<CategoryData[]> {
       dynamicTyping: true,
       skipEmptyLines: true,
       delimitersToGuess: [',', '\t', '|', ';'],
-      transformHeader: (header) => header.trim(), // Strip whitespace
-      transform: (value) => typeof value === 'string' ? value.trim() : value,
-      complete: (results) => {
+      transformHeader: header => header.trim(), // Strip whitespace
+      transform: value => (typeof value === 'string' ? value.trim() : value),
+      complete: results => {
         // Validate with Zod
         try {
-          const validated = CategorySchema.array().parse(results.data)
-          resolve(validated)
+          const validated = CategorySchema.array().parse(results.data);
+          resolve(validated);
         } catch (error) {
-          reject(new Error(`Invalid CSV format: ${error.message}`))
+          reject(new Error(`Invalid CSV format: ${error.message}`));
         }
       },
-      error: (error) => reject(error)
-    })
-  })
+      error: error => reject(error),
+    });
+  });
 }
 ```
 
@@ -1914,32 +2006,34 @@ async function parseCSV(file: File): Promise<CategoryData[]> {
 ## 🚨 Error Handling
 
 ### Sentry Integration
+
 ```typescript
 // ✅ Track errors with rich context
-import * as Sentry from '@sentry/react'
+import * as Sentry from '@sentry/react';
 
 try {
-  await categorizeAnswers(data)
+  await categorizeAnswers(data);
 } catch (error) {
   Sentry.captureException(error, {
     tags: {
       feature: 'ai-categorization',
-      model: 'gpt-4'
+      model: 'gpt-4',
     },
     extra: {
       dataLength: data.length,
       userId: user.id,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     },
-    level: 'error'
-  })
-  
-  toast.error('Categorization failed. Please try again.')
-  throw error // Re-throw for error boundaries
+    level: 'error',
+  });
+
+  toast.error('Categorization failed. Please try again.');
+  throw error; // Re-throw for error boundaries
 }
 ```
 
 ### Error Boundaries
+
 ```typescript
 // ✅ Wrap features in error boundaries
 import { ErrorBoundary } from 'react-error-boundary'
@@ -1979,6 +2073,7 @@ function App() {
 ## 💬 AI Assistant Instructions
 
 ### When Writing Code
+
 1. **Always use TypeScript** - Full typing with Zod schemas
 2. **State management hierarchy** - TanStack Query → Zustand → Context → useState
 3. **Performance first** - Virtual scrolling for 1000+ items, debouncing, memoization
@@ -1989,6 +2084,7 @@ function App() {
 8. **Document code** - JSDoc for public APIs, comments for complex logic
 
 ### When Suggesting Solutions
+
 - Explain **WHY**, not just **WHAT**
 - Show **performance implications**
 - Consider **accessibility impact**
@@ -2000,49 +2096,48 @@ function App() {
 ### Common Patterns to Follow
 
 #### React Query Mutation with Optimistic Updates
+
 ```typescript
 const mutation = useMutation({
   mutationFn: updateCategory,
-  onMutate: async (newData) => {
-    await queryClient.cancelQueries(['categories'])
-    const previous = queryClient.getQueryData(['categories'])
-    
-    queryClient.setQueryData(['categories'], (old: Category[]) => 
-      old.map(cat => cat.id === newData.id ? newData : cat)
-    )
-    
-    return { previous }
+  onMutate: async newData => {
+    await queryClient.cancelQueries(['categories']);
+    const previous = queryClient.getQueryData(['categories']);
+
+    queryClient.setQueryData(['categories'], (old: Category[]) =>
+      old.map(cat => (cat.id === newData.id ? newData : cat))
+    );
+
+    return { previous };
   },
   onError: (err, variables, context) => {
-    queryClient.setQueryData(['categories'], context?.previous)
-    toast.error('Update failed')
+    queryClient.setQueryData(['categories'], context?.previous);
+    toast.error('Update failed');
   },
   onSuccess: () => {
-    toast.success('Category updated')
+    toast.success('Category updated');
   },
   onSettled: () => {
-    queryClient.invalidateQueries(['categories'])
-  }
-})
+    queryClient.invalidateQueries(['categories']);
+  },
+});
 ```
 
 #### Batch Operations with Progress
+
 ```typescript
 async function batchDelete(ids: string[], onProgress?: (progress: number) => void) {
-  const batches = chunk(ids, 50) // 50 per batch
-  let completed = 0
-  
+  const batches = chunk(ids, 50); // 50 per batch
+  let completed = 0;
+
   for (const batch of batches) {
-    await supabase
-      .from('categories')
-      .delete()
-      .in('id', batch)
-    
-    completed += batch.length
-    onProgress?.(completed / ids.length * 100)
+    await supabase.from('categories').delete().in('id', batch);
+
+    completed += batch.length;
+    onProgress?.((completed / ids.length) * 100);
   }
-  
-  queryClient.invalidateQueries(['categories'])
+
+  queryClient.invalidateQueries(['categories']);
 }
 ```
 
@@ -2108,15 +2203,15 @@ res.cookie('token', jwt, { httpOnly: true, secure: true })
 
 ## 📝 Quick Commands
 
-**"Explain this"** - Deep dive into code logic  
-**"Add tests"** - Unit + Integration + E2E test cases  
-**"Optimize performance"** - Virtual scroll, debounce, memoization, code splitting  
-**"Make accessible"** - ARIA, keyboard nav, focus trap, color contrast  
-**"Add error handling"** - Try-catch + Sentry + user feedback + error boundaries  
-**"Batch this operation"** - Queue-based processing with progress  
-**"Add loading states"** - Skeletons, progress bars, optimistic UI  
-**"Document this"** - JSDoc/TSDoc with examples  
-**"Review security"** - XSS, RLS, validation, rate limiting  
+**"Explain this"** - Deep dive into code logic
+**"Add tests"** - Unit + Integration + E2E test cases
+**"Optimize performance"** - Virtual scroll, debounce, memoization, code splitting
+**"Make accessible"** - ARIA, keyboard nav, focus trap, color contrast
+**"Add error handling"** - Try-catch + Sentry + user feedback + error boundaries
+**"Batch this operation"** - Queue-based processing with progress
+**"Add loading states"** - Skeletons, progress bars, optimistic UI
+**"Document this"** - JSDoc/TSDoc with examples
+**"Review security"** - XSS, RLS, validation, rate limiting
 **"Check state management"** - Verify correct hierarchy (Query/Zustand/Context)
 
 ---
@@ -2124,23 +2219,27 @@ res.cookie('token', jwt, { httpOnly: true, secure: true })
 ## 🎯 Current Sprint Focus
 
 ### P0 - Critical
+
 - [ ] AI categorization optimization (reduce latency from 10s to 5s)
 - [ ] Virtual scrolling stability (10k+ rows without crashes)
 - [ ] Offline sync reliability (IndexedDB conflict resolution)
 - [ ] Unit test coverage (increase from 20+ to 80%)
 
 ### P1 - High Priority
+
 - [ ] Batch operations UX improvements (progress indicators)
 - [ ] Advanced filters performance (debouncing + memoization)
 - [ ] Export large datasets (100k+ rows without timeout)
 - [ ] Integration tests (add 50+ tests for critical flows)
 
 ### P2 - Nice to Have
+
 - [ ] Dark mode polish (check all components)
 - [ ] Keyboard shortcuts documentation
 - [ ] Mobile responsiveness improvements
 
 ### Tech Debt
+
 - [ ] Migrate to React Query v6 (breaking changes)
 - [ ] Upgrade Tailwind v4 full adoption (new features)
 - [ ] Refactor legacy code in `/legacy` folder
@@ -2158,6 +2257,151 @@ res.cookie('token', jwt, { httpOnly: true, secure: true })
 - **Testing Library**: https://testing-library.com/docs/
 - **Playwright**: https://playwright.dev/
 - **Zod**: https://zod.dev/
+
+---
+
+## 📏 FILE SIZE & MODULARIZATION RULES (CRITICAL)
+
+### Hard Limits (STRICT)
+
+- **Max 250 lines per file** (hard limit - no exceptions)
+- **Max 50 lines per function** (extract to helper functions)
+- **Max 3 levels of nesting** (refactor if deeper)
+- **If file exceeds limits → automatically split into modules**
+
+### When to Split Files
+
+#### Component Files (>200 lines)
+
+**Extract to:**
+
+- `[ComponentName].hooks.ts` - Custom hooks
+- `[ComponentName].types.ts` - TypeScript types/interfaces
+- `[ComponentName].utils.ts` - Helper functions
+- `[ComponentName].styles.ts` - Style-related code (if needed)
+- `[ComponentName]/components/` - Sub-components directory
+
+**Example:**
+
+```typescript
+// ❌ BAD: CodingGrid/index.tsx (1437 lines)
+export function CodingGrid() {
+  // 1400+ lines of code...
+}
+
+// ✅ GOOD: Split into modules
+// CodingGrid/index.tsx (~200 lines)
+import { useCodingGridState } from './hooks/useCodingGridState';
+import { useAnswerActions } from './hooks/useAnswerActions';
+// ... imports
+
+export function CodingGrid() {
+  // Main component logic only
+}
+
+// CodingGrid/hooks/useCodingGridState.ts (~100 lines)
+export function useCodingGridState() {
+  /* ... */
+}
+
+// CodingGrid/types.ts (~50 lines)
+export interface CodingGridProps {
+  /* ... */
+}
+```
+
+#### Utility Files (>150 lines)
+
+**Split by domain/responsibility:**
+
+```typescript
+// ❌ BAD: lib/openai.ts (1285 lines)
+export async function categorizeAnswer() {
+  /* ... */
+}
+export async function batchCategorize() {
+  /* ... */
+}
+export async function validateBrand() {
+  /* ... */
+}
+
+// ✅ GOOD: Split by responsibility
+// lib/openai/categorize.ts (~200 lines)
+export async function categorizeAnswer() {
+  /* ... */
+}
+
+// lib/openai/batch.ts (~200 lines)
+export async function batchCategorize() {
+  /* ... */
+}
+
+// lib/openai/validation.ts (~200 lines)
+export async function validateBrand() {
+  /* ... */
+}
+```
+
+#### API Files (>300 lines)
+
+**Split by resource/endpoint group:**
+
+```typescript
+// ❌ BAD: services/apiClient.ts (604 lines)
+export async function fetchCategories() {
+  /* ... */
+}
+export async function fetchCodes() {
+  /* ... */
+}
+export async function fetchAnswers() {
+  /* ... */
+}
+
+// ✅ GOOD: Split by resource
+// services/api/categories.ts (~150 lines)
+export async function fetchCategories() {
+  /* ... */
+}
+
+// services/api/codes.ts (~150 lines)
+export async function fetchCodes() {
+  /* ... */
+}
+
+// services/api/answers.ts (~150 lines)
+export async function fetchAnswers() {
+  /* ... */
+}
+```
+
+### Modular Structure Rules
+
+1. **One component = one file** (no multiple exports unless related)
+2. **Shared utilities** go in `/lib` or `/utils` with clear naming
+3. **Types/interfaces** in separate `.types.ts` files when >100 lines
+4. **Complex logic** extracted to custom hooks or services
+5. **Each module** should have single responsibility
+
+### Naming Conventions
+
+```
+ComponentName.component.tsx     # Main component
+ComponentName.hooks.ts           # Custom hooks
+ComponentName.utils.ts           # Helper functions
+ComponentName.types.ts           # TypeScript types
+use-component-name.ts            # Standalone hooks (kebab-case)
+```
+
+### Before Creating/Modifying Files
+
+1. **Check if file will exceed 250 lines**
+2. **If yes, plan modular structure first**
+3. **Ask for approval if major restructuring needed**
+4. **Keep related files in same directory**
+
+### ALWAYS prefer smaller, focused files over large monoliths.
 
 ---
 
