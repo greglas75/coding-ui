@@ -9,13 +9,46 @@
  * - Web context integration
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CategorizeRequest } from '../../lib/openai';
-import { batchCategorizeAnswers, categorizeAnswer } from '../../lib/openai';
 
-// Mock modules
+const chatCompletionMock = vi.fn();
+
+const buildOpenAIResponse = (
+  suggestions: Array<{ code_id: string; code_name: string; confidence: number; reasoning?: string }> = [
+    { code_id: '1', code_name: 'Nike', confidence: 0.95, reasoning: 'Mock response' },
+  ]
+) => ({
+  choices: [
+    {
+      message: {
+        content: JSON.stringify({ suggestions }),
+      },
+    },
+  ],
+});
+
+const mockGetOpenAIAPIKey = vi.fn(() => 'test-openai-key');
+
 vi.mock('../../utils/apiKeys', () => ({
-  getOpenAIAPIKey: vi.fn(() => 'test-api-key'),
+  getOpenAIAPIKey: mockGetOpenAIAPIKey,
+  getAnthropicAPIKey: vi.fn(() => 'test-anthropic-key'),
+  getGoogleGeminiAPIKey: vi.fn(() => 'test-gemini-key'),
+  getGoogleCSEAPIKey: vi.fn(() => 'test-google-cse-key'),
+  getGoogleCSECXID: vi.fn(() => 'test-google-cx-id'),
+  getPineconeAPIKey: vi.fn(() => 'test-pinecone-key'),
+}));
+
+const mockValidateBrandMultiSource = vi.fn();
+const mockConvertToAISuggestion = vi.fn();
+const mockFormatSourcesForDisplay = vi.fn(() => ({}));
+
+vi.mock('../../services/multiSourceValidator', () => ({
+  validateBrandMultiSource: (...args: Parameters<typeof mockValidateBrandMultiSource>) =>
+    mockValidateBrandMultiSource(...args),
+  convertToAISuggestion: (...args: Parameters<typeof mockConvertToAISuggestion>) =>
+    mockConvertToAISuggestion(...args),
+  formatSourcesForDisplay: mockFormatSourcesForDisplay,
 }));
 
 vi.mock('../../services/webContextProvider', () => ({
@@ -49,6 +82,49 @@ vi.mock('../../services/geminiVision', () => ({
   })),
 }));
 
+vi.mock('openai', () => {
+  class OpenAI {
+    chat = {
+      completions: {
+        create: (...args: any[]) => chatCompletionMock(...args),
+      },
+    };
+  }
+  return { default: OpenAI };
+});
+
+const retryWithBackoffMock = vi.fn(async (fn: () => Promise<unknown>) => fn());
+const createRateLimiter = () => ({
+  add: (fn: () => Promise<unknown>) => fn(),
+});
+
+vi.mock('../../lib/rateLimit', () => ({
+  openaiRateLimiter: createRateLimiter(),
+  googleSearchRateLimiter: createRateLimiter(),
+  visionRateLimiter: createRateLimiter(),
+  retryWithBackoff: (...args: Parameters<typeof retryWithBackoffMock>) =>
+    retryWithBackoffMock(...args),
+}));
+
+let categorizeAnswer: typeof import('../../lib/openai').categorizeAnswer;
+let batchCategorizeAnswers: typeof import('../../lib/openai').batchCategorizeAnswers;
+
+beforeAll(async () => {
+  const module = await import('../../lib/openai');
+  categorizeAnswer = module.categorizeAnswer;
+  batchCategorizeAnswers = module.batchCategorizeAnswers;
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  chatCompletionMock.mockReset();
+  chatCompletionMock.mockResolvedValue(buildOpenAIResponse());
+  mockValidateBrandMultiSource.mockRejectedValue(new Error('disabled multi-source'));
+  mockConvertToAISuggestion.mockReturnValue(null);
+  mockFormatSourcesForDisplay.mockReturnValue({});
+  mockGetOpenAIAPIKey.mockReturnValue('test-openai-key');
+});
+
 describe('categorizeAnswer', () => {
   const mockRequest: CategorizeRequest = {
     answer: 'Nike shoes',
@@ -67,46 +143,13 @@ describe('categorizeAnswer', () => {
     },
   };
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('should throw error if no API key configured', async () => {
-    const { getOpenAIAPIKey } = await import('../../utils/apiKeys');
-    vi.mocked(getOpenAIAPIKey).mockReturnValue(null);
+    mockGetOpenAIAPIKey.mockReturnValueOnce(null);
 
     await expect(categorizeAnswer(mockRequest)).rejects.toThrow('OpenAI API key not configured');
   });
 
   it('should return suggestions for valid input', async () => {
-    // Mock OpenAI response
-    vi.mock('openai', () => ({
-      default: class OpenAI {
-        chat = {
-          completions: {
-            create: vi.fn(async () => ({
-              choices: [
-                {
-                  message: {
-                    content: JSON.stringify({
-                      suggestions: [
-                        {
-                          code_id: '1',
-                          code_name: 'Nike',
-                          confidence: 0.95,
-                          reasoning: 'User explicitly mentioned Nike',
-                        },
-                      ],
-                    }),
-                  },
-                },
-              ],
-            })),
-          },
-        };
-      },
-    }));
-
     const result = await categorizeAnswer(mockRequest);
 
     expect(result.suggestions).toBeDefined();
@@ -116,81 +159,33 @@ describe('categorizeAnswer', () => {
   });
 
   it('should validate and clamp confidence scores', async () => {
-    // Mock response with invalid confidence
-    vi.mock('openai', () => ({
-      default: class OpenAI {
-        chat = {
-          completions: {
-            create: vi.fn(async () => ({
-              choices: [
-                {
-                  message: {
-                    content: JSON.stringify({
-                      suggestions: [
-                        {
-                          code_id: '1',
-                          code_name: 'Nike',
-                          confidence: 1.5, // Invalid (>1)
-                          reasoning: 'Test',
-                        },
-                        {
-                          code_id: '2',
-                          code_name: 'Adidas',
-                          confidence: -0.2, // Invalid (<0)
-                          reasoning: 'Test',
-                        },
-                      ],
-                    }),
-                  },
-                },
-              ],
-            })),
-          },
-        };
-      },
-    }));
+    chatCompletionMock.mockResolvedValueOnce(
+      buildOpenAIResponse([
+        { code_id: '1', code_name: 'Nike', confidence: 1.5, reasoning: 'Test' },
+        { code_id: '2', code_name: 'Adidas', confidence: -0.2, reasoning: 'Test' },
+      ])
+    );
 
     const result = await categorizeAnswer(mockRequest);
 
-    // Should clamp to 0-1 range
+    // Should clamp to 0-1 range and drop invalid negatives
+    expect(result.suggestions).toHaveLength(1);
     expect(result.suggestions[0].confidence).toBeLessThanOrEqual(1);
     expect(result.suggestions[0].confidence).toBeGreaterThanOrEqual(0);
-    expect(result.suggestions[1].confidence).toBeLessThanOrEqual(1);
-    expect(result.suggestions[1].confidence).toBeGreaterThanOrEqual(0);
   });
 
   it('should handle OpenAI rate limit error (429)', async () => {
-    vi.mock('openai', () => ({
-      default: class OpenAI {
-        chat = {
-          completions: {
-            create: vi.fn(async () => {
-              const error: any = new Error('Rate limit exceeded');
-              error.status = 429;
-              throw error;
-            }),
-          },
-        };
-      },
-    }));
+    const error: any = new Error('Rate limit exceeded');
+    error.status = 429;
+    chatCompletionMock.mockRejectedValueOnce(error);
 
     await expect(categorizeAnswer(mockRequest)).rejects.toThrow('Rate limit reached');
   });
 
   it('should handle invalid API key error (401)', async () => {
-    vi.mock('openai', () => ({
-      default: class OpenAI {
-        chat = {
-          completions: {
-            create: vi.fn(async () => {
-              const error: any = new Error('Invalid API key');
-              error.status = 401;
-              throw error;
-            }),
-          },
-        };
-      },
-    }));
+    const error: any = new Error('Invalid API key');
+    error.status = 401;
+    chatCompletionMock.mockRejectedValueOnce(error);
 
     await expect(categorizeAnswer(mockRequest)).rejects.toThrow('OpenAI API key is invalid');
   });
@@ -200,6 +195,7 @@ describe('categorizeAnswer', () => {
 
     expect(result.webContext).toBeDefined();
     expect(Array.isArray(result.webContext)).toBe(true);
+    expect(result.webContext?.length).toBeGreaterThan(0);
   });
 
   it('should include images in results', async () => {
@@ -207,6 +203,7 @@ describe('categorizeAnswer', () => {
 
     expect(result.images).toBeDefined();
     expect(Array.isArray(result.images)).toBe(true);
+    expect(result.images?.length).toBeGreaterThan(0);
   });
 
   it('should use vision AI when visionModel is provided', async () => {
@@ -228,35 +225,10 @@ describe('categorizeAnswer', () => {
       customTemplate,
     };
 
-    // Mock to capture the system prompt
-    let capturedPrompt: string = '';
-    vi.mock('openai', () => ({
-      default: class OpenAI {
-        chat = {
-          completions: {
-            create: vi.fn(async (params: any) => {
-              capturedPrompt = params.messages[0].content;
-              return {
-                choices: [
-                  {
-                    message: {
-                      content: JSON.stringify({
-                        suggestions: [],
-                      }),
-                    },
-                  },
-                ],
-              };
-            }),
-          },
-        };
-      },
-    }));
-
     await categorizeAnswer(requestWithTemplate);
 
-    // Should use custom template
-    expect(capturedPrompt).toContain('Brands');
+    const firstCall = chatCompletionMock.mock.calls[0]?.[0];
+    expect(firstCall?.messages?.[0]?.content).toContain('Custom template for Brands');
   });
 });
 
@@ -304,10 +276,15 @@ describe('batchCategorizeAnswers', () => {
       },
     ];
 
+    chatCompletionMock
+      .mockResolvedValueOnce(buildOpenAIResponse([{ code_id: '1', code_name: 'Nike', confidence: 0.9 }]))
+      .mockRejectedValueOnce(new Error('OpenAI failure'));
+
     const results = await batchCategorizeAnswers(requests);
 
     // Should return results for both (even if one failed)
     expect(results).toHaveLength(2);
+    expect(results[0].suggestions).toBeDefined();
     expect(results[1].suggestions).toEqual([]); // Failed request returns empty
   });
 });

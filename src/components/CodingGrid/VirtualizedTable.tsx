@@ -52,6 +52,8 @@ export function VirtualizedTable({
   formatDate,
 }: VirtualizedTableProps) {
   const ROW_HEIGHT = 60; // Height of each row in pixels
+  const DEFAULT_HEIGHT = ROW_HEIGHT * 8;
+  const DEFAULT_WIDTH = 1200;
 
   // Row renderer function - wraps DesktopRow in table context
   const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
@@ -86,11 +88,11 @@ export function VirtualizedTable({
   };
 
   return (
-    <AutoSizer>
+    <AutoSizer defaultHeight={DEFAULT_HEIGHT} defaultWidth={DEFAULT_WIDTH}>
       {({ height, width }) => (
         <FixedSizeList
-          height={height}
-          width={width}
+          height={Math.max(height ?? DEFAULT_HEIGHT, ROW_HEIGHT)}
+          width={Math.max(width ?? DEFAULT_WIDTH, 320)}
           itemCount={answers.length}
           itemSize={ROW_HEIGHT}
           overscanCount={10} // Render 10 extra rows above/below viewport for smooth scrolling

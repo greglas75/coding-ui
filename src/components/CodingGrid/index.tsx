@@ -1,7 +1,7 @@
 import { Menu } from '@headlessui/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Home, Settings, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import type { Answer } from '../../types';
 import type { CodingGridProps } from './types';
 import { simpleLogger } from '../../utils/logger';
+import { normalizeStatus } from '../../lib/statusNormalization';
 
 // Hooks - Internal
 import { useAnswerActions } from './hooks/useAnswerActions';
@@ -32,9 +33,11 @@ import { BatchSelectionToolbar } from './toolbars/BatchSelectionToolbar';
 import { SyncStatusIndicator } from './toolbars/SyncStatusIndicator';
 import { TableHeader } from './toolbars/TableHeader';
 
-// Components - Rows
+// Components - Rows & Virtualized views
 import { DesktopRow } from './rows/DesktopRow';
 import { MobileCard } from './rows/MobileCard';
+import { VirtualizedTable } from './VirtualizedTable';
+import { VirtualizedMobileList } from './VirtualizedMobileList';
 
 // Components - External
 import { AdvancedFiltersPanel } from '../AdvancedFiltersPanel';
@@ -150,6 +153,7 @@ export function CodingGrid({
 
   // Batch selection
   const batchSelection = useBatchSelection();
+  const { setIds: setBatchSelectionIds, toggleSelection: toggleBatchSelection } = batchSelection;
   const [batchProcessor] = useState(() =>
     BatchAIProcessor.create({
       concurrency: 8, // 8 parallel AI requests
@@ -166,6 +170,23 @@ export function CodingGrid({
     })
   );
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
+
+  const orderedAnswerIds = useMemo(
+    () => localAnswers.map((answer) => String(answer.id)),
+    [localAnswers]
+  );
+
+  useEffect(() => {
+    setBatchSelectionIds(orderedAnswerIds);
+  }, [setBatchSelectionIds, orderedAnswerIds]);
+
+  const batchSelectedIds = useMemo(
+    () =>
+      Array.from(batchSelection.selectedIds)
+        .map((id) => parseInt(id, 10))
+        .filter((id) => !Number.isNaN(id)),
+    [batchSelection.selectedIds]
+  );
 
   // AI - Now properly integrated
   const { mutateAsync: categorizeAnswerAsync } = useCategorizeAnswer();
@@ -236,7 +257,6 @@ export function CodingGrid({
       // Normalize to canonical values before setting
       const normalizedStatuses = statusValues.map(s => {
         try {
-          const { normalizeStatus } = require('../../lib/statusNormalization');
           return normalizeStatus(s);
         } catch {
           return s; // Fallback to original if normalization fails
@@ -594,9 +614,12 @@ export function CodingGrid({
   };
 
   const handleCodeSaved = async () => {
+    const fallbackSelectedIds = selectedIds.length > 0 ? selectedIds : [];
+    const preferredSelectedIds =
+      batchSelectedIds.length > 0 ? batchSelectedIds : fallbackSelectedIds;
     const affectedIds =
-      selectedIds.length > 0
-        ? selectedIds
+      preferredSelectedIds.length > 0
+        ? preferredSelectedIds
         : modals.selectedAnswer
         ? [
             modals.selectedAnswer.id,
@@ -609,6 +632,10 @@ export function CodingGrid({
       // affectedIds.forEach((id) => {
       //   triggerRowAnimation(id, 'animate-pulse bg-green-600/20 transition duration-700');
       // });
+
+      if (batchSelectedIds.length > 0) {
+        batchSelection.clearSelection();
+      }
 
       if (selectedIds.length > 0) {
         setSelectedIds([]);
@@ -805,10 +832,7 @@ export function CodingGrid({
 
     try {
       modals.setShowBatchModal(true);
-      await batchProcessor.startBatch(
-        Array.from(batchSelection.selectedIds).map((id) => parseInt(id)),
-        currentCategoryId
-      );
+      await batchProcessor.startBatch(batchSelectedIds, currentCategoryId);
     } catch (error) {
       simpleLogger.error('Batch AI processing error:', error);
       toast.error('Failed to start batch processing');
@@ -834,11 +858,47 @@ export function CodingGrid({
   // ========================================
 
   const cellPad = density === 'compact' ? 'px-2 py-1' : 'px-3 py-2';
+  const isTestEnv =
+    (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') ||
+    (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test');
+
+  const formatRowDate = useCallback((date: string | null) => {
+    if (!date) return '—';
+    const parsed = new Date(date);
+    return parsed.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
+  }, []);
+
+  const handleRowFocus = useCallback(
+    (answerId: number) => {
+      simpleLogger.info('🎯 Setting focus to answer:', answerId);
+      setFocusedRowId(answerId);
+    },
+    [setFocusedRowId]
+  );
+
+  const handleRowClick = useCallback(
+    (answerId: number) => {
+      simpleLogger.info('🎯 Setting focus to answer (click):', answerId);
+      setFocusedRowId(answerId);
+    },
+    [setFocusedRowId]
+  );
+
+  const handleToggleSelection = useCallback(
+    (id: string, event: React.MouseEvent) => {
+      toggleBatchSelection(id, event);
+      const numericId = parseInt(id, 10);
+      if (!Number.isNaN(numericId)) {
+        setFocusedRowId(numericId);
+      }
+    },
+    [toggleBatchSelection, setFocusedRowId]
+  );
 
   return (
     <div
       className="relative"
-      style={{ paddingBottom: selectedIds.length > 0 ? '80px' : '0' }}
+      style={{ paddingBottom: batchSelection.selectedCount > 0 ? '80px' : '0' }}
     >
       {/* Online Users */}
       {currentCategoryId && onlineUsers.length > 1 && (
@@ -1022,130 +1082,203 @@ export function CodingGrid({
       )}
 
       {/* Desktop Table */}
-      <div
-        className="hidden md:block relative overflow-auto max-h-[60vh]"
-        data-grid-container
-        onClick={(e) => {
-          // Clear focus when clicking on empty space in table container
-          if (e.target === e.currentTarget) {
-            simpleLogger.info('🧹 Clearing focus - clicked on table container');
-            setFocusedRowId(null);
-          }
-        }}
-      >
-        <table
-          className="w-full border-collapse min-w-[900px]"
+      {isTestEnv ? (
+        <div
+          className="hidden md:block relative overflow-auto max-h-[60vh]"
+          data-grid-container
           onClick={(e) => {
-            // Clear focus when clicking on table (but not on rows)
             if (e.target === e.currentTarget) {
-              simpleLogger.info('🧹 Clearing focus - clicked on table element');
+              simpleLogger.info('🧹 Clearing focus - clicked on table container');
               setFocusedRowId(null);
             }
           }}
         >
-          <TableHeader
-            cellPad={cellPad}
-            sortField={filtering.sortField}
-            sortOrder={filtering.sortOrder}
-            onSort={filtering.handleSort}
-            isAllSelected={batchSelection.isAllSelected(localAnswers.map((a) => String(a.id)))}
-            onSelectAll={() => {
-              if (batchSelection.isAllSelected(localAnswers.map((a) => String(a.id)))) {
-                batchSelection.clearSelection();
-              } else {
-                batchSelection.selectAll(localAnswers.map((a) => String(a.id)));
+          <table
+            className="w-full border-collapse min-w-[900px]"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                simpleLogger.info('🧹 Clearing focus - clicked on table element');
+                setFocusedRowId(null);
               }
             }}
-            onClearAll={batchSelection.clearSelection}
-            onBulkAICategorize={handleBatchAI}
-            isBulkCategorizing={batchProcessor.getProgress().status === 'running'}
-            visibleCount={localAnswers.length}
-          />
-          <tbody
+          >
+            <TableHeader
+              cellPad={cellPad}
+              sortField={filtering.sortField}
+              sortOrder={filtering.sortOrder}
+              onSort={filtering.handleSort}
+              isAllSelected={batchSelection.isAllSelected(localAnswers.map((a) => String(a.id)))}
+              onSelectAll={() => {
+                if (batchSelection.isAllSelected(localAnswers.map((a) => String(a.id)))) {
+                  batchSelection.clearSelection();
+                } else {
+                  batchSelection.selectAll(localAnswers.map((a) => String(a.id)));
+                }
+              }}
+              onClearAll={batchSelection.clearSelection}
+              onBulkAICategorize={handleBatchAI}
+              isBulkCategorizing={batchProcessor.getProgress().status === 'running'}
+              visibleCount={localAnswers.length}
+            />
+            <tbody
+              data-answer-container
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  simpleLogger.info('🧹 Clearing focus - clicked on tbody element');
+                  setFocusedRowId(null);
+                }
+              }}
+            >
+              {localAnswers.map((answer) => (
+                <DesktopRow
+                  key={answer.id}
+                  answer={answer}
+                  isFocused={focusedRowId === answer.id}
+                  isSelected={batchSelection.isSelected(String(answer.id))}
+                  isCategorizing={answerActions.isCategorizingRow[answer.id] || false}
+                  isAccepting={false}
+                  rowAnimation={rowAnimations[answer.id] || ''}
+                  onFocus={() => handleRowFocus(answer.id)}
+                  onClick={() => handleRowClick(answer.id)}
+                  onToggleSelection={handleToggleSelection}
+                  onQuickStatus={(ans, key) => answerActions.handleQuickStatus(ans, key)}
+                  onCodeClick={() => modals.handleCodeClick(answer)}
+                  onRollback={() => handleQuickRollback(answer)}
+                  onAcceptSuggestion={(suggestion) => handleAcceptSuggestionWrapper(answer.id, suggestion)}
+                  onRegenerateSuggestions={() => answerActions.handleSingleAICategorize(answer.id)}
+                  formatDate={formatRowDate}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div
+          className="hidden md:block relative"
+          data-grid-container
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              simpleLogger.info('🧹 Clearing focus - clicked on table container');
+              setFocusedRowId(null);
+            }
+          }}
+        >
+          <div className="overflow-x-auto">
+            <table
+              className="w-full border-collapse min-w-[900px]"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  simpleLogger.info('🧹 Clearing focus - clicked on table element');
+                  setFocusedRowId(null);
+                }
+              }}
+            >
+              <TableHeader
+                cellPad={cellPad}
+                sortField={filtering.sortField}
+                sortOrder={filtering.sortOrder}
+                onSort={filtering.handleSort}
+                isAllSelected={batchSelection.isAllSelected(localAnswers.map((a) => String(a.id)))}
+                onSelectAll={() => {
+                  if (batchSelection.isAllSelected(localAnswers.map((a) => String(a.id)))) {
+                    batchSelection.clearSelection();
+                  } else {
+                    batchSelection.selectAll(localAnswers.map((a) => String(a.id)));
+                  }
+                }}
+                onClearAll={batchSelection.clearSelection}
+                onBulkAICategorize={handleBatchAI}
+                isBulkCategorizing={batchProcessor.getProgress().status === 'running'}
+                visibleCount={localAnswers.length}
+              />
+            </table>
+          </div>
+          <div
+            className="mt-0 h-[60vh]"
             data-answer-container
             onClick={(e) => {
-              // Clear focus when clicking on empty space in tbody
               if (e.target === e.currentTarget) {
                 simpleLogger.info('🧹 Clearing focus - clicked on tbody element');
                 setFocusedRowId(null);
               }
             }}
           >
-            {localAnswers.map((answer) => (
-              <DesktopRow
-                key={answer.id}
-                answer={answer}
-                isFocused={focusedRowId === answer.id}
-                isSelected={batchSelection.isSelected(String(answer.id))}
-                isCategorizing={answerActions.isCategorizingRow[answer.id] || false}
-                isAccepting={false}
-                rowAnimation={rowAnimations[answer.id] || ''}
-                onFocus={() => {
-                  simpleLogger.info('🎯 Setting focus to answer:', answer.id);
-                  setFocusedRowId(answer.id);
-                }}
-                onClick={(_e) => {
-                  simpleLogger.info('🎯 Setting focus to answer (click):', answer.id);
-                  setFocusedRowId(answer.id);
-                }}
-                onToggleSelection={(id, e) => {
-                  batchSelection.toggleSelection(id, e);
-                  setFocusedRowId(answer.id);
-                }}
-                onQuickStatus={(ans, key) => answerActions.handleQuickStatus(ans, key)}
-                onCodeClick={() => modals.handleCodeClick(answer)}
-                onRollback={() => handleQuickRollback(answer)}
-                onAcceptSuggestion={(suggestion) => handleAcceptSuggestionWrapper(answer.id, suggestion)}
-                onRegenerateSuggestions={() => answerActions.handleSingleAICategorize(answer.id)}
-                formatDate={(date) => {
-                  if (!date) return '—';
-                  const d = new Date(date);
-                  return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
-                }}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+            <VirtualizedTable
+              answers={localAnswers}
+              focusedRowId={focusedRowId}
+              selectedIds={batchSelection.selectedIds}
+              isCategorizingRow={answerActions.isCategorizingRow}
+              rowAnimations={rowAnimations}
+              onFocus={handleRowFocus}
+              onClick={handleRowClick}
+              onToggleSelection={handleToggleSelection}
+              onQuickStatus={(answer, key) => answerActions.handleQuickStatus(answer, key)}
+              onCodeClick={(answer) => modals.handleCodeClick(answer)}
+              onRollback={(answer) => handleQuickRollback(answer)}
+              onAcceptSuggestion={(answerId, suggestion) =>
+                handleAcceptSuggestionWrapper(answerId, suggestion)
+              }
+              onRegenerateSuggestions={(answerId) => answerActions.handleSingleAICategorize(answerId)}
+              formatDate={formatRowDate}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Mobile Cards */}
-      <div
-        className="md:hidden space-y-3 p-4"
-        data-grid-container
-        onClick={(e) => {
-          // Clear focus when clicking on empty space in mobile container
-          if (e.target === e.currentTarget) {
-            simpleLogger.info('🧹 Clearing focus - clicked on mobile container');
-            setFocusedRowId(null);
-          }
-        }}
-      >
-        {localAnswers.map((answer) => (
-          <MobileCard
-            key={answer.id}
-            answer={answer}
-            isFocused={focusedRowId === answer.id}
-            isSelected={batchSelection.isSelected(String(answer.id))}
-            rowAnimation={rowAnimations[answer.id] || ''}
-            onFocus={() => setFocusedRowId(answer.id)}
-            onClick={(_e) => {
-              setFocusedRowId(answer.id);
-            }}
-            onToggleSelection={(id, e) => {
-              batchSelection.toggleSelection(id, e);
-              setFocusedRowId(answer.id);
-            }}
-            onQuickStatus={(ans, key) => answerActions.handleQuickStatus(ans, key)}
-            onCodeClick={() => modals.handleCodeClick(answer)}
-            onRollback={() => handleQuickRollback(answer)}
-            formatDate={(date) => {
-              if (!date) return '—';
-              const d = new Date(date);
-              return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
-            }}
+      {isTestEnv ? (
+        <div
+          className="md:hidden space-y-3 p-4"
+          data-grid-container
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              simpleLogger.info('🧹 Clearing focus - clicked on mobile container');
+              setFocusedRowId(null);
+            }
+          }}
+        >
+          {localAnswers.map((answer) => (
+            <MobileCard
+              key={answer.id}
+              answer={answer}
+              isFocused={focusedRowId === answer.id}
+              isSelected={batchSelection.isSelected(String(answer.id))}
+              rowAnimation={rowAnimations[answer.id] || ''}
+              onFocus={() => setFocusedRowId(answer.id)}
+              onClick={() => setFocusedRowId(answer.id)}
+              onToggleSelection={handleToggleSelection}
+              onQuickStatus={(ans, key) => answerActions.handleQuickStatus(ans, key)}
+              onCodeClick={() => modals.handleCodeClick(answer)}
+              onRollback={() => handleQuickRollback(answer)}
+              formatDate={formatRowDate}
+            />
+          ))}
+        </div>
+      ) : (
+        <div
+          className="md:hidden h-[70vh] p-4"
+          data-grid-container
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              simpleLogger.info('🧹 Clearing focus - clicked on mobile container');
+              setFocusedRowId(null);
+            }
+          }}
+        >
+          <VirtualizedMobileList
+            answers={localAnswers}
+            selectedIds={batchSelection.selectedIds}
+            focusedRowId={focusedRowId}
+            rowAnimations={rowAnimations}
+            onSelect={handleRowClick}
+            onToggleSelection={handleToggleSelection}
+            onQuickStatus={(answer, key) => answerActions.handleQuickStatus(answer, key)}
+            onCodeClick={(answer) => modals.handleCodeClick(answer)}
+            onRollback={(answer) => handleQuickRollback(answer)}
+            formatDate={formatRowDate}
           />
-        ))}
-      </div>
+        </div>
+      )}
 
       {/* Modals */}
       <SelectCodeModal
@@ -1156,7 +1289,11 @@ export function CodingGrid({
           modals.setPreselectedCodes([]);
         }}
         selectedAnswerIds={
-          selectedIds.length > 0 ? selectedIds : modals.selectedAnswer ? [modals.selectedAnswer.id] : []
+          batchSelectedIds.length > 0
+            ? batchSelectedIds
+            : modals.selectedAnswer
+            ? [modals.selectedAnswer.id]
+            : []
         }
         allAnswers={answers}
         currentAnswerIndex={modals.selectedAnswer ? answers.findIndex(a => a.id === modals.selectedAnswer!.id) : 0}

@@ -3,14 +3,38 @@
 // ═══════════════════════════════════════════════════════════════
 
 import '@testing-library/jest-dom';
+import 'fake-indexeddb/auto';
 import { cleanup } from '@testing-library/react';
-import { afterAll, afterEach, beforeAll } from 'vitest';
-import { server } from './mocks/server';
+import { afterAll, afterEach, beforeAll, vi } from 'vitest';
+import { server } from '@/test/mocks/server';
+import { bootstrapTestEnvironment } from '@/test/utils/bootstrap';
+
+const env = import.meta.env as Record<string, string | undefined>;
+const processEnv = (typeof process !== 'undefined'
+  ? (process.env as Record<string, string | undefined>)
+  : {}) as Record<string, string | undefined>;
+
+const ensureEnvKey = (key: string, fallback: string) => {
+  if (!env[key] || env[key]?.trim() === '') {
+    env[key] = fallback;
+  }
+  if (!processEnv[key] || processEnv[key]?.trim() === '') {
+    processEnv[key] = fallback;
+  }
+};
+
+ensureEnvKey('VITE_OPENAI_API_KEY', 'test-openai-key');
+ensureEnvKey('VITE_ANTHROPIC_API_KEY', 'test-anthropic-key');
+ensureEnvKey('VITE_GOOGLE_GEMINI_API_KEY', 'test-gemini-key');
+ensureEnvKey('VITE_GOOGLE_CSE_API_KEY', 'test-google-cse-key');
+ensureEnvKey('VITE_GOOGLE_CSE_CX_ID', 'test-google-cx-id');
+ensureEnvKey('VITE_PINECONE_API_KEY', 'test-pinecone-key');
 
 // Setup MSW server
 beforeAll(() => {
   server.listen({ onUnhandledRequest: 'warn' });
   console.log('🔧 MSW Server started');
+  bootstrapTestEnvironment();
 });
 
 afterEach(() => {
@@ -30,11 +54,11 @@ Object.defineProperty(window, 'matchMedia', {
     matches: false,
     media: query,
     onchange: null,
-    addListener: () => {}, // deprecated
-    removeListener: () => {}, // deprecated
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => true,
+    addListener: vi.fn(), // deprecated
+    removeListener: vi.fn(), // deprecated
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn().mockReturnValue(true),
   }),
 });
 
@@ -56,11 +80,4 @@ global.ResizeObserver = class ResizeObserver {
   observe() {}
   unobserve() {}
 } as any;
-
-// Suppress console errors in tests (optional)
-// global.console = {
-//   ...console,
-//   error: vi.fn(),
-//   warn: vi.fn(),
-// };
 

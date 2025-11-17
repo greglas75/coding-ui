@@ -28,115 +28,73 @@ export interface ModelInfo {
 // ───────────────────────────────────────────────────────────────
 
 const MODELS: Record<string, ModelInfo> = {
-  // OpenAI Models (October 2025)
-  'gpt-5': {
-    id: 'gpt-5',
+  // OpenAI
+  'gpt-5.0': {
+    id: 'gpt-5.0-2025-09-01',
     provider: 'openai',
-    costPer1M: 15.0,
+    costPer1M: 15,
     avgLatency: 1200,
     quality: 10,
   },
-  'o1-preview': {
-    id: 'o1-preview',
+  'gpt-4.5-turbo': {
+    id: 'gpt-4.5-turbo-2025-04-15',
     provider: 'openai',
-    costPer1M: 15.0,
-    avgLatency: 2000,
-    quality: 9.8,
-  },
-  'o1-mini': {
-    id: 'o1-mini',
-    provider: 'openai',
-    costPer1M: 3.0,
-    avgLatency: 1000,
-    quality: 9,
+    costPer1M: 8,
+    avgLatency: 650,
+    quality: 9.2,
   },
   'gpt-4o': {
-    id: 'gpt-4o',
+    id: 'gpt-4o-2024-08-01',
     provider: 'openai',
-    costPer1M: 5.0,
+    costPer1M: 5,
     avgLatency: 600,
     quality: 9,
   },
   'gpt-4o-mini': {
-    id: 'gpt-4o-mini',
+    id: 'gpt-4o-mini-2024-08-01',
     provider: 'openai',
     costPer1M: 0.15,
-    avgLatency: 400,
+    avgLatency: 350,
     quality: 8,
   },
-  'gpt-4-turbo': {
-    id: 'gpt-4-turbo',
-    provider: 'openai',
-    costPer1M: 10.0,
-    avgLatency: 800,
-    quality: 8.8,
-  },
 
-  // Anthropic Models (October 2025)
-  'claude-sonnet-4.5': {
-    id: 'claude-sonnet-4.5-20250929',
+  // Anthropic
+  'claude-3.5-opus': {
+    id: 'claude-3.5-opus-2024-07-18',
     provider: 'anthropic',
-    costPer1M: 3.0,
-    avgLatency: 700,
-    quality: 10,
-  },
-  'claude-opus-4': {
-    id: 'claude-opus-4-20250522',
-    provider: 'anthropic',
-    costPer1M: 15.0,
+    costPer1M: 15,
     avgLatency: 1100,
-    quality: 9.5,
+    quality: 9.6,
   },
-  'claude-3-opus': {
-    id: 'claude-3-opus-20240229',
+  'claude-3.5-sonnet': {
+    id: 'claude-3.5-sonnet-2024-07-18',
     provider: 'anthropic',
-    costPer1M: 15.0,
-    avgLatency: 1200,
+    costPer1M: 3,
+    avgLatency: 700,
     quality: 9.2,
   },
-  'claude-3-sonnet': {
-    id: 'claude-3-sonnet-20240229',
-    provider: 'anthropic',
-    costPer1M: 3.0,
-    avgLatency: 750,
-    quality: 8.8,
-  },
-  'claude-3-haiku': {
-    id: 'claude-3-haiku-20240307',
+  'claude-3.5-haiku': {
+    id: 'claude-3.5-haiku-2024-07-18',
     provider: 'anthropic',
     costPer1M: 0.25,
-    avgLatency: 350,
-    quality: 7.5,
+    avgLatency: 320,
+    quality: 8,
   },
 
-  // Google Gemini Models (October 2025)
-  'gemini-2.0-pro-exp': {
-    id: 'gemini-2.0-pro-experimental',
+  // Google Gemini
+  'gemini-2.5-pro': {
+    id: 'gemini-2.5-pro-2025-05-10',
     provider: 'google',
-    costPer1M: 2.5,
-    avgLatency: 900,
-    quality: 9.5,
+    costPer1M: 2,
+    avgLatency: 850,
+    quality: 9.4,
   },
-  'gemini-2.0-flash': {
-    id: 'gemini-2.0-flash',
+  'gemini-2.5-flash': {
+    id: 'gemini-2.5-flash-2025-05-10',
     provider: 'google',
-    costPer1M: 0.075,
-    avgLatency: 300,
-    quality: 8.5,
-  },
-  'gemini-1.5-pro': {
-    id: 'gemini-1.5-pro',
-    provider: 'google',
-    costPer1M: 1.25,
-    avgLatency: 800,
-    quality: 9,
-  },
-  'gemini-1.5-flash': {
-    id: 'gemini-1.5-flash',
-    provider: 'google',
-    costPer1M: 0.075,
-    avgLatency: 250,
-    quality: 8,
+    costPer1M: 0.06,
+    avgLatency: 280,
+    quality: 8.6,
   },
 };
 
@@ -155,35 +113,30 @@ export function selectModel(task: TaskType, priority: Priority = 'balanced'): st
   // Task-specific routing
   switch (task) {
     case 'entity_detection':
-      return priority === 'fast' ? 'gemini-2.0-flash' : 'gemini-2.0-pro-exp';
+      return priority === 'fast' ? 'gemini-2.5-flash' : 'gemini-2.5-pro';
 
     case 'translation':
-      // Gemini excels at translation
-      return 'gemini-2.0-pro-exp';
+      return 'gemini-2.5-pro';
 
     case 'context_build':
-      // Claude is great at understanding context
-      return priority === 'accurate' ? 'claude-opus-4' : 'claude-sonnet-4.5';
+      return priority === 'accurate' ? 'claude-3.5-opus' : 'claude-3.5-sonnet';
 
     case 'coding':
-      // Best models for coding/categorization - Claude Sonnet 4.5 is best for coding
       switch (priority) {
         case 'fast':
-          return 'gpt-4o-mini';
+          return 'claude-3.5-haiku';
         case 'balanced':
-          return 'claude-sonnet-4.5';
+          return 'claude-3.5-sonnet';
         case 'accurate':
-          return 'gpt-5';
+          return 'gpt-5.0';
       }
       break;
 
     case 'qa_scoring':
-      // Critical QA needs high accuracy
-      return priority === 'fast' ? 'claude-sonnet-4.5' : 'claude-opus-4';
+      return priority === 'fast' ? 'claude-3.5-sonnet' : 'claude-3.5-opus';
 
     case 'evaluation':
-      // Fast evaluation with GPT-4o
-      return 'gpt-4o';
+      return 'gpt-4.5-turbo';
 
     case 'general':
     default:
@@ -221,13 +174,13 @@ export function selectFallbackModel(primaryModel: string, _task: TaskType): stri
 
   switch (primary.provider) {
     case 'openai':
-      alternatives.push('claude-sonnet-4.5', 'gemini-2.0-pro-exp');
+      alternatives.push('claude-3.5-sonnet', 'gemini-2.5-pro');
       break;
     case 'anthropic':
-      alternatives.push('gpt-4o', 'gemini-2.0-pro-exp');
+      alternatives.push('gpt-4o', 'gemini-2.5-pro');
       break;
     case 'google':
-      alternatives.push('claude-sonnet-4.5', 'gpt-4o');
+      alternatives.push('claude-3.5-sonnet', 'gpt-4o');
       break;
   }
 

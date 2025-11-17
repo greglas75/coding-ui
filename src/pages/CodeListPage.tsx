@@ -12,19 +12,40 @@ import { simpleLogger } from '../utils/logger';
 import { recountMentions } from '../lib/metrics';
 import { optimisticArrayUpdate, optimisticUpdate } from '../lib/optimisticUpdate';
 import { supabase } from '../lib/supabase';
+import { useDebounce } from '../hooks/useDebounce';
+import { useCodes } from '../hooks/useCodes';
 import type { Category, CodeWithCategories } from '../types';
 
 export function CodeListPage() {
-  const [codes, setCodes] = useState<CodeWithCategories[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [codeUsageCounts, setCodeUsageCounts] = useState<Record<number, number>>({});
 
   // Filter states
   const [searchText, setSearchText] = useState('');
   const [onlyWhitelisted, setOnlyWhitelisted] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<number[]>([]);
+
+  // Debounce search text (300ms) to avoid excessive queries
+  const debouncedSearchText = useDebounce(searchText, 300);
+
+  // Use TanStack Query to fetch codes with usage counts (replaces N+1 pattern)
+  const {
+    data: codesWithUsage = [],
+    isLoading: loading,
+    error: queryError,
+    refetch: refetchCodes,
+  } = useCodes({
+    searchText: debouncedSearchText,
+    onlyWhitelisted,
+    categoryIds: categoryFilter,
+  });
+
+  // Convert usage counts to old format for backward compatibility
+  const codes = codesWithUsage;
+  const codeUsageCounts = codesWithUsage.reduce(
+    (acc, code) => ({ ...acc, [code.id]: code.usage_count }),
+    {} as Record<number, number>
+  );
+  const error = queryError ? (queryError as Error).message : null;
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -43,123 +64,14 @@ export function CodeListPage() {
         setCategories(result.data);
       } else {
         simpleLogger.error("Error fetching categories:", result.error);
-        setError(`Failed to load categories: ${result.error instanceof Error ? result.error.message : 'Unknown error'}`);
+        // Note: error is now handled by queryError from useCodes hook
       }
     };
 
     loadCategories();
   }, []);
 
-
-  // Fetch codes with categories
-  async function fetchCodes() {
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Base query
-      let query = supabase
-        .from('codes')
-        .select('*')
-        .order('name');
-
-      // Apply filters
-      if (searchText.trim()) {
-        query = query.ilike('name', `%${searchText.trim()}%`);
-      }
-      if (onlyWhitelisted) {
-        query = query.eq('is_whitelisted', true);
-      }
-
-      const { data: codesData, error: codesError } = await query;
-
-      if (codesError) {
-        setError(codesError.message);
-        return;
-      }
-
-      // Fetch category relations
-      const { data: relationsData, error: relationsError } = await supabase
-        .from('codes_categories')
-        .select('code_id, category_id');
-
-      if (relationsError) {
-        setError(relationsError.message);
-        return;
-      }
-
-      // Build map of code_id -> category_ids
-      const relationsMap = new Map<number, number[]>();
-      relationsData?.forEach(rel => {
-        if (!relationsMap.has(rel.code_id)) {
-          relationsMap.set(rel.code_id, []);
-        }
-        relationsMap.get(rel.code_id)!.push(rel.category_id);
-      });
-
-      // Combine codes with their categories
-      const codesWithCategories: CodeWithCategories[] = (codesData || []).map(code => ({
-        ...code,
-        category_ids: relationsMap.get(code.id) || []
-      }));
-
-      // Apply category filter (multi-select)
-      let filteredCodes = codesWithCategories;
-      if (categoryFilter.length > 0) {
-        filteredCodes = codesWithCategories.filter(code =>
-          categoryFilter.some(catId => code.category_ids.includes(catId))
-        );
-      }
-
-      setCodes(filteredCodes);
-
-      // Fetch usage counts for these codes
-      const counts = await fetchCodeUsageCounts(codesWithCategories);
-      setCodeUsageCounts(counts);
-    } catch {
-      setError('Failed to fetch codes');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Fetch usage count for each code
-  async function fetchCodeUsageCounts(codes: CodeWithCategories[]) {
-    simpleLogger.info('📊 Fetching usage counts for codes...');
-
-    const countsMap: Record<number, number> = {};
-
-    try {
-      // For each code, count how many answers use it
-      // Using selected_code field which contains comma-separated code names
-      for (const code of codes) {
-        const { count, error } = await supabase
-          .from('answers')
-          .select('id', { count: 'exact', head: true })
-          .or(`selected_code.ilike.%${code.name}%,selected_code.ilike.${code.name},%,selected_code.eq.${code.name}`);
-
-        if (!error) {
-          countsMap[code.id] = count || 0;
-        } else {
-          simpleLogger.error(`Error counting usage for code ${code.name}:`, error);
-          countsMap[code.id] = 0;
-        }
-      }
-
-      simpleLogger.info('✅ Code usage counts loaded:', countsMap);
-      return countsMap;
-    } catch (error) {
-      simpleLogger.error('❌ Error fetching code usage counts:', error);
-      return {};
-    }
-  }
-
-  // Fetch codes when filters change
-  useEffect(() => {
-    fetchCodes();
-  }, [searchText, onlyWhitelisted, categoryFilter]);
-
-  // Update code name (with optimistic updates + auto-rollback!)
+  // Update code name
   async function updateCodeName(id: number, newName: string) {
     if (!newName.trim()) {
       toast.error("Code name cannot be empty");
@@ -171,89 +83,86 @@ export function CodeListPage() {
       return;
     }
 
-    await optimisticUpdate({
-      data: codes,
-      setData: setCodes,
-      id,
-      updates: {
-        name: newName.trim(),
-        updated_at: new Date().toISOString()
-      } as Partial<CodeWithCategories>,
-      updateFn: async () => {
-        simpleLogger.info("🟡 Renaming code:", id, "→", newName);
-        const { error } = await supabase
-          .from('codes')
-          .update({
-            name: newName.trim(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', id);
+    try {
+      simpleLogger.info("🟡 Renaming code:", id, "→", newName);
+      const { error } = await supabase
+        .from('codes')
+        .update({
+          name: newName.trim(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
 
-        if (error) throw error;
-        simpleLogger.info("✅ Code name updated successfully:", newName);
-      },
-      successMessage: `Code renamed to "${newName}"`,
-      errorMessage: 'Failed to update code name',
-    });
+      if (error) throw error;
+
+      simpleLogger.info("✅ Code name updated successfully:", newName);
+      toast.success(`Code renamed to "${newName}"`);
+
+      // Refetch to get updated data with usage counts
+      await refetchCodes();
+    } catch (error) {
+      simpleLogger.error("❌ Failed to update code name:", error);
+      toast.error('Failed to update code name');
+    }
   }
 
-  // Toggle whitelist status (instant feedback with optimistic toggle!)
+  // Toggle whitelist status
   async function toggleWhitelist(id: number, isWhitelisted: boolean) {
-    await optimisticUpdate({
-      data: codes,
-      setData: setCodes,
-      id,
-      updates: {
-        is_whitelisted: isWhitelisted,
-        updated_at: new Date().toISOString()
-      } as Partial<CodeWithCategories>,
-      updateFn: async () => {
-        const { error } = await supabase
-          .from('codes')
-          .update({
-            is_whitelisted: isWhitelisted,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', id);
+    try {
+      const { error } = await supabase
+        .from('codes')
+        .update({
+          is_whitelisted: isWhitelisted,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
 
-        if (error) throw error;
-      },
-      successMessage: isWhitelisted ? 'Added to whitelist' : 'Removed from whitelist',
-      errorMessage: 'Failed to update whitelist status',
-    });
+      if (error) throw error;
+
+      toast.success(isWhitelisted ? 'Added to whitelist' : 'Removed from whitelist');
+      await refetchCodes();
+    } catch (error) {
+      simpleLogger.error('❌ Failed to update whitelist status:', error);
+      toast.error('Failed to update whitelist status');
+    }
   }
 
   // Update code categories
   async function updateCodeCategories(id: number, categoryIds: number[]) {
-    // Delete existing relations
-    const { error: deleteError } = await supabase
-      .from('codes_categories')
-      .delete()
-      .eq('code_id', id);
-
-    if (deleteError) {
-      simpleLogger.error('Error deleting category relations:', deleteError);
-      return;
-    }
-
-    // Insert new relations
-    if (categoryIds.length > 0) {
-      const relations = categoryIds.map(categoryId => ({
-        code_id: id,
-        category_id: categoryId
-      }));
-
-      const { error: insertError } = await supabase
+    try {
+      // Delete existing relations
+      const { error: deleteError } = await supabase
         .from('codes_categories')
-        .insert(relations);
+        .delete()
+        .eq('code_id', id);
 
-      if (insertError) {
-        simpleLogger.error('Error inserting category relations:', insertError);
-        return;
+      if (deleteError) {
+        simpleLogger.error('Error deleting category relations:', deleteError);
+        throw deleteError;
       }
-    }
 
-    fetchCodes(); // Refresh list
+      // Insert new relations
+      if (categoryIds.length > 0) {
+        const relations = categoryIds.map(categoryId => ({
+          code_id: id,
+          category_id: categoryId
+        }));
+
+        const { error: insertError } = await supabase
+          .from('codes_categories')
+          .insert(relations);
+
+        if (insertError) {
+          simpleLogger.error('Error inserting category relations:', insertError);
+          throw insertError;
+        }
+      }
+
+      await refetchCodes(); // Refresh list
+    } catch (error) {
+      simpleLogger.error('❌ Failed to update code categories:', error);
+      toast.error('Failed to update code categories');
+    }
   }
 
   // Delete code
@@ -278,45 +187,36 @@ export function CodeListPage() {
   async function confirmDelete() {
     if (!codeToDelete) return;
 
-    const codeToRemove = codes.find(c => c.id === codeToDelete.id);
-    if (!codeToRemove) return;
-
     setDeleting(true);
 
     try {
-      await optimisticArrayUpdate(
-        codes,
-        setCodes,
-        'remove',
-        codeToRemove,
-        async () => {
-          // Delete from codes_categories first (foreign key constraint)
-          const { error: relationsError } = await supabase
-            .from('codes_categories')
-            .delete()
-            .eq('code_id', codeToDelete.id);
+      // Delete from codes_categories first (foreign key constraint)
+      const { error: relationsError } = await supabase
+        .from('codes_categories')
+        .delete()
+        .eq('code_id', codeToDelete.id);
 
-          if (relationsError) throw relationsError;
+      if (relationsError) throw relationsError;
 
-          // Delete from codes
-          const { error } = await supabase
-            .from('codes')
-            .delete()
-            .eq('id', codeToDelete.id);
+      // Delete from codes
+      const { error } = await supabase
+        .from('codes')
+        .delete()
+        .eq('id', codeToDelete.id);
 
-          if (error) throw error;
-        },
-        {
-          successMessage: `Code "${codeToDelete.name}" deleted`,
-          errorMessage: 'Failed to delete code',
-        }
-      );
+      if (error) throw error;
+
+      toast.success(`Code "${codeToDelete.name}" deleted`);
 
       // Close modal
       setDeleteModalOpen(false);
       setCodeToDelete(null);
+
+      // Refetch codes
+      await refetchCodes();
     } catch (error) {
       simpleLogger.error('❌ Error deleting code:', error);
+      toast.error('Failed to delete code');
     } finally {
       setDeleting(false);
     }
@@ -324,20 +224,21 @@ export function CodeListPage() {
 
   // Add new code
   async function addCode(name: string, categoryIds: number[]) {
-    const { data, error } = await supabase
-      .from('codes')
-      .insert({ name })
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('codes')
+        .insert({ name })
+        .select()
+        .single();
 
-    if (error) {
-      simpleLogger.error('Error adding code:', error);
-      return;
-    }
+      if (error) {
+        simpleLogger.error('Error adding code:', error);
+        throw error;
+      }
 
-    // Add category relations
-    if (categoryIds.length > 0) {
-      const relations = categoryIds.map(categoryId => ({
+      // Add category relations
+      if (categoryIds.length > 0) {
+        const relations = categoryIds.map(categoryId => ({
         code_id: data.id,
         category_id: categoryId
       }));
@@ -348,13 +249,19 @@ export function CodeListPage() {
 
       if (relationsError) {
         simpleLogger.error('Error adding category relations:', relationsError);
-        return;
+        throw relationsError;
       }
     }
 
-    setModalOpen(false);
-    fetchCodes(); // Refresh list
-    fetchCategories(); // Refresh categories to update counts
+      toast.success(`Code "${name}" added`);
+      setModalOpen(false);
+
+      // Refetch to get updated codes with usage counts
+      await refetchCodes();
+    } catch (error) {
+      simpleLogger.error('❌ Error adding code:', error);
+      toast.error('Failed to add code');
+    }
   }
 
   // Bulk upload codes
@@ -398,8 +305,7 @@ export function CodeListPage() {
       }
 
       setUploadModalOpen(false);
-      fetchCodes(); // Refresh list
-      fetchCategories(); // Refresh categories to update counts
+      await refetchCodes(); // Refresh list
     } catch (error) {
       simpleLogger.error('Bulk upload error:', error);
       toast.error('Upload failed');

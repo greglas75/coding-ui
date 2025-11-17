@@ -1,12 +1,31 @@
 /**
  * 🧪 MSW Mock Handlers
  *
- * Mock API responses for testing without real API calls
+ * Consolidated handlers for external APIs and Supabase endpoints.
  */
 
 import { http, HttpResponse } from 'msw';
 
-// Mock data
+const mockTranslations: Record<string, string> = {
+  'Używam GCash|en': 'I use GCash',
+  'Dzień dobry|en': 'Good morning',
+  'Cześć świat|en': 'Hello world',
+  'Test text|en': 'Fallback translation',
+};
+
+const mockSearchResults = [
+  {
+    title: 'GCash — Mobile wallet in Philippines',
+    snippet: 'GCash is the leading mobile wallet in the Philippines...',
+    link: 'https://example.com/gcash',
+  },
+  {
+    title: 'Maya — Digital bank in Philippines',
+    snippet: 'Maya offers digital banking and wallet services...',
+    link: 'https://example.com/maya',
+  },
+];
+
 const mockAnswers = [
   {
     id: 1,
@@ -21,34 +40,12 @@ const mockAnswers = [
     category_id: 1,
     created_at: new Date().toISOString(),
   },
-  {
-    id: 2,
-    answer_text: 'Adidas sneakers',
-    translation_en: 'Adidas sneakers',
-    language: 'en',
-    country: 'UK',
-    general_status: 'whitelist',
-    quick_status: 'Confirmed',
-    selected_code: 'Adidas',
-    ai_suggested_code: 'Adidas',
-    category_id: 1,
-    created_at: new Date().toISOString(),
-  },
 ];
 
-const mockCategories = [
-  {
-    id: 1,
-    name: 'Fashion Brands',
-    description: 'Test category',
-    created_at: new Date().toISOString(),
-  },
-];
-
+const mockCategories = [{ id: 1, name: 'Fashion Brands', description: 'Test category' }];
 const mockCodes = [
   { id: 1, name: 'Nike' },
   { id: 2, name: 'Adidas' },
-  { id: 3, name: 'Puma' },
 ];
 
 const mockOpenAIResponse = {
@@ -75,92 +72,51 @@ const mockOpenAIResponse = {
       finish_reason: 'stop',
     },
   ],
-  usage: {
-    prompt_tokens: 100,
-    completion_tokens: 50,
-    total_tokens: 150,
-  },
 };
 
-export const handlers = [
-  // Supabase - Answers
-  http.get('*/rest/v1/answers*', () => {
-    return HttpResponse.json(mockAnswers);
+const translationHandlers = [
+  http.post('https://api.openai.com/v1/chat/completions', async ({ request }) => {
+    const body = await request.json();
+    const userContent = body.messages?.find((msg: any) => msg.role === 'user')?.content;
+    const translation = mockTranslations[`${userContent}|${body.target_language || 'en'}`] ?? 'Translated text';
+    return HttpResponse.json({
+      choices: [
+        {
+          message: { content: translation },
+        },
+      ],
+    });
   }),
+  http.post('https://generativelanguage.googleapis.com/v1beta/models/*:generateContent', async ({ request }) => {
+    const body = await request.json();
+    const prompt = body.contents?.[0]?.parts?.[0]?.text;
+    const translation = mockTranslations[`${prompt}|en`] ?? 'Translated text';
+    return HttpResponse.json({
+      candidates: [
+        {
+          content: { parts: [{ text: translation }] },
+        },
+      ],
+    });
+  }),
+  http.get('https://www.googleapis.com/customsearch/v1', ({ request }) => {
+    const num = Number(new URL(request.url).searchParams.get('num')) || 2;
+    return HttpResponse.json({
+      items: mockSearchResults.slice(0, num),
+    });
+  }),
+];
 
+const supabaseHandlers = [
+  http.get('*/rest/v1/answers*', () => HttpResponse.json(mockAnswers)),
   http.post('*/rest/v1/answers*', async ({ request }) => {
     const body = (await request.json()) as any;
     return HttpResponse.json([{ ...body, id: Date.now() }]);
   }),
-
-  http.patch('*/rest/v1/answers*', async ({ request }) => {
-    const body = (await request.json()) as any;
-    return HttpResponse.json([{ ...mockAnswers[0], ...body }]);
-  }),
-
-  // Supabase - Categories
-  http.get('*/rest/v1/categories*', () => {
-    return HttpResponse.json(mockCategories);
-  }),
-
-  http.post('*/rest/v1/categories*', async ({ request }) => {
-    const body = (await request.json()) as any;
-    return HttpResponse.json([{ ...body, id: Date.now() }]);
-  }),
-
-  // Supabase - Codes
-  http.get('*/rest/v1/codes*', () => {
-    return HttpResponse.json(mockCodes);
-  }),
-
-  http.post('*/rest/v1/codes*', async ({ request }) => {
-    const body = (await request.json()) as any;
-    return HttpResponse.json([{ ...body, id: Date.now() }]);
-  }),
-
-  // Supabase RPC
-  http.post('*/rest/v1/rpc/*', () => {
-    return HttpResponse.json([]);
-  }),
-
-  // OpenAI API
-  http.post('*/v1/chat/completions', () => {
-    return HttpResponse.json(mockOpenAIResponse);
-  }),
-
-  // Google Custom Search
-  http.get('*/customsearch/v1', () => {
-    return HttpResponse.json({
-      items: [
-        {
-          title: 'Nike Official Site',
-          snippet: 'Shop Nike shoes and apparel',
-          link: 'https://nike.com',
-        },
-      ],
-    });
-  }),
-
-  // Google Gemini
-  http.post('*/generativelanguage.googleapis.com/*', () => {
-    return HttpResponse.json({
-      candidates: [
-        {
-          content: {
-            parts: [
-              {
-                text: JSON.stringify({
-                  brandDetected: true,
-                  brandName: 'Nike',
-                  confidence: 95,
-                  reasoning: 'Nike logo detected',
-                  objectsDetected: ['shoe', 'logo'],
-                }),
-              },
-            ],
-          },
-        },
-      ],
-    });
-  }),
+  http.get('*/rest/v1/categories*', () => HttpResponse.json(mockCategories)),
+  http.get('*/rest/v1/codes*', () => HttpResponse.json(mockCodes)),
+  http.post('*/rest/v1/rpc/*', () => HttpResponse.json([])),
+  http.post('*/v1/chat/completions', () => HttpResponse.json(mockOpenAIResponse)),
 ];
+
+export const handlers = [...translationHandlers, ...supabaseHandlers];

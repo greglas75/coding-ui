@@ -9,6 +9,25 @@
 
 import { obfuscate, deobfuscate, decrypt, isCryptoAvailable } from './encryption';
 
+const importMetaEnv = (import.meta?.env ?? {}) as Record<string, string | undefined>;
+
+if (typeof process !== 'undefined' && process.env) {
+  const envKeys = [
+    'VITE_OPENAI_API_KEY',
+    'VITE_ANTHROPIC_API_KEY',
+    'VITE_GOOGLE_GEMINI_API_KEY',
+    'VITE_GOOGLE_CSE_API_KEY',
+    'VITE_GOOGLE_CSE_CX_ID',
+    'VITE_PINECONE_API_KEY',
+  ];
+
+  envKeys.forEach(key => {
+    if (typeof importMetaEnv[key] === 'undefined' && typeof process.env[key] === 'string') {
+      importMetaEnv[key] = process.env[key];
+    }
+  });
+}
+
 export interface APIKeys {
   anthropic?: string | null;
   openai?: string | null;
@@ -30,6 +49,26 @@ function isSessionOnlyMode(): boolean {
  */
 function getStorage(): Storage {
   return isSessionOnlyMode() ? sessionStorage : localStorage;
+}
+
+function getEnvValue(envKey: string): string | null {
+  const envValue = importMetaEnv[envKey];
+
+  if (typeof envValue === 'string') {
+    if (envValue.trim().length > 0) {
+      return envValue;
+    }
+    return null;
+  }
+
+  const processValue =
+    typeof process !== 'undefined' ? (process.env?.[envKey] as string | undefined) : undefined;
+
+  if (typeof processValue === 'string' && processValue.trim().length > 0) {
+    return processValue;
+  }
+
+  return null;
 }
 
 /**
@@ -63,42 +102,42 @@ function setSecureValue(key: string, value: string): void {
  * Get Anthropic (Claude) API key from Settings page
  */
 export function getAnthropicAPIKey(): string | null {
-  return getSecureValue('anthropic_api_key');
+  return getSecureValue('anthropic_api_key') ?? getEnvValue('VITE_ANTHROPIC_API_KEY');
 }
 
 /**
  * Get OpenAI API key from Settings page
  */
 export function getOpenAIAPIKey(): string | null {
-  return getSecureValue('openai_api_key');
+  return getSecureValue('openai_api_key') ?? getEnvValue('VITE_OPENAI_API_KEY');
 }
 
 /**
  * Get Google Gemini API key from Settings page
  */
 export function getGoogleGeminiAPIKey(): string | null {
-  return getSecureValue('google_gemini_api_key');
+  return getSecureValue('google_gemini_api_key') ?? getEnvValue('VITE_GOOGLE_GEMINI_API_KEY');
 }
 
 /**
  * Get Google Custom Search API key from Settings page
  */
 export function getGoogleCSEAPIKey(): string | null {
-  return getSecureValue('google_cse_api_key');
+  return getSecureValue('google_cse_api_key') ?? getEnvValue('VITE_GOOGLE_CSE_API_KEY');
 }
 
 /**
  * Get Google Custom Search Engine ID (CX) from Settings page
  */
 export function getGoogleCSECXID(): string | null {
-  return getSecureValue('google_cse_cx_id');
+  return getSecureValue('google_cse_cx_id') ?? getEnvValue('VITE_GOOGLE_CSE_CX_ID');
 }
 
 /**
  * Get Pinecone API key from Settings page
  */
 export function getPineconeAPIKey(): string | null {
-  return getSecureValue('pinecone_api_key');
+  return getSecureValue('pinecone_api_key') ?? getEnvValue('VITE_PINECONE_API_KEY');
 }
 
 /**
