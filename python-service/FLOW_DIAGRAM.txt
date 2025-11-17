@@ -1,0 +1,475 @@
+VALIDATION SYSTEM - COMPLETE FLOW DIAGRAM
+==========================================
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         USER REQUEST                                    │
+│  POST /api/validate-response-comprehensive                              │
+│  {                                                                       │
+│    "user_response": "سنسوداين",                                        │
+│    "images": ["url1", "url2", "url3", "url4", "url5", "url6"],         │
+│    "google_search_results": {                                           │
+│       "query": "سنسوداين",                                             │
+│       "web_results": [...]                                              │
+│    },                                                                    │
+│    "language_code": "ar"  // optional                                   │
+│  }                                                                       │
+└────────────────────────────┬────────────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    FASTAPI ENDPOINT (main.py:1418)                      │
+│  - Extract ANTHROPIC_API_KEY from environment                           │
+│  - Initialize ComprehensiveValidator(anthropic_key, openai_key)         │
+│  - Call validator.validate_response(...)                                │
+└────────────────────────────┬────────────────────────────────────────────┘
+                             ↓
+╔═════════════════════════════════════════════════════════════════════════╗
+║                   STAGE 1: LANGUAGE & TRANSLATION                       ║
+║  Component: TranslationHandler                                          ║
+║  File: validators/translation_handler.py                                ║
+╚════════════════════════┬════════════════════════════════════════════════╝
+                         ↓
+        ┌────────────────────────────────────────┐
+        │ Step 1A: Detect Language               │
+        │ Library: langdetect                    │
+        │ Cost: FREE (local)                     │
+        │ Input: "سنسوداين"                     │
+        │ Output: "ar" (Arabic)                  │
+        │ Latency: <10ms                         │
+        └───────────────┬────────────────────────┘
+                        ↓
+        ┌────────────────────────────────────────┐
+        │ Step 1B: Check Script Type             │
+        │ Method: text.isascii()                 │
+        │ Cost: FREE (local)                     │
+        │ Result: is_non_latin = True            │
+        │ Latency: <1ms                          │
+        └───────────────┬────────────────────────┘
+                        ↓
+        ┌────────────────────────────────────────┐
+        │ Step 1C: Translate to English          │
+        │ Library: deep_translator               │
+        │ API: Google Translate (free tier)      │
+        │ Cost: FREE                             │
+        │ Input: "سنسوداين"                     │
+        │ Output: "Sensodyne"                    │
+        │ Latency: ~100-300ms                    │
+        │ Note: May use vision-detected brand    │
+        │       instead if available             │
+        └───────────────┬────────────────────────┘
+                        ↓
+        ┌────────────────────────────────────────┐
+        │ Step 1D: Format for Display            │
+        │ Logic:                                 │
+        │  - If non-Latin: "سنسوداين (Sensodyne)"│
+        │  - If Latin: "Sensodyne"               │
+        │ Cost: FREE (local)                     │
+        │ Latency: <1ms                          │
+        └───────────────┬────────────────────────┘
+                        ↓
+                 STAGE 1 COMPLETE
+                 Total Cost: $0.00
+                 Total Time: ~100-300ms
+                        ↓
+╔═════════════════════════════════════════════════════════════════════════╗
+║                    STAGE 2: VISION ANALYSIS                             ║
+║  Component: VisionAnalyzer                                              ║
+║  File: validators/vision_analyzer.py                                    ║
+╚════════════════════════┬════════════════════════════════════════════════╝
+                         ↓
+        ┌────────────────────────────────────────┐
+        │ Step 2A: Prepare Images                │
+        │ Method: _prepare_images()              │
+        │ - Limit to first 6 images              │
+        │ - Convert URLs to API format OR        │
+        │ - Parse base64 data URLs               │
+        │ Cost: FREE (local)                     │
+        │ Latency: ~50-100ms                     │
+        └───────────────┬────────────────────────┘
+                        ↓
+        ┌────────────────────────────────────────┐
+        │ Step 2B: Create Analysis Prompt        │
+        │ Prompt asks Claude to:                 │
+        │  1. Identify EXACT brand name          │
+        │     (in ANY script: Arabic, Latin, etc)│
+        │  2. Count ALL product occurrences      │
+        │  3. List spelling variations           │
+        │  4. Assess confidence                  │
+        │ Output format: JSON                    │
+        │ Cost: FREE (local)                     │
+        │ Latency: <1ms                          │
+        └───────────────┬────────────────────────┘
+                        ↓
+        ┌────────────────────────────────────────────────────────┐
+        │ Step 2C: CALL CLAUDE VISION API                        │
+        │ ════════════════════════════════════════════════════   │
+        │ THIS IS THE ONLY PAID API CALL IN THE ENTIRE SYSTEM    │
+        │ ════════════════════════════════════════════════════   │
+        │                                                         │
+        │ Endpoint: https://api.anthropic.com/v1/messages        │
+        │ Model: "claude-3-5-sonnet-20241022"                    │
+        │ Max Tokens: 2048                                       │
+        │ Timeout: 60 seconds                                    │
+        │                                                         │
+        │ Request Payload:                                       │
+        │ {                                                       │
+        │   "model": "claude-3-5-sonnet-20241022",               │
+        │   "max_tokens": 2048,                                  │
+        │   "messages": [                                        │
+        │     {                                                   │
+        │       "role": "user",                                  │
+        │       "content": [                                     │
+        │         { "type": "image", "source": {...} },  // x6  │
+        │         { "type": "text", "text": "<prompt>" }         │
+        │       ]                                                 │
+        │     }                                                   │
+        │   ]                                                     │
+        │ }                                                       │
+        │                                                         │
+        │ Response (JSON):                                       │
+        │ {                                                       │
+        │   "brand_primary": "Sensodyne",                        │
+        │   "brand_local": "سنسوداين",                          │
+        │   "total_products": 6,                                 │
+        │   "variants": {                                        │
+        │     "سنسوداين": 6,                                    │
+        │     "Sensodyne": 6,                                    │
+        │     "semosdine": 1  // misspelling                    │
+        │   },                                                    │
+        │   "confidence": "high",                                │
+        │   "red_flags": [],                                     │
+        │   "products_detail": [...]                             │
+        │ }                                                       │
+        │                                                         │
+        │ COST BREAKDOWN:                                        │
+        │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+        │ Input Tokens:                                          │
+        │   - Prompt text: ~1,000 tokens                         │
+        │   - Images (6x): ~variable (depends on size)           │
+        │   - Pricing: $3.00 per 1M tokens                       │
+        │   - Cost: ~$0.003 + image cost                         │
+        │                                                         │
+        │ Output Tokens:                                         │
+        │   - JSON response: ~300-500 tokens                     │
+        │   - Pricing: $15.00 per 1M tokens                      │
+        │   - Cost: ~$0.005-$0.0075                              │
+        │                                                         │
+        │ Images:                                                 │
+        │   - Per image: ~$0.001-$0.003                          │
+        │   - 6 images: ~$0.006-$0.018                           │
+        │                                                         │
+        │ TOTAL COST: ~$0.015 - $0.03 per validation             │
+        │ LATENCY: ~2-5 seconds                                  │
+        └───────────────┬────────────────────────────────────────┘
+                        ↓
+        ┌────────────────────────────────────────┐
+        │ Step 2D: Parse Response                │
+        │ - Extract JSON from response           │
+        │ - Handle markdown code blocks          │
+        │ - Create VisionAnalysisResult object   │
+        │ Cost: FREE (local)                     │
+        │ Latency: <10ms                         │
+        └───────────────┬────────────────────────┘
+                        ↓
+                 STAGE 2 COMPLETE
+                 Total Cost: $0.015-$0.03
+                 Total Time: ~2-5 seconds
+                        ↓
+╔═════════════════════════════════════════════════════════════════════════╗
+║                    STAGE 3: SEARCH VALIDATION                           ║
+║  Component: SearchValidator                                             ║
+║  File: validators/search_validator.py                                   ║
+║  CRITICAL: NO API CALLS - Analyzes pre-fetched results                  ║
+╚════════════════════════┬════════════════════════════════════════════════╝
+                         ↓
+        ┌────────────────────────────────────────┐
+        │ Step 3A: Verify Search Language        │
+        │ - Extract search query from results    │
+        │ - CRITICAL CHECK:                      │
+        │   search_query == user_response        │
+        │   Example: "سنسوداين" == "سنسوداين"  │
+        │   NOT "Sensodyne"                      │
+        │ - Log warning if mismatch              │
+        │ Cost: FREE (local)                     │
+        │ Latency: <1ms                          │
+        └───────────────┬────────────────────────┘
+                        ↓
+        ┌────────────────────────────────────────┐
+        │ Step 3B: Count Relevant Results        │
+        │ Logic:                                 │
+        │  For each search result:               │
+        │    - Extract title + snippet           │
+        │    - Check if user_response appears    │
+        │      in content (case-insensitive)     │
+        │    - Count as relevant if found        │
+        │                                        │
+        │ Example:                               │
+        │  Result 1: Title contains "سنسوداين"  │
+        │            → relevant_count++          │
+        │  Result 2: No match → skip             │
+        │                                        │
+        │ Cost: FREE (local)                     │
+        │ Latency: ~10-20ms                      │
+        └───────────────┬────────────────────────┘
+                        ↓
+        ┌────────────────────────────────────────┐
+        │ Step 3C: Extract & Analyze Domains     │
+        │ For each result:                       │
+        │  - Parse URL to get domain             │
+        │  - Remove "www." prefix                │
+        │  - Count occurrences                   │
+        │  - Get top 5 domains                   │
+        │                                        │
+        │ Example:                               │
+        │  amazon.com: 3 results                 │
+        │  sensodyne.com: 2 results              │
+        │  walmart.com: 1 result                 │
+        │                                        │
+        │ Cost: FREE (local)                     │
+        │ Latency: ~10-20ms                      │
+        └───────────────┬────────────────────────┘
+                        ↓
+        ┌────────────────────────────────────────┐
+        │ Step 3D: Calculate Domain Trust        │
+        │ Method: calculate_domain_trust_score() │
+        │                                        │
+        │ Check if domains match reputable list: │
+        │  - amazon, walmart, target, bestbuy    │
+        │  - sensodyne, colgate, unilever        │
+        │  - carrefour, tesco, boots             │
+        │  ... (see list in code)                │
+        │                                        │
+        │ Score: 0.2 per reputable domain        │
+        │ Max: 1.0                               │
+        │                                        │
+        │ Example:                               │
+        │  amazon.com → +0.2                     │
+        │  sensodyne.com → +0.2                  │
+        │  Total: 0.4                            │
+        │                                        │
+        │ Cost: FREE (local)                     │
+        │ Latency: <5ms                          │
+        └───────────────┬────────────────────────┘
+                        ↓
+        ┌────────────────────────────────────────┐
+        │ Step 3E: Determine Confidence          │
+        │ Logic:                                 │
+        │  relevance_ratio = relevant / total    │
+        │                                        │
+        │  IF relevance_ratio ≥ 0.6 AND          │
+        │     total_results ≥ 3:                 │
+        │    confidence = "high"                 │
+        │  ELIF relevance_ratio ≥ 0.3 OR         │
+        │       total_results ≥ 2:               │
+        │    confidence = "medium"               │
+        │  ELSE:                                 │
+        │    confidence = "low"                  │
+        │    red_flag: "Low relevance"           │
+        │                                        │
+        │ Additional checks:                     │
+        │  - No reputable domains? → red flag    │
+        │                                        │
+        │ Cost: FREE (local)                     │
+        │ Latency: <1ms                          │
+        └───────────────┬────────────────────────┘
+                        ↓
+                 STAGE 3 COMPLETE
+                 Total Cost: $0.00
+                 Total Time: ~30-50ms
+                        ↓
+╔═════════════════════════════════════════════════════════════════════════╗
+║                 STAGE 4: CONFIDENCE CALCULATION                         ║
+║  Component: ComprehensiveValidator._calculate_recommendation()          ║
+║  File: validators/comprehensive_validator.py:184-267                    ║
+╚════════════════════════┬════════════════════════════════════════════════╝
+                         ↓
+        ┌──────────────────────────────────────────────────────┐
+        │ Step 4A: Score Vision Analysis (0-60 points)         │
+        │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+        │ Base Score:                                          │
+        │   - vision.confidence == "high":   +50 points        │
+        │   - vision.confidence == "medium": +30 points        │
+        │   - vision.confidence == "low":    +10 points        │
+        │                                                       │
+        │ Product Count Bonus:                                 │
+        │   - total_products ≥ 3: +10 points                   │
+        │   - total_products == 0: red flag, no bonus          │
+        │                                                       │
+        │ Reasoning Added:                                     │
+        │   "Vision analysis confirms 6 products with          │
+        │    brand name 'سنسوداين'"                           │
+        │                                                       │
+        │ Example: high (50) + products (10) = 60 points       │
+        └───────────────┬──────────────────────────────────────┘
+                        ↓
+        ┌──────────────────────────────────────────────────────┐
+        │ Step 4B: Score Search Validation (0-40 points)       │
+        │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+        │ Base Score:                                          │
+        │   - search.confidence == "high":   +30 points        │
+        │   - search.confidence == "medium": +20 points        │
+        │   - search.confidence == "low":    +5 points         │
+        │                                                       │
+        │ Domain Trust Bonus:                                  │
+        │   domain_trust_score * 10 = 0-10 points              │
+        │   Example: 0.4 trust * 10 = 4 points                 │
+        │                                                       │
+        │ Reasoning Added:                                     │
+        │   "Google search in ar returns 8 relevant results"   │
+        │   "Results from official/trusted sources"            │
+        │                                                       │
+        │ Example: high (30) + trust (4) = 34 points           │
+        └───────────────┬──────────────────────────────────────┘
+                        ↓
+        ┌──────────────────────────────────────────────────────┐
+        │ Step 4C: Aggregate Risk Factors                      │
+        │ Combine red flags from:                              │
+        │   - Vision analysis (e.g., "Unclear brand name")     │
+        │   - Search validation (e.g., "No reputable domains") │
+        │                                                       │
+        │ Example Risk Factors:                                │
+        │   - "Low confidence in vision analysis"              │
+        │   - "No products identified in images"               │
+        │   - "Low relevance in search results"                │
+        │   - "No results from major retailers"                │
+        └───────────────┬──────────────────────────────────────┘
+                        ↓
+        ┌──────────────────────────────────────────────────────┐
+        │ Step 4D: Calculate Final Confidence                  │
+        │ Total = vision_score + search_score                  │
+        │ Cap at 100                                           │
+        │                                                       │
+        │ Example:                                             │
+        │   Vision: 60 points                                  │
+        │   Search: 34 points                                  │
+        │   Total: 94 points                                   │
+        └───────────────┬──────────────────────────────────────┘
+                        ↓
+        ┌──────────────────────────────────────────────────────┐
+        │ Step 4E: Determine Recommendation                    │
+        │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+        │ Logic:                                               │
+        │                                                       │
+        │ IF confidence ≥ 70 AND risk_factors == 0:            │
+        │    recommendation = "approve"                        │
+        │                                                       │
+        │ ELIF confidence < 40 OR risk_factors ≥ 3:            │
+        │    recommendation = "reject"                         │
+        │                                                       │
+        │ ELSE:                                                │
+        │    recommendation = "review"  // needs human         │
+        │                                                       │
+        │ Example: 94 confidence, 0 risks → "approve"          │
+        └───────────────┬──────────────────────────────────────┘
+                        ↓
+        ┌──────────────────────────────────────────────────────┐
+        │ Step 4F: Check if Human Review Required             │
+        │ Method: _requires_human_review()                     │
+        │                                                       │
+        │ Human review needed if:                              │
+        │   - Confidence < 50                                  │
+        │   - risk_factors ≥ 2                                 │
+        │   - Conflicting signals:                             │
+        │     * vision=high but search=low                     │
+        │     * vision=low but search=high                     │
+        │   - Confidence between 50-70 (uncertain)             │
+        │                                                       │
+        │ Example: 94 confidence, no conflicts → FALSE         │
+        └───────────────┬──────────────────────────────────────┘
+                        ↓
+                 STAGE 4 COMPLETE
+                 Total Cost: $0.00
+                 Total Time: ~5-10ms
+                        ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      BUILD FINAL RESPONSE                               │
+│  Component: EnhancedValidationResult                                    │
+│  File: models/validation.py                                             │
+└────────────────────────────┬────────────────────────────────────────────┘
+                             ↓
+        ┌──────────────────────────────────────────┐
+        │ EnhancedValidationResult {              │
+        │   user_response: "سنسوداين",           │
+        │   translation: "Sensodyne",             │
+        │   display_format: "سنسوداين (Sensodyne)",│
+        │                                          │
+        │   variants: {                            │
+        │     "سنسوداين": 6,                      │
+        │     "Sensodyne": 6,                      │
+        │     "semosdine": 1                       │
+        │   },                                     │
+        │   primary_variant: "سنسوداين",          │
+        │   total_occurrences: 6,                  │
+        │                                          │
+        │   recommendation: "approve",             │
+        │   confidence: 94,                        │
+        │   reasoning: "Vision analysis confirms   │
+        │               6 products with brand name │
+        │               'سنسوداين'. Google search │
+        │               in ar returns 8 relevant   │
+        │               results. Results from      │
+        │               official/trusted sources.", │
+        │   risk_factors: [],                      │
+        │                                          │
+        │   vision_analysis: {                     │
+        │     brand_primary: "Sensodyne",          │
+        │     brand_local: "سنسوداين",            │
+        │     total_products: 6,                   │
+        │     confidence: "high",                  │
+        │     ...                                  │
+        │   },                                     │
+        │                                          │
+        │   search_validation: {                   │
+        │     search_phrase: "سنسوداين",          │
+        │     language: "ar",                      │
+        │     relevant_results: 8,                 │
+        │     confidence: "high",                  │
+        │     top_domains: [...],                  │
+        │     ...                                  │
+        │   },                                     │
+        │                                          │
+        │   translation_info: {                    │
+        │     detected_language: "ar",             │
+        │     is_transliteration: true,            │
+        │     confidence: 100                      │
+        │   },                                     │
+        │                                          │
+        │   show_approve_button: true,             │
+        │   show_reject_button: true,              │
+        │   requires_human_review: false           │
+        │ }                                        │
+        └──────────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         RESPONSE SENT TO CLIENT                         │
+│  HTTP 200 OK                                                             │
+│  Content-Type: application/json                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════
+                            SUMMARY STATISTICS
+═══════════════════════════════════════════════════════════════════════════
+
+Total API Calls: 2
+  ┌─ Claude 3.5 Sonnet Vision: 1 call (PAID: ~$0.015-$0.03)
+  └─ Google Translate: 1 call (FREE)
+
+Total Cost: ~$0.015 - $0.03
+
+Total Latency: ~2.5 - 6 seconds
+  ┌─ Language detection: ~10ms
+  ├─ Translation: ~100-300ms
+  ├─ Vision analysis: ~2-5 seconds (BOTTLENECK)
+  ├─ Search validation: ~30-50ms
+  └─ Confidence calculation: ~5-10ms
+
+Breakdown by Cost:
+  ┌─ FREE components: $0.00
+  │  ├─ Language detection (langdetect)
+  │  ├─ Translation (Google Translate free tier)
+  │  ├─ Search validation (analyzes pre-fetched results)
+  │  └─ Confidence calculation
+  └─ PAID components: ~$0.015-$0.03
+     └─ Claude Vision API (only paid component)
+
+═══════════════════════════════════════════════════════════════════════════

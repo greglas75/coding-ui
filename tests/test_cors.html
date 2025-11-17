@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head><title>CORS Test</title></head>
+<body>
+<h1>🧪 CORS Test</h1>
+<button onclick="testHealth()">Test Health</button>
+<button onclick="testValidate()">Test Validate</button>
+<pre id="result"></pre>
+<script>
+const API = 'http://localhost:8000';
+
+async function testHealth() {
+    try {
+        const res = await fetch(`${API}/health`);
+        const data = await res.json();
+        document.getElementById('result').textContent =
+            '✅ Health OK\n' + JSON.stringify(data, null, 2);
+    } catch(e) {
+        document.getElementById('result').textContent =
+            '❌ Error: ' + e.message;
+    }
+}
+
+async function testValidate() {
+    try {
+        const res = await fetch(`${API}/api/validate`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_response: 'Sensodyne',
+                category: 'Toothpaste',
+                language: 'en'
+            })
+        });
+        const data = await res.json();
+        document.getElementById('result').textContent =
+            '✅ Validate OK\n' + JSON.stringify(data, null, 2);
+    } catch(e) {
+        document.getElementById('result').textContent =
+            '❌ Error: ' + e.message;
+    }
+}
+</script>
+</body>
+</html>
