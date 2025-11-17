@@ -1,24 +1,8 @@
-import { useEffect, useState } from 'react';
+/**
+ * Re-export useDebounce from centralized location
+ * 
+ * This file maintains backward compatibility for imports from hooks/useDebounce.
+ * New code should import directly from lib/debounce.
+ */
 
-export function useDebounce<T>(value: T, delay = 800, immediate = false): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    // If immediate is true, set value immediately on first change
-    if (immediate) {
-      setDebouncedValue(value);
-      return;
-    }
-
-    // Otherwise, use standard debounce with 800ms delay
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay, immediate]);
-
-  return debouncedValue;
-}
+export { useDebounce } from '../lib/debounce';
