@@ -2,9 +2,9 @@
 // 💾 Cache Layer - Whitelist + Prompt Cache
 // ═══════════════════════════════════════════════════════════════
 
+import { DEFAULT_WHITELIST } from '../config/whitelist';
 import { logInfo } from '../utils/logger';
 import type { LLMGenerateResult } from './llmClient';
-import { DEFAULT_WHITELIST } from '../config/whitelist';
 
 // ───────────────────────────────────────────────────────────────
 // Whitelist Management
@@ -44,9 +44,7 @@ export function checkWhitelist(input: string): LLMGenerateResult | null {
   const allItems = [...DEFAULT_WHITELIST, ...customWhitelist];
 
   // Exact match (case-insensitive)
-  const exactMatch = allItems.find(
-    item => item.toLowerCase() === cleanInput
-  );
+  const exactMatch = allItems.find(item => item.toLowerCase() === cleanInput);
 
   if (exactMatch) {
     logInfo(`Whitelist exact match: "${exactMatch}"`, {
@@ -63,9 +61,7 @@ export function checkWhitelist(input: string): LLMGenerateResult | null {
   }
 
   // Partial match (input contains whitelist item)
-  const partialMatch = allItems.find(item =>
-    cleanInput.includes(item.toLowerCase())
-  );
+  const partialMatch = allItems.find(item => cleanInput.includes(item.toLowerCase()));
 
   if (partialMatch && partialMatch.length > 3) {
     // Only match if item is significant (>3 chars)
@@ -253,7 +249,9 @@ export function importCache(data: string): void {
 /**
  * Warms up cache with common queries.
  */
-export function warmUpCache(commonQueries: Array<{ input: string; result: LLMGenerateResult }>): void {
+export function warmUpCache(
+  commonQueries: Array<{ input: string; result: LLMGenerateResult }>
+): void {
   for (const { input, result } of commonQueries) {
     cacheResult(input, result);
   }
@@ -311,11 +309,7 @@ function makeKey(namespace: CacheNamespace, key: string): string {
  * @param value - Value to cache
  * @param options - Cache options (ttl, namespace)
  */
-export function setCache<T = any>(
-  key: string,
-  value: T,
-  options?: CacheOptions
-): void {
+export function setCache<T = any>(key: string, value: T, options?: CacheOptions): void {
   const { ttl = DEFAULT_TTL, namespace = 'general' } = options || {};
   const now = Date.now();
   const cache = getNamespaceCache(namespace);
@@ -370,10 +364,7 @@ export function setCache<T = any>(
  * @param options - Cache options (namespace)
  * @returns Cached value or null if not found/expired
  */
-export function getCache<T = any>(
-  key: string,
-  options?: CacheOptions
-): T | null {
+export function getCache<T = any>(key: string, options?: CacheOptions): T | null {
   const { namespace = 'general' } = options || {};
   const cache = getNamespaceCache(namespace);
   const cacheKey = makeKey(namespace, key);
@@ -512,15 +503,24 @@ export function cleanExpiredCache(): number {
 /**
  * Gets cache statistics for all namespaces.
  */
-export function getAllCacheStats(): Record<CacheNamespace, {
-  size: number;
-  totalHits: number;
-  averageHits: number;
-  oldestEntry: number;
-}> {
+export function getAllCacheStats(): Record<
+  CacheNamespace,
+  {
+    size: number;
+    totalHits: number;
+    averageHits: number;
+    oldestEntry: number;
+  }
+> {
   const stats: any = {};
 
-  for (const namespace of ['prompt', 'translation', 'search', 'qa', 'general'] as CacheNamespace[]) {
+  for (const namespace of [
+    'prompt',
+    'translation',
+    'search',
+    'qa',
+    'general',
+  ] as CacheNamespace[]) {
     const cache = getNamespaceCache(namespace);
     let totalHits = 0;
     let oldestTime = Date.now();
@@ -602,8 +602,10 @@ export function importAllCache(data: string): void {
 
 // Auto-cleanup expired entries every 5 minutes
 if (typeof window !== 'undefined') {
-  setInterval(() => {
-    cleanExpiredCache();
-  }, 5 * 60 * 1000);
+  setInterval(
+    () => {
+      cleanExpiredCache();
+    },
+    5 * 60 * 1000
+  );
 }
-

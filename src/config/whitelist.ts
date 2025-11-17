@@ -1,9 +1,9 @@
 /**
  * Whitelist Configuration
- * 
+ *
  * Known entities/brands for quick categorization.
  * This should eventually be moved to database for dynamic management.
- * 
+ *
  * TODO: Migrate to database table with admin UI for management
  */
 
@@ -66,5 +66,4 @@ export const DEFAULT_WHITELIST = [
 /**
  * Type-safe whitelist item
  */
-export type WhitelistItem = typeof DEFAULT_WHITELIST[number];
-
+export type WhitelistItem = (typeof DEFAULT_WHITELIST)[number];
