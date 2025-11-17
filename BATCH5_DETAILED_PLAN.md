@@ -9,6 +9,7 @@
 ## 🎯 CO CHCEMY ZROBIĆ?
 
 ### Problem
+
 Mamy **3 osobne pliki** z funkcjami Supabase, które mają **nakładającą się funkcjonalność**:
 
 1. **`src/lib/supabase.ts`** (42 linie)
@@ -36,6 +37,7 @@ Mamy **3 osobne pliki** z funkcjami Supabase, które mają **nakładającą się
    - `PerformanceMonitor` - monitoring wydajności
 
 ### Rozwiązanie
+
 **Połączyć wszystkie 3 pliki w jeden** `src/lib/supabase.ts` z logicznymi sekcjami:
 
 ```
@@ -50,28 +52,34 @@ src/lib/supabase.ts
 ## 📊 SZCZEGÓŁOWA ANALIZA PLIKÓW
 
 ### 1. `src/lib/supabase.ts` (42 linie)
+
 **Zawartość:**
+
 - `getSupabaseClient()` - singleton pattern
 - `supabase` - eksportowany klient
 
 **Używany w:** 35+ plikach (import `supabase` lub `getSupabaseClient`)
 
 **Funkcje:**
+
 ```typescript
-export function getSupabaseClient(): SupabaseClient
-export const supabase = getSupabaseClient()
+export function getSupabaseClient(): SupabaseClient;
+export const supabase = getSupabaseClient();
 ```
 
 ---
 
 ### 2. `src/lib/supabaseHelpers.ts` (136 linii)
+
 **Zawartość:**
+
 - `fetchCodes()` - pobiera wszystkie kody (SELECT)
 - `createCode()` - tworzy kod (INSERT)
 - `saveCodesForAnswer()` - zapisuje kody dla odpowiedzi (INSERT/UPDATE/DELETE)
 - `fetchAISuggestion()` - pobiera AI sugestie (SELECT)
 
 **Używany w:** 7 plikach
+
 - `src/components/CodingGrid/index.tsx` - `createCode`
 - `src/components/SelectCodeModal.tsx` - `fetchCodes`
 - `src/components/CategoriesList/index.tsx` - `fetchCodes`
@@ -81,44 +89,54 @@ export const supabase = getSupabaseClient()
 - `src/components/CodingGrid/index.tsx` - `createCode`
 
 **Funkcje:**
+
 ```typescript
-export async function fetchCodes()
-export async function createCode(name: string)
-export async function saveCodesForAnswer(answerId, codeIds, mode)
-export async function fetchAISuggestion(answerId)
+export async function fetchCodes();
+export async function createCode(name: string);
+export async function saveCodesForAnswer(answerId, codeIds, mode);
+export async function fetchAISuggestion(answerId);
 ```
 
 ---
 
 ### 3. `src/lib/supabaseOptimized.ts` (671 linii)
+
 **Zawartość:**
 
 **Paginacja:**
+
 - `paginatedQuery()` - uniwersalna paginacja
 
 **Cache:**
+
 - `SupabaseCache` - klasa cache
 - `cache` - instancja cache
 - `fetchCategoriesOptimized()` - kategorie z cache
 - `fetchCodesOptimized()` - kody z paginacją i cache
 
 **Optymistyczne aktualizacje:**
+
 - `optimisticUpdate()` - natychmiastowa aktualizacja UI
 
 **Batch operations:**
+
 - `batchUpdate()` - masowe aktualizacje
 
 **Wyszukiwanie:**
+
 - `searchWithCache()` - wyszukiwanie z cache
 
 **Lazy loading:**
+
 - `LazyLoader` - klasa do lazy loading
 
 **Performance:**
+
 - `PerformanceMonitor` - monitoring
 - `monitoredQuery()` - query z monitoringiem
 
 **Używany w:** 7 plikach
+
 - `src/components/CodingGrid/hooks/useAnswerActions.ts`
 - `src/pages/CategoriesPage.tsx`
 - `src/components/CategoryDetails.tsx`
@@ -128,6 +146,7 @@ export async function fetchAISuggestion(answerId)
 - `src/lib/supabaseOptimized.ts` (self-reference?)
 
 **Funkcje:**
+
 ```typescript
 export async function paginatedQuery<T>()
 export async function fetchCategoriesOptimized()
@@ -150,12 +169,14 @@ export async function monitoredQuery()
 ## ⚠️ DLACZEGO TO WYSOKIE RYZYKO?
 
 ### 1. **Wiele zależności (35+ plików)**
+
 - 35 plików importuje `supabase` lub `getSupabaseClient`
 - 7 plików importuje z `supabaseHelpers`
 - 7 plików importuje z `supabaseOptimized`
 - **Razem: ~40 unikalnych plików** (niektóre importują więcej niż jeden)
 
 ### 2. **Różne wzorce importów**
+
 ```typescript
 // Wzorzec 1: Import klienta
 import { supabase } from '../lib/supabase';
@@ -174,16 +195,19 @@ import { optimisticUpdate } from '../lib/supabaseOptimized';
 ```
 
 ### 3. **Złożone funkcje**
+
 - `saveCodesForAnswer()` - ma złożoną logikę many-to-many
 - `optimisticUpdate()` - ma rollback na błąd
 - `LazyLoader` - klasa z state management
 - Cache system - może wpływać na wydajność
 
 ### 4. **Potencjalne konflikty**
+
 - `supabaseOptimized.ts` może używać funkcji z `supabaseHelpers.ts`?
 - Sprawdzić czy nie ma circular dependencies
 
 ### 5. **Krytyczne operacje**
+
 - Wszystkie operacje na bazie danych
 - Błędy mogą zepsuć całą aplikację
 - Trzeba przetestować każdą operację CRUD
@@ -193,6 +217,7 @@ import { optimisticUpdate } from '../lib/supabaseOptimized';
 ## 📝 PLAN WYKONANIA
 
 ### KROK 1: Analiza zależności (5 min)
+
 ```bash
 # Znajdź wszystkie importy
 grep -r "from.*supabase" src --include="*.ts" --include="*.tsx"
@@ -204,36 +229,39 @@ grep -r "from.*supabaseOptimized" src
 ```
 
 ### KROK 2: Utworzenie nowego pliku (10 min)
+
 ```typescript
 // src/lib/supabase.ts (nowy, połączony)
 
 // ───────────────────────────────────────────────────────────────
 // CLIENT CREATION
 // ───────────────────────────────────────────────────────────────
-export function getSupabaseClient()
-export const supabase = getSupabaseClient()
+export function getSupabaseClient();
+export const supabase = getSupabaseClient();
 
 // ───────────────────────────────────────────────────────────────
 // BASIC CRUD OPERATIONS
 // ───────────────────────────────────────────────────────────────
-export async function fetchCodes()
-export async function createCode()
-export async function saveCodesForAnswer()
-export async function fetchAISuggestion()
+export async function fetchCodes();
+export async function createCode();
+export async function saveCodesForAnswer();
+export async function fetchAISuggestion();
 
 // ───────────────────────────────────────────────────────────────
 // ADVANCED FEATURES
 // ───────────────────────────────────────────────────────────────
-export async function paginatedQuery()
-export async function fetchCategoriesOptimized()
-export async function fetchCodesOptimized()
-export async function optimisticUpdate()
-export async function batchUpdate()
+export async function paginatedQuery();
+export async function fetchCategoriesOptimized();
+export async function fetchCodesOptimized();
+export async function optimisticUpdate();
+export async function batchUpdate();
 // ... wszystkie funkcje z supabaseOptimized
 ```
 
 ### KROK 3: Aktualizacja importów (20 min)
+
 **Dla każdego z ~35 plików:**
+
 ```typescript
 // PRZED:
 import { supabase } from '../lib/supabase';
@@ -245,11 +273,13 @@ import { supabase, createCode, optimisticUpdate } from '../lib/supabase';
 ```
 
 ### KROK 4: Usunięcie starych plików (2 min)
+
 - Usuń `src/lib/supabaseHelpers.ts`
 - Usuń `src/lib/supabaseOptimized.ts`
 - Zostaw tylko `src/lib/supabase.ts` (nowy, połączony)
 
 ### KROK 5: Testowanie (10 min)
+
 - ✅ TypeScript check
 - ✅ Build
 - ✅ Testy jednostkowe
@@ -267,6 +297,7 @@ import { supabase, createCode, optimisticUpdate } from '../lib/supabase';
 ## 🔍 SZCZEGÓŁOWA LISTA PLIKÓW DO AKTUALIZACJI
 
 ### Pliki importujące `supabase` lub `getSupabaseClient` (35 plików):
+
 1. `src/components/SelectCodeModal.tsx`
 2. `src/api/categorize.ts`
 3. `src/contexts/AuthContext.tsx`
@@ -304,6 +335,7 @@ import { supabase, createCode, optimisticUpdate } from '../lib/supabase';
 35. `src/lib/supabase.ts` (będzie zmieniony)
 
 ### Pliki importujące z `supabaseHelpers` (7 plików):
+
 1. `src/components/CodingGrid/index.tsx` - `createCode`
 2. `src/components/SelectCodeModal.tsx` - `fetchCodes`
 3. `src/components/CategoriesList/index.tsx` - `fetchCodes`
@@ -313,6 +345,7 @@ import { supabase, createCode, optimisticUpdate } from '../lib/supabase';
 7. `src/components/CodingGrid/index.tsx` - `createCode` (duplikat?)
 
 ### Pliki importujące z `supabaseOptimized` (7 plików):
+
 1. `src/components/CodingGrid/hooks/useAnswerActions.ts`
 2. `src/pages/CategoriesPage.tsx`
 3. `src/components/CategoryDetails.tsx`
@@ -328,23 +361,28 @@ import { supabase, createCode, optimisticUpdate } from '../lib/supabase';
 ## ⚠️ POTENCJALNE PROBLEMY
 
 ### 1. **Circular Dependencies**
+
 - `supabaseOptimized.ts` może importować z `supabaseHelpers.ts`?
 - Sprawdzić przed merge
 
 ### 2. **Różne wzorce użycia**
+
 - Niektóre pliki używają bezpośrednio `supabase.from()`
 - Inne używają helper functions
 - Trzeba zachować oba wzorce
 
 ### 3. **Cache conflicts**
+
 - `supabaseOptimized.ts` ma własny cache system
 - Może kolidować z innymi systemami cache?
 
 ### 4. **Type exports**
+
 - Sprawdzić czy wszystkie typy są eksportowane
 - `FilteredAnswer`, `HealthResponse` itp.
 
 ### 5. **Default exports**
+
 - `supabaseHelpers.ts` ma `export default`
 - Trzeba to zachować lub zaktualizować importy
 
@@ -353,11 +391,13 @@ import { supabase, createCode, optimisticUpdate } from '../lib/supabase';
 ## 🧪 PLAN TESTOWANIA
 
 ### Przed merge:
+
 - [ ] Sprawdź circular dependencies
 - [ ] Sprawdź wszystkie importy
 - [ ] Utwórz backup branch
 
 ### Po merge:
+
 - [ ] TypeScript check
 - [ ] Build check
 - [ ] Unit tests
@@ -372,6 +412,7 @@ import { supabase, createCode, optimisticUpdate } from '../lib/supabase';
   - [ ] Batch operations (jeśli używane)
 
 ### E2E Tests:
+
 - [ ] Test kategorii
 - [ ] Test kodów
 - [ ] Test zapisywania kodów
@@ -382,12 +423,14 @@ import { supabase, createCode, optimisticUpdate } from '../lib/supabase';
 ## 📊 SZACOWANY WPŁYW
 
 ### Pozytywne:
+
 - ✅ -2 pliki (supabaseHelpers, supabaseOptimized)
 - ✅ Wszystkie funkcje Supabase w jednym miejscu
 - ✅ Łatwiejsze utrzymanie
 - ✅ Lepsza dokumentacja
 
 ### Negatywne (ryzyko):
+
 - ⚠️ ~40 plików do aktualizacji
 - ⚠️ Możliwe błędy w importach
 - ⚠️ Możliwe problemy z cache
@@ -398,17 +441,20 @@ import { supabase, createCode, optimisticUpdate } from '../lib/supabase';
 ## 🎯 REKOMENDACJA
 
 **OPCJA A: Pełny merge (wysokie ryzyko)**
+
 - Połącz wszystkie 3 pliki
 - Zaktualizuj wszystkie importy
 - Dokładnie przetestuj
 
 **OPCJA B: Stopniowy merge (średnie ryzyko)**
+
 1. Najpierw połącz `supabase.ts` + `supabaseHelpers.ts`
 2. Przetestuj
 3. Potem dodaj `supabaseOptimized.ts`
 4. Przetestuj ponownie
 
 **OPCJA C: Tylko reorganizacja (niskie ryzyko)**
+
 - Zostaw 3 pliki
 - Tylko popraw organizację i dokumentację
 - Nie zmieniaj importów
@@ -425,4 +471,3 @@ import { supabase, createCode, optimisticUpdate } from '../lib/supabase';
 ---
 
 **Czy chcesz kontynuować z Batch 5, czy wolisz najpierw dokładniej przeanalizować zależności?**
-
