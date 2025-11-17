@@ -12,12 +12,29 @@ echo "🗄️ Creating Supabase database backup..."
 # Create backups directory
 mkdir -p $BACKUP_DIR
 
-# Database connection from .env
-DB_HOST="aws-0-eu-central-1.pooler.supabase.com"
-DB_PORT="6543"
-DB_USER="postgres.hoanegucluoshmpoxfnl"
-DB_NAME="postgres"
-DB_PASSWORD="Kodowanie2024!"
+# Load database credentials from .env file
+if [ -f .env ]; then
+  export $(grep -v '^#' .env | xargs)
+fi
+
+# Database connection from environment variables
+DB_HOST="${SUPABASE_DB_HOST:-localhost}"
+DB_PORT="${SUPABASE_DB_PORT:-5432}"
+DB_USER="${SUPABASE_DB_USER:-postgres}"
+DB_NAME="${SUPABASE_DB_NAME:-postgres}"
+DB_PASSWORD="${SUPABASE_DB_PASSWORD}"
+
+# Validate required environment variables
+if [ -z "$DB_PASSWORD" ]; then
+  echo "❌ Error: SUPABASE_DB_PASSWORD not set in .env file"
+  echo "Please add database credentials to .env:"
+  echo "  SUPABASE_DB_HOST=your-host"
+  echo "  SUPABASE_DB_PORT=6543"
+  echo "  SUPABASE_DB_USER=your-user"
+  echo "  SUPABASE_DB_NAME=postgres"
+  echo "  SUPABASE_DB_PASSWORD=your-password"
+  exit 1
+fi
 
 # Method 1: Using pg_dump (recommended)
 echo "Attempting pg_dump..."

@@ -101,9 +101,9 @@ brew install postgresql@15
 # 4. Click "Download backup"
 
 # Option 3: Manual pg_dump
-PGPASSWORD="Kodowanie2024!" pg_dump \
-  -h aws-0-eu-central-1.pooler.supabase.com \
-  -p 6543 \
+PGPASSWORD="$SUPABASE_DB_PASSWORD" pg_dump \
+  -h "$SUPABASE_DB_HOST" \
+  -p "$SUPABASE_DB_PORT" \
   -U postgres.hoanegucluoshmpoxfnl \
   -d postgres \
   --schema=public \
@@ -230,9 +230,9 @@ cd python-service && pip install -r requirements.txt
 **Option B: Restore from Manual Backup**
 ```bash
 # If you created manual backup
-PGPASSWORD="Kodowanie2024!" psql \
-  -h aws-0-eu-central-1.pooler.supabase.com \
-  -p 6543 \
+PGPASSWORD="$SUPABASE_DB_PASSWORD" psql \
+  -h "$SUPABASE_DB_HOST" \
+  -p "$SUPABASE_DB_PORT" \
   -U postgres.hoanegucluoshmpoxfnl \
   -d postgres \
   < backups/manual-backup-YYYYMMDD.sql
