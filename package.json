@@ -28,12 +28,12 @@
     "test:all": "npm run test:run && npm run test:e2e",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "deploy": "./deploy.sh",
-    "deploy:win": "deploy.bat",
-    "deploy:advanced": "./deploy-advanced.sh",
-    "deploy:dry": "./deploy-advanced.sh -d",
-    "deploy:help": "./deploy-advanced.sh -h",
-    "quick": "./quick-deploy.sh"
+    "deploy": "./scripts/deploy/deploy.sh",
+    "deploy:win": "./scripts/deploy/deploy.bat",
+    "deploy:advanced": "./scripts/deploy/deploy-advanced.sh",
+    "deploy:dry": "./scripts/deploy/deploy-advanced.sh -d",
+    "deploy:help": "./scripts/deploy/deploy-advanced.sh -h",
+    "quick": "./scripts/deploy/quick-deploy.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.67.0",
