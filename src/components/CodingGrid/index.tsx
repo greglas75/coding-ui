@@ -53,8 +53,7 @@ import { AutoConfirmEngine } from '../../lib/autoConfirmEngine';
 import { BatchAIProcessor, type BatchProgress } from '../../lib/batchAIProcessor';
 import { FilterEngine, type FilterGroup, type FilterPreset } from '../../lib/filterEngine';
 import { RealtimeService, type CodeUpdateEvent, type UserPresence } from '../../lib/realtimeService';
-import { getSupabaseClient } from '../../lib/supabase';
-import { createCode } from '../../lib/supabaseHelpers';
+import { getSupabaseClient, createCode } from '../../lib/supabase';
 
 const supabase = getSupabaseClient();
 
