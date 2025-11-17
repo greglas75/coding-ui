@@ -1,0 +1,198 @@
+# .clauderules - AI Assistant Rules for coding-ui Project
+
+## Project Overview
+Full-stack data coding application:
+- Frontend: React 19 + TypeScript + Vite + Tailwind + React Query
+- Backend: Express (Node.js) + Python FastAPI
+- Database: Supabase (PostgreSQL)
+- State: Zustand + React Query
+- UI: Headless UI + Tailwind CSS
+
+## Critical Architecture Rules
+
+### 1. Three-Server Architecture
+- Python backend: port 8000 (auto-reload enabled)
+- Node backend: port 3020 (requires manual restart)
+- React frontend: port 5173 (Vite HMR)
+
+**After changes:**
+- Python: auto-reloads, just wait 0.5s
+- Node: requires restart via `./scripts/deploy/restart-all.sh`
+- React: HMR handles it automatically
+
+### 2. File Organization (STRICT)
+
+**Root directory = configs + entry points ONLY**
+- ✅ Keep: `*.config.{js,ts}`, `package.json`, `tsconfig*.json`, `index.html`, `api-server.js`, `README.md`
+- ❌ Never: scripts, docs, tests, logs, backups
+
+**Always use correct locations:**
+- Scripts → `/scripts/{migrations|deploy|backup|debug|test}/`
+- Docs → `/docs/`
+- Tests → `/tests/` (unit) or `/e2e/` (E2E)
+- Logs → `/logs/` (gitignored)
+- Backups → `/backups/`
+
+### 3. Code Style & Patterns
+
+**React Components:**
+- Use TypeScript, PascalCase filenames
+- Prefer function components with hooks
+- Use React Query for server state
+- Use Zustand for client state
+- Import with `@/` alias: `import { Foo } from '@/components/Foo'`
+
+**State Management:**
+- Server state → React Query (`useQuery`, `useMutation`)
+- Client state → Zustand stores in `/src/stores/`
+- Form state → React Hook Form or controlled components
+
+**API Calls:**
+- Frontend → Backend: Use services in `/src/services/`
+- Backend → Supabase: Use Supabase client
+- Always handle errors with try-catch
+- Use Sentry for error tracking
+
+**Naming Conventions:**
+- React components: `PascalCase.tsx`
+- Hooks: `useCamelCase.ts`
+- Utils/services: `camelCase.ts`
+- Scripts: `kebab-case.sh` or `kebab-case.js`
+- Tests: `*.spec.ts` or `*.test.ts`
+
+### 4. Import Rules
+
+**Frontend (React/TypeScript):**
+```typescript
+// ✅ Use absolute imports with @ alias
+import { useAuth } from '@/hooks/useAuth'
+import { Button } from '@/components/Button'
+
+// ❌ Avoid deep relative imports
+import { useAuth } from '../../../hooks/useAuth'
+```
+
+**Backend (Node/Express):**
+```javascript
+// Use relative imports from file location
+const config = require('../config')
+const { logger } = require('./utils/logger')
+```
+
+### 5. Git & Commits
+
+**Before committing:**
+- Run type-check: `npm run type-check`
+- Run tests: `npm run test:run`
+- Verify no misplaced files in root
+- No log files, build artifacts, or temp files
+
+**Commit messages:**
+- Format: `type: description`
+- Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
+- Be specific about what changed and why
+
+**File moves:**
+- Always use `git mv` to preserve history
+- Update imports and package.json scripts
+- Test after moving
+
+### 6. Testing Requirements
+
+**After ANY code changes:**
+```bash
+# Test affected service
+curl http://localhost:8000/health      # Python
+curl http://localhost:3020/api/health  # Node
+curl -I http://localhost:5173          # React
+
+# Run tests
+npm run test:run                       # Unit tests
+npm run test:e2e                       # E2E tests
+```
+
+**Confirm changes:**
+```
+✅ Changes applied
+- Files modified: [list]
+- Python (8000): [tested/auto-reloaded]
+- Node (3020): [tested/restarted if needed]
+- React (5173): [tested/HMR updated]
+```
+
+### 7. Security Rules
+
+- Never commit `.env` files
+- Never hardcode API keys or secrets
+- Use environment variables for config
+- Validate all user inputs
+- Sanitize data before database operations
+- Use parameterized queries (prevent SQL injection)
+- Implement rate limiting on API endpoints
+- Use Helmet.js for security headers
+
+### 8. Performance Rules
+
+- Use React.memo() for expensive components
+- Implement virtualization for long lists (react-window)
+- Lazy load routes and heavy components
+- Optimize images before uploading
+- Use React Query cache for API data
+- Implement proper loading states
+- Use Suspense for code splitting
+
+### 9. Package.json Scripts
+
+**When adding scripts referencing files:**
+```json
+{
+  "deploy": "./scripts/deploy/deploy.sh",
+  "migrate": "node scripts/migrations/apply-migration.js",
+  "backup": "./scripts/backup/backup-database.sh"
+}
+```
+
+### 10. Documentation Rules
+
+**When creating/modifying features:**
+- Update relevant docs in `/docs/`
+- Add JSDoc comments for complex functions
+- Update API documentation if endpoints change
+- Keep `PROJECT_STRUCTURE.md` current
+
+**Never:**
+- Create docs in root directory
+- Create duplicate documentation
+- Leave outdated docs
+
+## Quick Reference
+
+**Project Structure:**
+```
+/
+├── src/              # React app
+├── server/           # Express backend
+├── python-service/   # Python FastAPI backend
+├── scripts/          # Organized by purpose
+├── docs/             # All documentation
+├── tests/            # Unit tests
+├── e2e/              # E2E tests
+├── supabase/         # DB migrations
+└── [configs]         # Root configs only
+```
+
+**Common Tasks:**
+- Start dev: `npm run dev:full`
+- Restart all: `./scripts/deploy/restart-all.sh`
+- Run tests: `npm run test:all`
+- Type check: `npm run type-check`
+- Deploy: `npm run deploy`
+
+## References
+
+- Full structure details: `PROJECT_STRUCTURE.md`
+- Server management: `docs/CLAUDE_CODE_RULES.md`
+- Contributing: `.github/CONTRIBUTING.md` (if exists)
+
+---
+Last Updated: 2025-11-17
