@@ -20,7 +20,7 @@ RETURNS TABLE (
 BEGIN
   RETURN QUERY
   WITH filtered_codes AS (
-    SELECT 
+    SELECT
       c.id,
       c.name,
       c.is_whitelisted,
@@ -29,7 +29,7 @@ BEGIN
       COALESCE(array_agg(DISTINCT cc.category_id) FILTER (WHERE cc.category_id IS NOT NULL), ARRAY[]::INTEGER[]) AS category_ids
     FROM codes c
     LEFT JOIN codes_categories cc ON c.id = cc.code_id
-    WHERE 
+    WHERE
       (p_search_text IS NULL OR c.name ILIKE '%' || p_search_text || '%')
       AND (NOT p_only_whitelisted OR c.is_whitelisted = TRUE)
     GROUP BY c.id, c.name, c.is_whitelisted, c.created_at, c.updated_at
@@ -37,18 +37,18 @@ BEGIN
   category_filtered_codes AS (
     SELECT fc.*
     FROM filtered_codes fc
-    WHERE 
-      p_category_ids IS NULL 
+    WHERE
+      p_category_ids IS NULL
       OR p_category_ids = ARRAY[]::INTEGER[]
       OR fc.category_ids && p_category_ids  -- Array overlap operator
   ),
   codes_with_counts AS (
-    SELECT 
+    SELECT
       cfc.*,
       (
         SELECT COUNT(*)
         FROM answers a
-        WHERE 
+        WHERE
           a.selected_code ILIKE '%' || cfc.name || '%'
           OR a.selected_code = cfc.name
       ) AS usage_count
@@ -63,7 +63,7 @@ END;
 $$;
 
 -- Add comment for documentation
-COMMENT ON FUNCTION get_codes_with_usage_counts IS 
+COMMENT ON FUNCTION get_codes_with_usage_counts IS
 'Fetches codes with their category associations and usage counts in a single query.
 Supports filtering by search text, whitelist status, and category IDs.
 Includes pagination with limit/offset.

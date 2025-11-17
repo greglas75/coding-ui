@@ -1,10 +1,12 @@
 import { RotateCcw, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { CodeSuggestionEngine, type CodeSuggestion } from '../lib/codeSuggestionEngine';
+import type { CodeSuggestion } from '../lib/codeSuggestionEngine';
 import { supabase } from '../lib/supabase';
 import type { Answer } from '../types';
 import { simpleLogger } from '../utils/logger';
+import { useCodesForCategory } from '../hooks/useCodesForCategory';
+import { useCodeSuggestions } from '../hooks/useCodeSuggestions';
 import { QuickStatusButtons } from './CodingGrid/cells/QuickStatusButtons';
 import { Tooltip } from './shared/Tooltip';
 
@@ -50,18 +52,16 @@ export function SelectCodeModal({
   aiSuggestions,
   onGenerateAISuggestions,
 }: SelectCodeModalProps) {
-  const [codes, setCodes] = useState<{ id: number; name: string }[]>([]);
   const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isResetting, setIsResetting] = useState(false);
 
-  // ✅ Cache codes by category to avoid re-fetching
-  const [codesCache, setCodesCache] = useState<Map<number | undefined, { id: number; name: string }[]>>(new Map());
-
-  // Code suggestions state
-  const [suggestionEngine] = useState(() => CodeSuggestionEngine.create());
-  const [suggestions, setSuggestions] = useState<CodeSuggestion[]>([]);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  // Use hooks for data fetching (replaces manual effects + caching)
+  const { data: codes = [], isLoading: loadingCodes } = useCodesForCategory(_categoryId);
+  const {
+    suggestions,
+    loading: loadingSuggestions,
+  } = useCodeSuggestions(_categoryId, _selectedAnswer, open);
 
   // 🔹 Reset state when modal opens with new answer
   useEffect(() => {
@@ -73,109 +73,6 @@ export function SelectCodeModal({
       simpleLogger.info('🔄 SelectCodeModal reset: preselectedCodes =', preselectedCodes);
     }
   }, [open, selectedAnswerIds.join(','), preselectedCodes.join(',')]);
-
-  // 🔹 Fetch codes (filtered by category if provided) - WITH CACHING
-  useEffect(() => {
-    if (!open) return;
-
-    // ✅ Check cache first
-    if (codesCache.has(_categoryId)) {
-      const cachedCodes = codesCache.get(_categoryId)!;
-      simpleLogger.info('✅ Using cached codes for categoryId:', _categoryId, '- count:', cachedCodes.length);
-      setCodes(cachedCodes);
-      return;
-    }
-
-    const fetchCodes = async () => {
-      simpleLogger.info('🔍 SelectCodeModal fetching codes with categoryId:', _categoryId);
-
-      let fetchedCodes: { id: number; name: string }[] = [];
-
-      if (_categoryId) {
-        // Filter by category using codes_categories table
-        simpleLogger.info('🔍 Filtering codes by category ID:', _categoryId);
-
-        const { data, error } = await supabase
-          .from('codes_categories')
-          .select(
-            `
-            codes (
-              id,
-              name
-            )
-          `
-          )
-          .eq('category_id', _categoryId);
-
-        if (!error && data) {
-          const codes = data
-            .map(item => item.codes)
-            .filter(Boolean)
-            .flat() as { id: number; name: string }[];
-          simpleLogger.info('🔍 Fetched codes for category:', codes.length, 'codes');
-
-          fetchedCodes = codes.sort((a, b) => a.name.localeCompare(b.name));
-        } else {
-          simpleLogger.error('🔍 Error fetching codes for category:', error);
-        }
-      } else {
-        // Show all codes if no category filter
-        simpleLogger.info('🔍 No category filter - showing all codes');
-
-        const { data, error } = await supabase.from('codes').select('id, name').order('name');
-
-        if (!error && data) {
-          simpleLogger.info('🔍 Fetched all codes:', data.length, 'codes');
-          fetchedCodes = data;
-        } else {
-          simpleLogger.error('🔍 Error fetching all codes:', error);
-        }
-      }
-
-      // ✅ Update state and cache
-      setCodes(fetchedCodes);
-      setCodesCache(prev => new Map(prev).set(_categoryId, fetchedCodes));
-      simpleLogger.info('✅ Cached codes for categoryId:', _categoryId);
-    };
-
-    fetchCodes();
-  }, [open, _categoryId, codesCache]);
-
-  // 🔹 Initialize suggestion engine and load suggestions
-  useEffect(() => {
-    if (!open || !_categoryId || !_selectedAnswer) return;
-
-    const loadSuggestions = async () => {
-      setLoadingSuggestions(true);
-      try {
-        // Initialize engine with category history
-        await suggestionEngine.initialize(_categoryId);
-
-        // Get current code ID (if any)
-        const currentCodeId =
-          selectedCodes.length > 0
-            ? codes.find(c => c.name === selectedCodes[0])?.id || null
-            : null;
-
-        const suggestions = await suggestionEngine.getSuggestions(
-          _selectedAnswer,
-          currentCodeId,
-          _categoryId,
-          translation || null,
-          null
-        );
-
-        setSuggestions(suggestions);
-        simpleLogger.info(`💡 Loaded ${suggestions.length} code suggestions`);
-      } catch (error) {
-        simpleLogger.error('❌ Error loading suggestions:', error);
-      } finally {
-        setLoadingSuggestions(false);
-      }
-    };
-
-    loadSuggestions();
-  }, [open, _categoryId, _selectedAnswer, codes]);
 
   // 🔹 Update quick status
   const handleQuickStatus = async (answer: Answer, status: string) => {
