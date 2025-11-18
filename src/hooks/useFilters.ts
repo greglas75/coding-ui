@@ -76,6 +76,8 @@ export function useFilters({
   });
 
   const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
+  const [debouncedMinLength, setDebouncedMinLength] = useState(filters.minLength);
+  const [debouncedMaxLength, setDebouncedMaxLength] = useState(filters.maxLength);
 
   // ───────────────────────────────────────────────────────────
   // Debounce Search Input
@@ -90,28 +92,51 @@ export function useFilters({
   }, [filters.search, debounceMs]);
 
   // ───────────────────────────────────────────────────────────
+  // Debounce Number Inputs (minLength, maxLength)
+  // Prevents excessive filtering while typing "1000" (4 keystokes → 1 filter operation)
+  // ───────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedMinLength(filters.minLength);
+    }, debounceMs);
+
+    return () => clearTimeout(timeout);
+  }, [filters.minLength, debounceMs]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedMaxLength(filters.maxLength);
+    }, debounceMs);
+
+    return () => clearTimeout(timeout);
+  }, [filters.maxLength, debounceMs]);
+
+  // ───────────────────────────────────────────────────────────
   // Emit onChange when filters update
   // ───────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (onChange) {
-      // Emit with debounced search value
+      // Emit with debounced values
       const updatedFilters = {
         ...filters,
         search: debouncedSearch,
+        minLength: debouncedMinLength,
+        maxLength: debouncedMaxLength,
       };
       onChange(updatedFilters);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     debouncedSearch,
+    debouncedMinLength,
+    debouncedMaxLength,
     filters.status,
     filters.codes,
     filters.language,
     filters.country,
-    filters.minLength,
-    filters.maxLength,
-    // Removed onChange from deps to prevent infinite loop
+    // Removed onChange and raw minLength/maxLength from deps to prevent infinite loop
   ]);
 
   // ───────────────────────────────────────────────────────────
@@ -197,12 +222,14 @@ export function useFilters({
   // ───────────────────────────────────────────────────────────
 
   return {
-    /** Current filter state (with debounced search) */
+    /** Current filter state (with debounced values) */
     filters: {
       ...filters,
       search: debouncedSearch,
+      minLength: debouncedMinLength,
+      maxLength: debouncedMaxLength,
     },
-    /** Raw filter state (without debounced search) */
+    /** Raw filter state (without debounced values) */
     rawFilters: filters,
     /** Update a single filter */
     setFilter,

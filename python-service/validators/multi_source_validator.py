@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from enum import Enum
 import logging
 from utils.timer import PerformanceTimer
+from validators.base_validator import BaseValidator
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +110,7 @@ class ValidationResult:
             self.sources = {}
 
 
-class MultiSourceValidator:
+class MultiSourceValidator(BaseValidator):
     """
     Multi-source brand validation with intelligent pattern detection
 
@@ -132,6 +133,7 @@ class MultiSourceValidator:
         gemini_api_key: str,
         anthropic_api_key: str,
     ):
+        super().__init__()  # Initialize base validator
         self.pinecone_client = pinecone_client
         self.openai_client = openai_client
         self.google_api_key = google_api_key

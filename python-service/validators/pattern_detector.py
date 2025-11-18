@@ -18,6 +18,7 @@ confidence = (
 
 import logging
 from typing import Dict, List, Optional, Any
+from validators.base_validator import BaseValidator
 from validators.multi_source_validator import (
     ValidationResult,
     ValidationType,
@@ -28,7 +29,7 @@ from validators.multi_source_validator import (
 logger = logging.getLogger(__name__)
 
 
-class PatternDetector:
+class PatternDetector(BaseValidator):
     """
     Detects patterns from multi-source validation data
 
@@ -296,7 +297,7 @@ class PatternDetector:
             reasoning += f"This confirms '{brand_name}' is the correct {category} brand."
 
             # Calculate confidence breakdown
-            confidence_breakdown = self._calculate_confidence_breakdown(
+            confidence_breakdown = self.calculate_confidence_breakdown(
                 vision_brands_a=vision_brands_a,
                 vision_brands_b=vision_brands_b,
                 web_brands_a=web_brands_a,
@@ -304,7 +305,7 @@ class PatternDetector:
                 kg_results=kg_results,
                 embedding_similarities=embedding_similarities,
                 dominant_brand=brand_name
-            )
+            ).breakdown
 
             # Generate decision tree
             decision_tree = self._build_decision_tree(
@@ -420,7 +421,7 @@ class PatternDetector:
                     confidence = int(max_embedding_sim * 20)  # Low confidence (< 20%)
 
                     # Calculate confidence breakdown
-                    confidence_breakdown = self._calculate_confidence_breakdown(
+                    confidence_breakdown = self.calculate_confidence_breakdown(
                         vision_brands_a=None,
                         vision_brands_b=None,
                         web_brands_a=web_brands_a,
@@ -428,7 +429,7 @@ class PatternDetector:
                         kg_results=kg_results,
                         embedding_similarities=embedding_similarities,
                         dominant_brand=user_text
-                    )
+                    ).breakdown
 
                     # Generate decision tree
                     decision_tree = self._build_decision_tree(
@@ -560,7 +561,7 @@ class PatternDetector:
 
                 # Calculate confidence breakdown for top candidate
                 top_brand = candidates[0].brand if candidates else None
-                confidence_breakdown = self._calculate_confidence_breakdown(
+                confidence_breakdown = self.calculate_confidence_breakdown(
                     vision_brands_a=None,
                     vision_brands_b=None,
                     web_brands_a=web_brands_a,
@@ -568,7 +569,7 @@ class PatternDetector:
                     kg_results=kg_results,
                     embedding_similarities=embedding_similarities,
                     dominant_brand=top_brand
-                )
+                ).breakdown
 
                 # Generate decision tree
                 decision_tree = self._build_decision_tree(
@@ -701,7 +702,7 @@ class PatternDetector:
                 reasoning += ". Multiple sources confirm this brand."
 
                 # Calculate confidence breakdown
-                confidence_breakdown = self._calculate_confidence_breakdown(
+                confidence_breakdown = self.calculate_confidence_breakdown(
                     vision_brands_a=vision_brands_a,
                     vision_brands_b=vision_brands_b,
                     web_brands_a=web_brands_a,
@@ -709,7 +710,7 @@ class PatternDetector:
                     kg_results=kg_results,
                     embedding_similarities=embedding_similarities,
                     dominant_brand=dominant_brand
-                )
+                ).breakdown
 
                 # Generate decision tree
                 decision_tree = self._build_decision_tree(
@@ -797,7 +798,7 @@ class PatternDetector:
             dominant_brand = vision_results.dominant_brand
 
         # Calculate confidence breakdown even for unclear results
-        confidence_breakdown = self._calculate_confidence_breakdown(
+        confidence_breakdown = self.calculate_confidence_breakdown(
             vision_brands_a=vision_brands_a,
             vision_brands_b=vision_brands_b,
             web_brands_a=web_brands_a,
@@ -805,7 +806,7 @@ class PatternDetector:
             kg_results=kg_results,
             embedding_similarities=embedding_similarities,
             dominant_brand=dominant_brand
-        )
+        ).breakdown
 
         # Generate decision tree
         decision_tree = self._build_decision_tree(
@@ -973,112 +974,8 @@ class PatternDetector:
 
         return sources
 
-    def _calculate_confidence_breakdown(
-        self,
-        vision_brands_a: Optional[Dict],
-        vision_brands_b: Optional[Dict],
-        web_brands_a: Optional[Dict],
-        web_brands_b: Optional[Dict],
-        kg_results: Optional[Dict],
-        embedding_similarities: Optional[Dict],
-        dominant_brand: Optional[str]
-    ) -> Dict[str, Any]:
-        """
-        Calculate how each tier contributed to final confidence.
-
-        Returns breakdown with contribution, reason, and status for each tier.
-        """
-        breakdown = {}
-
-        # Vision AI contribution
-        vision_b_correct = vision_brands_b.get("correct_matches", 0) if vision_brands_b else 0
-        vision_b_total = vision_brands_b.get("total_images", 1) if vision_brands_b else 1
-        vision_rate = vision_b_correct / vision_b_total if vision_b_total > 0 else 0
-
-        vision_contribution = int(vision_rate * 35)  # Max 35%
-        breakdown["vision_ai"] = {
-            "contribution": vision_contribution,
-            "max_contribution": 35,
-            "rate": round(vision_rate * 100, 1),
-            "reason": f"{vision_b_correct}/{vision_b_total} images matched category",
-            "status": "strong" if vision_rate >= 0.8 else "moderate" if vision_rate >= 0.5 else "weak"
-        }
-
-        # Web Search AI contribution
-        web_b_correct = web_brands_b.get("correct_matches", 0) if web_brands_b else 0
-        web_b_total = web_brands_b.get("total_results", 1) if web_brands_b else 1
-        web_rate = web_b_correct / web_b_total if web_b_total > 0 else 0
-
-        web_contribution = int(web_rate * 30)  # Max 30%
-        breakdown["web_search"] = {
-            "contribution": web_contribution,
-            "max_contribution": 30,
-            "rate": round(web_rate * 100, 1),
-            "reason": f"{web_b_correct}/{web_b_total} results matched brand",
-            "status": "strong" if web_rate >= 0.8 else "moderate" if web_rate >= 0.5 else "weak"
-        }
-
-        # Knowledge Graph contribution
-        kg_verified = False
-        kg_matches_category = False
-        if kg_results and dominant_brand and dominant_brand in kg_results:
-            kg_result = kg_results[dominant_brand]
-            if kg_result:
-                kg_verified = kg_result.verified if hasattr(kg_result, 'verified') else False
-                kg_matches_category = kg_result.matches_user_category if hasattr(kg_result, 'matches_user_category') else False
-
-        kg_contribution = 0
-        kg_reason = "Not found in Knowledge Graph"
-        kg_status = "none"
-
-        if kg_verified:
-            if kg_matches_category:
-                kg_contribution = 15  # Full 15%
-                kg_reason = "Entity verified and category matches"
-                kg_status = "strong"
-            else:
-                kg_contribution = 5  # Partial 5%
-                kg_reason = "Entity verified but category mismatch"
-                kg_status = "weak"
-
-        breakdown["knowledge_graph"] = {
-            "contribution": kg_contribution,
-            "max_contribution": 15,
-            "verified": kg_verified,
-            "matches_category": kg_matches_category,
-            "reason": kg_reason,
-            "status": kg_status
-        }
-
-        # Embeddings contribution
-        embedding_similarity = 0
-        if embedding_similarities and dominant_brand and dominant_brand in embedding_similarities:
-            embedding_similarity = embedding_similarities[dominant_brand]
-
-        embedding_contribution = int(embedding_similarity * 20)  # Max 20%
-        breakdown["embeddings"] = {
-            "contribution": embedding_contribution,
-            "max_contribution": 20,
-            "similarity": round(embedding_similarity * 100, 1),
-            "reason": f"{round(embedding_similarity * 100, 1)}% text similarity",
-            "status": "strong" if embedding_similarity >= 0.7 else "moderate" if embedding_similarity >= 0.4 else "weak"
-        }
-
-        # Calculate total
-        total = vision_contribution + web_contribution + kg_contribution + embedding_contribution
-
-        breakdown["total"] = {
-            "confidence": total,
-            "max_possible": 100,
-            "components": {
-                "vision": vision_contribution,
-                "web": web_contribution,
-                "kg": kg_contribution,
-                "embeddings": embedding_contribution
-            }
-        }
-
-        return breakdown
+    # Note: _calculate_confidence_breakdown() is now inherited from BaseValidator
+    # This eliminates 106 lines of duplicated code
 
     def _build_decision_tree(
         self,

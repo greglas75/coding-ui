@@ -10,7 +10,6 @@ export function useCodingGridState(answers: Answer[]) {
   const [isApplying, setIsApplying] = useState(false);
   const [rowAnimations, setRowAnimations] = useState<RowAnimations>({});
   const [focusedRowId, setFocusedRowId] = useState<number | null>(null);
-  const [categoryName, setCategoryName] = useState<string>('');
 
   // 🔄 Sync localAnswers with answers prop when it changes
   useEffect(() => {
@@ -56,8 +55,6 @@ export function useCodingGridState(answers: Answer[]) {
     rowAnimations,
     focusedRowId,
     setFocusedRowId,
-    categoryName,
-    setCategoryName,
 
     // Functions
     triggerRowAnimation,

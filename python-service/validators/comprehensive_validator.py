@@ -9,12 +9,13 @@ import logging
 from validators.translation_handler import TranslationHandler
 from validators.gemini_vision_analyzer import GeminiVisionAnalyzer
 from validators.search_validator import SearchValidator
+from validators.base_validator import BaseValidator
 from models.validation import EnhancedValidationResult
 
 logger = logging.getLogger(__name__)
 
 
-class ComprehensiveValidator:
+class ComprehensiveValidator(BaseValidator):
     """
     Orchestrates multi-stage validation:
     1. Language detection and translation
@@ -31,6 +32,7 @@ class ComprehensiveValidator:
             google_api_key: Google API key for Gemini Vision
             openai_key: Optional OpenAI key for future use
         """
+        super().__init__()  # Initialize base validator
         self.translation_handler = TranslationHandler()
         self.vision_analyzer = GeminiVisionAnalyzer(google_api_key)
         self.search_validator = SearchValidator()
@@ -247,13 +249,8 @@ class ComprehensiveValidator:
         # Cap confidence at 100
         confidence_score = min(confidence_score, 100)
 
-        # Determine recommendation
-        if confidence_score >= 70 and len(risk_factors) == 0:
-            recommendation = "approve"
-        elif confidence_score < 40 or len(risk_factors) >= 3:
-            recommendation = "reject"
-        else:
-            recommendation = "review"  # Needs human review
+        # Determine recommendation using base class method
+        recommendation = self.get_recommendation(confidence_score, risk_factors)
 
         # Build reasoning text
         if reasoning_parts:

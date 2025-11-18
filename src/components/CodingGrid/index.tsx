@@ -1,9 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
+import { useCallback, useMemo, useState } from 'react';
 
 // Types
-import { normalizeStatus } from '../../lib/statusNormalization';
 import { simpleLogger } from '../../utils/logger';
 import type { CodingGridProps } from './types';
 import {
@@ -11,17 +9,21 @@ import {
   createFilterChangeHandler,
   createResetFiltersHandler,
 } from './utils/filterHandlers';
-import { loadFilterPresets } from './utils/filterPresets';
 
 // Hooks - Internal
 import { useAcceptSuggestionHandler } from './hooks/useAcceptSuggestionHandler';
+import { useAdvancedFilters } from './hooks/useAdvancedFilters';
 import { useAnswerActions } from './hooks/useAnswerActions';
 import { useAnswerFiltering } from './hooks/useAnswerFiltering';
+import { useBatchProcessing } from './hooks/useBatchProcessing';
+import { useCategoryMetadata } from './hooks/useCategoryMetadata';
 import { useCodeManagement } from './hooks/useCodeManagement';
 import { useCodingGridHandlers } from './hooks/useCodingGridHandlers';
 import { useCodingGridState } from './hooks/useCodingGridState';
+import { useGridEffects } from './hooks/useGridEffects';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useModalManagement } from './hooks/useModalManagement';
+import { useRealtimeCollaboration } from './hooks/useRealtimeCollaboration';
 
 // Hooks - External
 import { useAcceptSuggestion } from '../../hooks/useAcceptSuggestion';
@@ -50,18 +52,11 @@ import { FiltersBar } from '../FiltersBar';
 import { LiveCodeUpdate } from '../LiveCodeUpdate';
 import { OnlineUsers } from '../OnlineUsers';
 
+// Context
+import { CodingGridProvider } from './context/CodingGridContext';
+
 // Services
 import { AutoConfirmEngine } from '../../lib/autoConfirmEngine';
-import { BatchAIProcessor, type BatchProgress } from '../../lib/batchAIProcessor';
-import { FilterEngine, type FilterGroup, type FilterPreset } from '../../lib/filterEngine';
-import {
-  RealtimeService,
-  type CodeUpdateEvent,
-  type UserPresence,
-} from '../../lib/realtimeService';
-import { getSupabaseClient } from '../../lib/supabase';
-
-const supabase = getSupabaseClient();
 
 export function CodingGrid({
   answers,
@@ -85,18 +80,11 @@ export function CodingGrid({
     setHasLocalModifications,
     selectedIds,
     setSelectedIds,
-    selectedAction: _selectedAction, // TODO: Implement batch actions
     setSelectedAction,
-    isApplying: _isApplying, // TODO: Track applying state
-    setIsApplying: _setIsApplying, // TODO: Set applying state
     rowAnimations,
     focusedRowId,
     setFocusedRowId,
-    categoryName,
-    setCategoryName,
     triggerRowAnimation,
-    handleCheckboxChange: _handleCheckboxChange, // TODO: Individual checkbox handling
-    handleSelectAll: _handleSelectAll, // TODO: Select all handling
   } = gridState;
 
   // Filters
@@ -118,22 +106,13 @@ export function CodingGrid({
     onChange: onFiltersChange,
   });
 
-  // Advanced filters
-  const [filterGroup, setFilterGroup] = useState<FilterGroup>({
-    logic: 'AND',
-    filters: [],
-  });
-  const [filterPresets, setFilterPresets] = useState<FilterPreset[]>([]);
-  const [advancedSearchTerm, setAdvancedSearchTerm] = useState('');
-  // FUTURE: Advanced filtering engine - currently using basic filters
-  const [_filterEngine] = useState(() => new FilterEngine());
-  const [filterOptions, setFilterOptions] = useState({
-    types: [] as string[],
-    statuses: [] as string[],
-    languages: [] as string[],
-    countries: [] as string[],
-    brands: [] as string[],
-  });
+  // Advanced filters (extracted)
+  const advancedFilters = useAdvancedFilters();
+  const { filterGroup, setFilterGroup, filterPresets, advancedSearchTerm, setAdvancedSearchTerm } =
+    advancedFilters;
+
+  // Category metadata (extracted)
+  const { categoryName, filterOptions } = useCategoryMetadata({ categoryId: currentCategoryId });
 
   // Undo/Redo
   const { addAction, undo, redo, canUndo, canRedo } = useUndoRedo({ maxHistorySize: 100 });
@@ -156,42 +135,13 @@ export function CodingGrid({
 
   // Batch selection
   const batchSelection = useBatchSelection();
-  const { setIds: setBatchSelectionIds, toggleSelection: toggleBatchSelection } = batchSelection;
-  const [batchProcessor] = useState(() =>
-    BatchAIProcessor.create({
-      concurrency: 8, // 8 parallel AI requests
-      maxRetries: 3,
-      onProgress: progress => setBatchProgress(progress),
-      onComplete: progress => {
-        toast.success(
-          `Batch completed: ${progress.succeeded} succeeded, ${progress.failed} failed`
-        );
-        // Will be set via modals.setShowBatchModal
-      },
-      onError: error => {
-        toast.error(`Batch error: ${error.message}`);
-        // Will be set via modals.setShowBatchModal
-      },
-    })
-  );
-  const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
+  const { toggleSelection: toggleBatchSelection } = batchSelection;
 
-  const orderedAnswerIds = useMemo(
-    () => localAnswers.map(answer => String(answer.id)),
-    [localAnswers]
-  );
-
-  useEffect(() => {
-    setBatchSelectionIds(orderedAnswerIds);
-  }, [setBatchSelectionIds, orderedAnswerIds]);
-
-  const batchSelectedIds = useMemo(
-    () =>
-      Array.from(batchSelection.selectedIds)
-        .map(id => parseInt(id, 10))
-        .filter(id => !Number.isNaN(id)),
-    [batchSelection.selectedIds]
-  );
+  // Batch processing (extracted)
+  const { batchProcessor, batchProgress, setBatchProgress, batchSelectedIds } = useBatchProcessing({
+    batchSelection,
+    localAnswers,
+  });
 
   // AI - Now properly integrated
   const { mutateAsync: categorizeAnswerAsync } = useCategorizeAnswer();
@@ -199,10 +149,12 @@ export function CodingGrid({
   const { mutate: _acceptSuggestion, isPending: _isAcceptingSuggestion } = useAcceptSuggestion();
   const [autoConfirmEngine] = useState(() => new AutoConfirmEngine());
 
-  // Realtime
-  const [realtimeService] = useState(() => new RealtimeService());
-  const [onlineUsers, setOnlineUsers] = useState<UserPresence[]>([]);
-  const [liveUpdate, setLiveUpdate] = useState<CodeUpdateEvent | null>(null);
+  // Realtime collaboration (extracted)
+  const { realtimeService, onlineUsers, liveUpdate, setLiveUpdate } = useRealtimeCollaboration({
+    categoryId: currentCategoryId,
+    focusedRowId,
+    setLocalAnswers,
+  });
 
   // Modals
   const modals = useModalManagement({ onCodingStart });
@@ -227,204 +179,17 @@ export function CodingGrid({
   // ========================================
   // EFFECTS
   // ========================================
-
-  // Fetch category name
-  useEffect(() => {
-    if (currentCategoryId) {
-      const fetchCategoryName = async () => {
-        const { data, error } = await supabase
-          .from('categories')
-          .select('name')
-          .eq('id', currentCategoryId)
-          .single();
-
-        if (!error && data) {
-          setCategoryName(data.name);
-          document.title = `${data.name} - Coding`;
-        }
-      };
-      fetchCategoryName();
-    } else {
-      setCategoryName('');
-      document.title = 'Coding & AI Categorization Dashboard';
-    }
-  }, [currentCategoryId, setCategoryName]);
-
-  // Apply URL filter on mount
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const filterParam = params.get('filter');
-
-    if (filterParam) {
-      simpleLogger.info('🔍 Applying initial filter from URL:', filterParam);
-      // Support comma-separated multiple statuses
-      const statusValues = filterParam.split(',').map(s => s.trim());
-      // Normalize to canonical values before setting
-      const normalizedStatuses = statusValues.map(s => {
-        try {
-          return normalizeStatus(s);
-        } catch {
-          return s; // Fallback to original if normalization fails
-        }
-      });
-      setFilter('status', normalizedStatuses);
-    }
-  }, [setFilter]);
-
-  // Fetch filter options
-  useEffect(() => {
-    if (currentCategoryId) {
-      const fetchFilterOptions = async () => {
-        try {
-          const { data, error } = await supabase.rpc('get_filter_options', {
-            p_category_id: currentCategoryId,
-          });
-
-          if (error) {
-            simpleLogger.error('Error fetching filter options:', error);
-            return;
-          }
-
-          if (data && data.length > 0) {
-            const row = data[0] as any;
-            const hardcodedStatuses = [
-              'uncategorized',
-              'whitelist',
-              'blacklist',
-              'categorized',
-              'global_blacklist',
-              'ignored',
-              'other',
-            ];
-
-            setFilterOptions({
-              types: (row.types || []).filter(Boolean),
-              statuses: row.statuses ? (row.statuses || []).filter(Boolean) : hardcodedStatuses,
-              languages: (row.languages || []).filter(Boolean),
-              countries: (row.countries || []).filter(Boolean),
-              brands: [],
-            });
-          }
-        } catch (error) {
-          simpleLogger.error('Error fetching filter options:', error);
-        }
-      };
-      fetchFilterOptions();
-    }
-  }, [currentCategoryId]);
-
-  // Sync local answers with sorted/filtered
-  useEffect(() => {
-    if (!hasLocalModifications) {
-      setLocalAnswers(filtering.sortedAndFilteredAnswers);
-    }
-  }, [filtering.sortedAndFilteredAnswers, hasLocalModifications, setLocalAnswers]);
-
-  // Auto-save
-  useEffect(() => {
-    if (!hasLocalModifications || localAnswers.length === 0) return;
-
-    const autoSaveInterval = setInterval(async () => {
-      try {
-        const stats = await getCacheStats();
-        if (stats.unsyncedChanges > 0) {
-          await syncPendingChanges();
-        }
-      } catch (error) {
-        simpleLogger.error('Auto-save error:', error);
-      }
-    }, 5000);
-
-    return () => clearInterval(autoSaveInterval);
-  }, [hasLocalModifications, localAnswers.length, syncPendingChanges, getCacheStats]);
-
-  // Load filter presets
-  useEffect(() => {
-    const presets = loadFilterPresets();
-    setFilterPresets(presets);
-  }, [setFilterPresets]);
-
-  // Initialize realtime
-  useEffect(() => {
-    if (!currentCategoryId) return;
-
-    const initRealtime = async () => {
-      try {
-        const userName = `User-${Math.random().toString(36).substring(7)}`;
-        const userId = `user-${Date.now()}`;
-
-        await realtimeService.joinProject(currentCategoryId, userId, userName);
-
-        realtimeService.onPresenceUpdate(users => {
-          setOnlineUsers(users);
-        });
-
-        realtimeService.onCodeUpdateReceived(update => {
-          setLiveUpdate(update);
-          setLocalAnswers(prev =>
-            prev.map(a =>
-              a.id === update.answerId
-                ? { ...a, selected_code: update.action === 'add' ? update.codeName : null }
-                : a
-            )
-          );
-          setTimeout(() => setLiveUpdate(null), 4000);
-        });
-      } catch (error) {
-        simpleLogger.error('❌ Failed to initialize realtime:', error);
-      }
-    };
-
-    initRealtime();
-
-    return () => {
-      realtimeService.leave();
-    };
-  }, [currentCategoryId, realtimeService, setLocalAnswers]);
-
-  // Auto-focus first row when data loads
-  useEffect(() => {
-    if (localAnswers.length > 0 && !focusedRowId) {
-      setFocusedRowId(localAnswers[0].id);
-    }
-  }, [localAnswers, focusedRowId]);
-
-  // Update current answer in realtime (only when focused, not when clearing focus)
-  useEffect(() => {
-    if (focusedRowId) {
-      realtimeService.updateCurrentAnswer(focusedRowId);
-    }
-  }, [focusedRowId, realtimeService]);
-
-  // Global click handler to clear focus when clicking outside the grid
-  useEffect(() => {
-    const handleGlobalClick = (e: MouseEvent) => {
-      const target = e.target as Element;
-
-      // Don't clear focus if clicking on:
-      // - Grid components (table, rows, cells, buttons)
-      // - Modals
-      // - Input fields
-      if (
-        target.closest('[data-grid-container]') ||
-        target.closest('[data-modal]') ||
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.tagName === 'SELECT'
-      ) {
-        return;
-      }
-
-      // Clear focus when clicking anywhere else
-      if (focusedRowId) {
-        simpleLogger.info('🧹 Clearing focus - clicked outside grid');
-        setFocusedRowId(null);
-      }
-    };
-
-    document.addEventListener('click', handleGlobalClick);
-    return () => document.removeEventListener('click', handleGlobalClick);
-  }, [focusedRowId]);
+  useGridEffects({
+    setFilter,
+    sortedAndFilteredAnswers: filtering.sortedAndFilteredAnswers,
+    hasLocalModifications,
+    setLocalAnswers,
+    localAnswers,
+    getCacheStats,
+    syncPendingChanges,
+    focusedRowId,
+    setFocusedRowId,
+  });
 
   // ========================================
   // HANDLERS
@@ -461,14 +226,7 @@ export function CodingGrid({
   });
 
   // Handlers
-  const {
-    handleCodeSaved,
-    handleQuickRollback,
-    handleSavePreset,
-    handleLoadPreset,
-    handleDeletePreset,
-    handleBatchAI,
-  } = useCodingGridHandlers({
+  const { handleCodeSaved, handleQuickRollback, handleBatchAI } = useCodingGridHandlers({
     localAnswers,
     setLocalAnswers,
     setHasLocalModifications,
@@ -480,7 +238,9 @@ export function CodingGrid({
     currentCategoryId: currentCategoryId ?? null,
     filterGroup,
     filterPresets,
-    setFilterPresets,
+    setFilterPresets: () => {
+      /* Now handled by advancedFilters hook */
+    },
     setFilterGroup,
     answerActions,
     addAction,
@@ -488,6 +248,9 @@ export function CodingGrid({
     batchProcessor,
     batchSelectionCount: batchSelection.selectedCount,
   });
+
+  // Use preset handlers from advanced filters hook
+  const { handleSavePreset, handleLoadPreset, handleDeletePreset } = advancedFilters;
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
@@ -540,11 +303,28 @@ export function CodingGrid({
     [toggleBatchSelection, setFocusedRowId]
   );
 
+  // Prepare context value
+  const contextValue = {
+    localAnswers,
+    focusedRowId,
+    setFocusedRowId,
+    rowAnimations,
+    batchSelection,
+    answerActions,
+    modals,
+    batchProcessor,
+    handleAcceptSuggestion: handleAcceptSuggestionWrapper,
+    handleQuickRollback,
+    handleBatchAI,
+    handleToggleSelection,
+  };
+
   return (
-    <div
-      className="relative"
-      style={{ paddingBottom: batchSelection.selectedCount > 0 ? '80px' : '0' }}
-    >
+    <CodingGridProvider value={contextValue}>
+      <div
+        className="relative"
+        style={{ paddingBottom: batchSelection.selectedCount > 0 ? '80px' : '0' }}
+      >
       {/* Online Users */}
       {currentCategoryId && onlineUsers.length > 1 && (
         <div className="fixed top-4 right-4 z-40">
@@ -715,6 +495,7 @@ export function CodingGrid({
         isOpen={modals.showShortcutsHelp}
         onClose={() => modals.setShowShortcutsHelp(false)}
       />
-    </div>
+      </div>
+    </CodingGridProvider>
   );
 }
