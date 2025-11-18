@@ -1,20 +1,24 @@
-import { Menu } from '@headlessui/react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, Home, Settings, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 // Types
-import type { Answer } from '../../types';
-import type { CodingGridProps } from './types';
-import { simpleLogger } from '../../utils/logger';
 import { normalizeStatus } from '../../lib/statusNormalization';
+import { simpleLogger } from '../../utils/logger';
+import type { CodingGridProps } from './types';
+import {
+  createApplyFiltersHandler,
+  createFilterChangeHandler,
+  createResetFiltersHandler,
+} from './utils/filterHandlers';
+import { loadFilterPresets } from './utils/filterPresets';
 
 // Hooks - Internal
+import { useAcceptSuggestionHandler } from './hooks/useAcceptSuggestionHandler';
 import { useAnswerActions } from './hooks/useAnswerActions';
 import { useAnswerFiltering } from './hooks/useAnswerFiltering';
 import { useCodeManagement } from './hooks/useCodeManagement';
+import { useCodingGridHandlers } from './hooks/useCodingGridHandlers';
 import { useCodingGridState } from './hooks/useCodingGridState';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useModalManagement } from './hooks/useModalManagement';
@@ -29,34 +33,33 @@ import { useUndoRedo } from '../../hooks/useUndoRedo';
 
 // Components - Toolbars
 import { BatchSelectionToolbar } from './toolbars/BatchSelectionToolbar';
-// ResultsCounter moved inline to same row as Advanced Filters
-import { SyncStatusIndicator } from './toolbars/SyncStatusIndicator';
-import { TableHeader } from './toolbars/TableHeader';
 
-// Components - Rows & Virtualized views
-import { DesktopRow } from './rows/DesktopRow';
-import { MobileCard } from './rows/MobileCard';
-import { VirtualizedTable } from './VirtualizedTable';
-import { VirtualizedMobileList } from './VirtualizedMobileList';
+// Components - Internal
+import { Breadcrumbs } from './components/Breadcrumbs';
+import { DesktopTableView } from './components/DesktopTableView';
+import { HeaderControls } from './components/HeaderControls';
+import { MobileListView } from './components/MobileListView';
+import { ModalsSection } from './components/ModalsSection';
+import { ShortcutsHelpModal } from './components/ShortcutsHelpModal';
+
+// Components - Rows & Virtualized views (used in DesktopTableView and MobileListView)
 
 // Components - External
 import { AdvancedFiltersPanel } from '../AdvancedFiltersPanel';
-import { AnalyticsDashboard } from '../AnalyticsDashboard';
-import { AutoConfirmSettings } from '../AutoConfirmSettings';
-import { BatchProgressModal } from '../BatchProgressModal';
-import { ExportImportModal } from '../ExportImportModal';
 import { FiltersBar } from '../FiltersBar';
 import { LiveCodeUpdate } from '../LiveCodeUpdate';
 import { OnlineUsers } from '../OnlineUsers';
-import { RollbackConfirmationModal } from '../RollbackConfirmationModal';
-import { SelectCodeModal } from '../SelectCodeModal';
 
 // Services
 import { AutoConfirmEngine } from '../../lib/autoConfirmEngine';
 import { BatchAIProcessor, type BatchProgress } from '../../lib/batchAIProcessor';
 import { FilterEngine, type FilterGroup, type FilterPreset } from '../../lib/filterEngine';
-import { RealtimeService, type CodeUpdateEvent, type UserPresence } from '../../lib/realtimeService';
-import { getSupabaseClient, createCode } from '../../lib/supabase';
+import {
+  RealtimeService,
+  type CodeUpdateEvent,
+  type UserPresence,
+} from '../../lib/realtimeService';
+import { getSupabaseClient } from '../../lib/supabase';
 
 const supabase = getSupabaseClient();
 
@@ -158,12 +161,14 @@ export function CodingGrid({
     BatchAIProcessor.create({
       concurrency: 8, // 8 parallel AI requests
       maxRetries: 3,
-      onProgress: (progress) => setBatchProgress(progress),
-      onComplete: (progress) => {
-        toast.success(`Batch completed: ${progress.succeeded} succeeded, ${progress.failed} failed`);
+      onProgress: progress => setBatchProgress(progress),
+      onComplete: progress => {
+        toast.success(
+          `Batch completed: ${progress.succeeded} succeeded, ${progress.failed} failed`
+        );
         // Will be set via modals.setShowBatchModal
       },
-      onError: (error) => {
+      onError: error => {
         toast.error(`Batch error: ${error.message}`);
         // Will be set via modals.setShowBatchModal
       },
@@ -172,7 +177,7 @@ export function CodingGrid({
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
 
   const orderedAnswerIds = useMemo(
-    () => localAnswers.map((answer) => String(answer.id)),
+    () => localAnswers.map(answer => String(answer.id)),
     [localAnswers]
   );
 
@@ -183,8 +188,8 @@ export function CodingGrid({
   const batchSelectedIds = useMemo(
     () =>
       Array.from(batchSelection.selectedIds)
-        .map((id) => parseInt(id, 10))
-        .filter((id) => !Number.isNaN(id)),
+        .map(id => parseInt(id, 10))
+        .filter(id => !Number.isNaN(id)),
     [batchSelection.selectedIds]
   );
 
@@ -335,16 +340,9 @@ export function CodingGrid({
 
   // Load filter presets
   useEffect(() => {
-    const saved = localStorage.getItem('filterPresets');
-    if (saved) {
-      try {
-        const presets = JSON.parse(saved);
-        setFilterPresets(presets);
-      } catch (error) {
-        simpleLogger.error('Failed to load filter presets:', error);
-      }
-    }
-  }, []);
+    const presets = loadFilterPresets();
+    setFilterPresets(presets);
+  }, [setFilterPresets]);
 
   // Initialize realtime
   useEffect(() => {
@@ -357,14 +355,14 @@ export function CodingGrid({
 
         await realtimeService.joinProject(currentCategoryId, userId, userName);
 
-        realtimeService.onPresenceUpdate((users) => {
+        realtimeService.onPresenceUpdate(users => {
           setOnlineUsers(users);
         });
 
-        realtimeService.onCodeUpdateReceived((update) => {
+        realtimeService.onCodeUpdateReceived(update => {
           setLiveUpdate(update);
-          setLocalAnswers((prev) =>
-            prev.map((a) =>
+          setLocalAnswers(prev =>
+            prev.map(a =>
               a.id === update.answerId
                 ? { ...a, selected_code: update.action === 'add' ? update.codeName : null }
                 : a
@@ -432,47 +430,18 @@ export function CodingGrid({
   // HANDLERS
   // ========================================
 
-  const handleFilterChange = (key: string, value: any) => {
-    setFilter(key as any, value);
-
-    // Update URL without causing scroll jump
-    const url = new URL(window.location.href);
-    if (key === 'status') {
-      if (Array.isArray(value) && value.length > 0) {
-        // Store normalized canonical values in URL (comma-separated for multiple)
-        url.searchParams.set('filter', value.join(','));
-      } else {
-        url.searchParams.delete('filter');
-      }
-      // Save scroll position before updating URL
-      const scrollPosition = window.scrollY;
-      window.history.replaceState({}, '', url);
-      // Restore scroll position immediately
-      window.scrollTo(0, scrollPosition);
-    }
-  };
-
-  const applyFilters = () => {
-    setLocalAnswers(filtering.filteredAnswers);
-    if (onFiltersChange) {
-      onFiltersChange(filters);
-    }
-  };
-
-  const resetFilters = () => {
-    resetFiltersHook();
-    if (onFiltersChange) {
-      onFiltersChange({
-        search: '',
-        status: [],
-        codes: [],
-        language: '',
-        country: '',
-        minLength: 0,
-        maxLength: 0,
-      });
-    }
-  };
+  // Filter handlers
+  const handleFilterChange = createFilterChangeHandler({ setFilter, onFiltersChange }) as (
+    key: string,
+    value: any
+  ) => void;
+  const applyFilters = createApplyFiltersHandler(
+    filtering.filteredAnswers,
+    setLocalAnswers,
+    filters,
+    onFiltersChange
+  );
+  const resetFilters = createResetFiltersHandler(resetFiltersHook, onFiltersChange);
 
   const reloadCategoryData = () => {
     if (!currentCategoryId) return;
@@ -482,363 +451,43 @@ export function CodingGrid({
     }
   };
 
-  const handleAcceptSuggestionWrapper = async (answerId: number, suggestion: any) => {
-    // Find current answer to save previous state for undo
-    const currentAnswer = localAnswers.find(a => a.id === answerId);
-    if (!currentAnswer) return;
+  // Accept suggestion handler
+  const handleAcceptSuggestionWrapper = useAcceptSuggestionHandler({
+    localAnswers,
+    setLocalAnswers,
+    answerActions,
+    acceptSuggestion: _acceptSuggestion,
+    addAction,
+  });
 
-    const previousState = {
-      selected_code: currentAnswer.selected_code,
-      quick_status: currentAnswer.quick_status,
-      general_status: currentAnswer.general_status,
-      coding_date: currentAnswer.coding_date,
-    };
-
-    // ✅ Check if code needs to be created (discovered from web search)
-    if (suggestion.isNew) {
-      try {
-        toast.loading(`Creating new code: ${suggestion.code_name}...`, { id: 'create-code' });
-        await createCode(suggestion.code_name);
-        toast.success(`✅ Created new code: ${suggestion.code_name}`, { id: 'create-code' });
-        // Invalidate codes query to refresh the list
-        queryClient.invalidateQueries({ queryKey: ['codes'] });
-      } catch (error) {
-        toast.error(`❌ Failed to create code: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: 'create-code' });
-        simpleLogger.error('Error creating code:', error);
-        return; // Don't proceed with applying the code if creation failed
-      }
-    }
-
-    // Calculate new selected code
-    const existingCodes = currentAnswer.selected_code;
-    let newSelectedCode = suggestion.code_name;
-
-    if (existingCodes) {
-      const codesList = existingCodes.split(',').map((c: string) => c.trim());
-      if (!codesList.includes(suggestion.code_name)) {
-        newSelectedCode = `${existingCodes}, ${suggestion.code_name}`;
-      } else {
-        newSelectedCode = existingCodes;
-      }
-    }
-
-    const newState = {
-      selected_code: newSelectedCode,
-      quick_status: 'Confirmed' as const,
-      general_status: 'whitelist' as const,
-      coding_date: new Date().toISOString(),
-    };
-
-    // 🔍 Find all duplicate answers to update in local state
-    const duplicateIds = await answerActions.findDuplicateAnswers(currentAnswer, true);
-    const allIds = [answerId, ...duplicateIds];
-
-    simpleLogger.info(`🎯 Accepting suggestion for answer ${answerId} + ${duplicateIds.length} duplicates (total: ${allIds.length})`);
-
-    _acceptSuggestion({
-      answerId,
-      codeId: suggestion.code_id,
-      codeName: suggestion.code_name,
-      confidence: suggestion.confidence,
-    });
-
-    // ✅ Update ALL identical answers in local state (optimistic update)
-    setLocalAnswers((prev) =>
-      prev.map((a) => (allIds.includes(a.id) ? { ...a, ...newState } : a))
-    );
-
-    // Animation disabled per user request
-    // triggerRowAnimation(answerId, 'animate-flash-ok');
-
-    // ✅ Build previous state for ALL affected answers (for undo history)
-    const previousStateMap: Record<number, any> = {};
-    allIds.forEach(id => {
-      const ans = localAnswers.find(a => a.id === id);
-      if (ans) {
-        previousStateMap[id] = {
-          selected_code: ans.selected_code,
-          quick_status: ans.quick_status,
-          general_status: ans.general_status,
-          coding_date: ans.coding_date,
-        };
-      }
-    });
-
-    // Add to undo history
-    const totalCount = allIds.length;
-    addAction({
-      id: crypto.randomUUID(),
-      type: 'accept_suggestion',
-      timestamp: Date.now(),
-      description: totalCount > 1
-        ? `Accepted AI suggestion: ${suggestion.code_name} (${totalCount} answers)`
-        : `Accepted AI suggestion: ${suggestion.code_name}`,
-      answerIds: allIds,
-      previousState: previousStateMap,
-      newState: allIds.reduce((acc, id) => {
-        acc[id] = newState;
-        return acc;
-      }, {} as Record<number, any>),
-      undo: async () => {
-        // Revert ALL duplicates - need to update each individually due to different previous states
-        for (const [id, state] of Object.entries(previousStateMap)) {
-          await supabase
-            .from('answers')
-            .update(state)
-            .eq('id', parseInt(id));
-        }
-
-        setLocalAnswers((prev) =>
-          prev.map((a) => {
-            const revert = previousStateMap[a.id];
-            return revert ? { ...a, ...revert } : a;
-          })
-        );
-        queryClient.invalidateQueries({ queryKey: ['answers'] });
-      },
-      redo: async () => {
-        // Re-apply to ALL duplicates
-        const { error: redoError } = await supabase
-          .from('answers')
-          .update(newState)
-          .in('id', allIds);
-
-        if (!redoError) {
-          setLocalAnswers((prev) =>
-            prev.map((a) => (allIds.includes(a.id) ? { ...a, ...newState } : a))
-          );
-          queryClient.invalidateQueries({ queryKey: ['answers'] });
-        }
-      },
-    });
-  };
-
-  const handleCodeSaved = async () => {
-    const fallbackSelectedIds = selectedIds.length > 0 ? selectedIds : [];
-    const preferredSelectedIds =
-      batchSelectedIds.length > 0 ? batchSelectedIds : fallbackSelectedIds;
-    const affectedIds =
-      preferredSelectedIds.length > 0
-        ? preferredSelectedIds
-        : modals.selectedAnswer
-        ? [
-            modals.selectedAnswer.id,
-            ...(await answerActions.findDuplicateAnswers(modals.selectedAnswer)),
-          ]
-        : [];
-
-    if (affectedIds.length > 0) {
-      // Animation disabled per user request
-      // affectedIds.forEach((id) => {
-      //   triggerRowAnimation(id, 'animate-pulse bg-green-600/20 transition duration-700');
-      // });
-
-      if (batchSelectedIds.length > 0) {
-        batchSelection.clearSelection();
-      }
-
-      if (selectedIds.length > 0) {
-        setSelectedIds([]);
-        setSelectedAction('');
-      }
-    }
-
-    queryClient.invalidateQueries({ queryKey: ['answers', currentCategoryId] });
-
-    try {
-      const updatedAnswerIds = affectedIds.length > 0 ? affectedIds : [];
-      if (updatedAnswerIds.length === 0) return;
-
-      const { data: updatedAnswers, error } = await supabase
-        .from('answers')
-        .select(`*, answer_codes (codes (id, name))`)
-        .in('id', updatedAnswerIds);
-
-      if (error) {
-        simpleLogger.error('Error refreshing answers:', error);
-        return;
-      }
-
-      const transformedAnswers = updatedAnswers.map((answer) => ({
-        ...answer,
-        selected_code:
-          answer.answer_codes?.map((ac: any) => ac.codes?.name).filter(Boolean).join(', ') || null,
-      }));
-
-      setLocalAnswers((prev) =>
-        prev.map((answer) => {
-          const updatedAnswer = transformedAnswers.find((ua) => ua.id === answer.id);
-          return updatedAnswer || answer;
-        })
-      );
-
-      setHasLocalModifications(true);
-    } catch (err) {
-      simpleLogger.error('Error refreshing answers:', err);
-    }
-
-    modals.setModalOpen(false);
-    modals.setSelectedAnswer(null);
-  };
-
-  const handleQuickRollback = async (answer: Answer) => {
-    try {
-      // Find ALL duplicate answers to reset them too (not just uncoded)
-      const duplicateIds = await answerActions.findDuplicateAnswers(answer, false);
-      const allIds = [answer.id, ...duplicateIds];
-
-      simpleLogger.info(`🔄 Rolling back ${allIds.length} answer(s) (including ${duplicateIds.length} duplicates)`);
-
-      // Update in database
-      const { error } = await supabase
-        .from('answers')
-        .update({
-          general_status: 'uncategorized',
-          quick_status: null,
-          selected_code: null,
-          coding_date: null,
-          updated_at: new Date().toISOString(),
-        })
-        .in('id', allIds);
-
-      if (error) throw error;
-
-      // Update local state for all affected answers
-      setLocalAnswers((prev) =>
-        prev.map((a) =>
-          allIds.includes(a.id)
-            ? {
-                ...a,
-                general_status: 'uncategorized',
-                quick_status: null,
-                selected_code: null,
-                coding_date: null,
-                updated_at: new Date().toISOString(),
-              }
-            : a
-        )
-      );
-      setHasLocalModifications(true);
-
-      // Add undo action
-      addAction({
-        id: crypto.randomUUID(),
-        type: 'status_change',
-        timestamp: Date.now(),
-        description: `Rolled back ${allIds.length} answer(s): ${answer.answer_text?.substring(0, 30)}...`,
-        answerIds: allIds,
-        previousState: {
-          [answer.id]: {
-            general_status: answer.general_status || undefined,
-            quick_status: answer.quick_status || undefined,
-            selected_code: answer.selected_code,
-          },
-        },
-        newState: {
-          [answer.id]: {
-            general_status: 'uncategorized',
-            quick_status: undefined,
-            selected_code: null,
-          },
-        },
-        undo: async () => {
-          const { error: undoError } = await supabase
-            .from('answers')
-            .update({
-              general_status: answer.general_status,
-              quick_status: answer.quick_status,
-              selected_code: answer.selected_code,
-            })
-            .eq('id', answer.id);
-
-          if (!undoError) {
-            setLocalAnswers((prev) =>
-              prev.map((a) =>
-                a.id === answer.id
-                  ? {
-                      ...a,
-                      general_status: answer.general_status,
-                      quick_status: answer.quick_status,
-                      selected_code: answer.selected_code,
-                    }
-                  : a
-              )
-            );
-          }
-        },
-        redo: async () => {
-          await handleQuickRollback(answer);
-        },
-      });
-
-      // Animation disabled per user request
-      // triggerRowAnimation(answer.id, 'animate-flash-ok');
-
-      if (duplicateIds.length > 0) {
-        toast.success(`Rolled back ${allIds.length} answer(s) to uncategorized`);
-      } else {
-        toast.success('Rolled back to uncategorized');
-      }
-
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['answers', currentCategoryId] });
-    } catch (error) {
-      simpleLogger.error('❌ Error rolling back:', error);
-      toast.error('Failed to rollback');
-    }
-  };
-
-  const handleSavePreset = (name: string) => {
-    const preset: FilterPreset = {
-      id: crypto.randomUUID(),
-      name,
-      filterGroup: { ...filterGroup },
-      createdAt: new Date().toISOString(),
-    };
-    const newPresets = [...filterPresets, preset];
-    setFilterPresets(newPresets);
-    localStorage.setItem('filterPresets', JSON.stringify(newPresets));
-    toast.success(`Filter preset "${name}" saved!`);
-  };
-
-  const handleLoadPreset = (preset: FilterPreset) => {
-    setFilterGroup(preset.filterGroup);
-    toast.success(`Loaded preset: ${preset.name}`);
-  };
-
-  const handleDeletePreset = (presetId: string) => {
-    const newPresets = filterPresets.filter((p) => p.id !== presetId);
-    setFilterPresets(newPresets);
-    localStorage.setItem('filterPresets', JSON.stringify(newPresets));
-    toast.success('Filter preset deleted');
-  };
-
-  const handleBatchAI = async () => {
-    if (batchSelection.selectedCount === 0) {
-      toast.error('No answers selected');
-      return;
-    }
-
-    if (!currentCategoryId) {
-      toast.error('No category selected');
-      return;
-    }
-
-    const confirmed = confirm(
-      `Process ${batchSelection.selectedCount} answers with AI? This may take several minutes.`
-    );
-
-    if (!confirmed) return;
-
-    try {
-      modals.setShowBatchModal(true);
-      await batchProcessor.startBatch(batchSelectedIds, currentCategoryId);
-    } catch (error) {
-      simpleLogger.error('Batch AI processing error:', error);
-      toast.error('Failed to start batch processing');
-      modals.setShowBatchModal(false);
-    }
-  };
+  // Handlers
+  const {
+    handleCodeSaved,
+    handleQuickRollback,
+    handleSavePreset,
+    handleLoadPreset,
+    handleDeletePreset,
+    handleBatchAI,
+  } = useCodingGridHandlers({
+    localAnswers,
+    setLocalAnswers,
+    setHasLocalModifications,
+    selectedIds,
+    setSelectedIds,
+    setSelectedAction,
+    batchSelectedIds,
+    batchSelection,
+    currentCategoryId: currentCategoryId ?? null,
+    filterGroup,
+    filterPresets,
+    setFilterPresets,
+    setFilterGroup,
+    answerActions,
+    addAction,
+    modals,
+    batchProcessor,
+    batchSelectionCount: batchSelection.selectedCount,
+  });
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
@@ -862,11 +511,7 @@ export function CodingGrid({
     (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') ||
     (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test');
 
-  const formatRowDate = useCallback((date: string | null) => {
-    if (!date) return '—';
-    const parsed = new Date(date);
-    return parsed.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
-  }, []);
+  // Date formatter is already imported from utils
 
   const handleRowFocus = useCallback(
     (answerId: number) => {
@@ -906,7 +551,7 @@ export function CodingGrid({
           <OnlineUsers
             users={onlineUsers}
             currentUserId={
-              realtimeService.getStats().users.find((u) => u.isOnline)?.userId || 'current'
+              realtimeService.getStats().users.find(u => u.isOnline)?.userId || 'current'
             }
           />
         </div>
@@ -919,84 +564,20 @@ export function CodingGrid({
       {currentCategoryId && (
         <div className="flex items-center justify-between mb-4 px-3">
           {/* Left: Breadcrumbs */}
-          <nav className="text-sm text-gray-500" aria-label="Breadcrumb">
-            <Link to="/" className="hover:text-blue-600 inline-flex items-center gap-1">
-              <Home size={14} />
-              Categories
-            </Link>
-            <ChevronRight size={14} className="inline mx-1" />
-            <span className="text-gray-700">{categoryName}</span>
-            <ChevronRight size={14} className="inline mx-1" />
-            <span className="text-blue-600 font-medium">Coding</span>
-          </nav>
+          <Breadcrumbs categoryName={categoryName} />
 
           {/* Right: Status + Shortcuts + View Options */}
-          <div className="flex items-center gap-2">
-            {/* Online/Offline Status */}
-            <SyncStatusIndicator
-              syncStatus={syncStatus}
-              pendingCount={pendingCount}
-              syncProgress={syncProgress}
-              onSyncNow={syncPendingChanges}
-            />
-
-            {/* Shortcuts button */}
-            <button
-              className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 border border-gray-200 dark:border-neutral-700 rounded-md bg-white dark:bg-neutral-900 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
-              onClick={() => modals.setShowShortcutsHelp(true)}
-              title="Show keyboard shortcuts"
-            >
-              <span>?</span>
-              <span className="hidden sm:inline">Shortcuts</span>
-            </button>
-
-            {/* View Options Dropdown */}
-            <Menu as="div" className="relative">
-              <Menu.Button
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 border border-gray-200 dark:border-neutral-700 rounded-md bg-white dark:bg-neutral-900 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors focus:ring-2 focus:ring-blue-500 outline-none"
-                title="View options"
-              >
-                <Settings size={16} />
-                <span className="hidden sm:inline">View Options</span>
-              </Menu.Button>
-
-              <Menu.Items className="absolute right-0 mt-2 w-48 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-md shadow-lg text-sm z-50 py-1">
-                <div className="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide border-b border-gray-200 dark:border-neutral-700">
-                  Display Density
-                </div>
-                <Menu.Item>
-                  {({ active }) => (
-                    <button
-                      className={`w-full text-left px-3 py-2 transition-colors flex items-center gap-2 ${
-                        active ? 'bg-gray-100 dark:bg-neutral-800' : ''
-                      } ${
-                        density === 'comfortable' ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'
-                      }`}
-                      onClick={() => setDensity('comfortable')}
-                      title="More spacing between rows"
-                    >
-                      {density === 'comfortable' && '✓ '}Comfortable
-                    </button>
-                  )}
-                </Menu.Item>
-                <Menu.Item>
-                  {({ active }) => (
-                    <button
-                      className={`w-full text-left px-3 py-2 transition-colors flex items-center gap-2 ${
-                        active ? 'bg-gray-100 dark:bg-neutral-800' : ''
-                      } ${
-                        density === 'compact' ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'
-                      }`}
-                      onClick={() => setDensity('compact')}
-                      title="Less spacing, more data visible"
-                    >
-                      {density === 'compact' && '✓ '}Compact
-                    </button>
-                  )}
-                </Menu.Item>
-              </Menu.Items>
-            </Menu>
-          </div>
+          <HeaderControls
+            syncStatus={syncStatus}
+            pendingCount={pendingCount}
+            syncProgress={syncProgress}
+            onSyncNow={async () => {
+              await syncPendingChanges();
+            }}
+            density={density}
+            onDensityChange={setDensity}
+            onShowShortcuts={() => modals.setShowShortcutsHelp(true)}
+          />
         </div>
       )}
 
@@ -1015,7 +596,7 @@ export function CodingGrid({
               { key: 'ignored', label: 'Ignored' },
               { key: 'other', label: 'Other' },
             ]}
-            codesList={codeManagement.cachedCodes.map((c) => c.name)}
+            codesList={codeManagement.cachedCodes.map(c => c.name)}
             statusesList={filterOptions.statuses}
             languagesList={filterOptions.languages}
             countriesList={filterOptions.countries}
@@ -1045,7 +626,7 @@ export function CodingGrid({
             onDeletePreset={handleDeletePreset}
             resultsCount={(() => {
               // Show total count if no filters are active, otherwise show filtered count
-              const hasActiveFilters = (
+              const hasActiveFilters =
                 filters.search !== '' ||
                 filters.status.length > 0 ||
                 filters.codes.length > 0 ||
@@ -1054,15 +635,15 @@ export function CodingGrid({
                 filters.minLength > 0 ||
                 filters.maxLength > 0 ||
                 filterGroup.filters.length > 0 ||
-                advancedSearchTerm !== ''
-              );
+                advancedSearchTerm !== '';
 
-              return hasActiveFilters ? filtering.sortedAndFilteredAnswers.length : (totalAnswers || answers.length);
+              return hasActiveFilters
+                ? filtering.sortedAndFilteredAnswers.length
+                : totalAnswers || answers.length;
             })()}
             totalCount={totalAnswers || answers.length}
             onShowShortcuts={() => modals.setShowShortcutsHelp(true)}
           />
-
         </>
       )}
 
@@ -1071,7 +652,7 @@ export function CodingGrid({
         <BatchSelectionToolbar
           selectedCount={batchSelection.selectedCount}
           onBatchAI={handleBatchAI}
-          onSelectAll={() => batchSelection.selectAll(localAnswers.map((a) => String(a.id)))}
+          onSelectAll={() => batchSelection.selectAll(localAnswers.map(a => String(a.id)))}
           onClearSelection={batchSelection.clearSelection}
           totalCount={localAnswers.length}
           onShowAnalytics={() => modals.setShowAnalytics(true)}
@@ -1082,356 +663,58 @@ export function CodingGrid({
       )}
 
       {/* Desktop Table */}
-      {isTestEnv ? (
-      <div
-        className="hidden md:block relative overflow-auto max-h-[60vh]"
-        data-grid-container
-        onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            simpleLogger.info('🧹 Clearing focus - clicked on table container');
-            setFocusedRowId(null);
-          }
-        }}
-      >
-        <table
-          className="w-full border-collapse min-w-[900px]"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              simpleLogger.info('🧹 Clearing focus - clicked on table element');
-              setFocusedRowId(null);
-            }
-          }}
-        >
-          <TableHeader
-            cellPad={cellPad}
-            sortField={filtering.sortField}
-            sortOrder={filtering.sortOrder}
-            onSort={filtering.handleSort}
-            isAllSelected={batchSelection.isAllSelected(localAnswers.map((a) => String(a.id)))}
-            onSelectAll={() => {
-              if (batchSelection.isAllSelected(localAnswers.map((a) => String(a.id)))) {
-                batchSelection.clearSelection();
-              } else {
-                batchSelection.selectAll(localAnswers.map((a) => String(a.id)));
-              }
-            }}
-            onClearAll={batchSelection.clearSelection}
-            onBulkAICategorize={handleBatchAI}
-            isBulkCategorizing={batchProcessor.getProgress().status === 'running'}
-            visibleCount={localAnswers.length}
-          />
-          <tbody
-            data-answer-container
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                simpleLogger.info('🧹 Clearing focus - clicked on tbody element');
-                setFocusedRowId(null);
-              }
-            }}
-          >
-            {localAnswers.map((answer) => (
-              <DesktopRow
-                key={answer.id}
-                answer={answer}
-                isFocused={focusedRowId === answer.id}
-                isSelected={batchSelection.isSelected(String(answer.id))}
-                isCategorizing={answerActions.isCategorizingRow[answer.id] || false}
-                isAccepting={false}
-                rowAnimation={rowAnimations[answer.id] || ''}
-                  onFocus={() => handleRowFocus(answer.id)}
-                  onClick={() => handleRowClick(answer.id)}
-                  onToggleSelection={handleToggleSelection}
-                onQuickStatus={(ans, key) => answerActions.handleQuickStatus(ans, key)}
-                onCodeClick={() => modals.handleCodeClick(answer)}
-                onRollback={() => handleQuickRollback(answer)}
-                onAcceptSuggestion={(suggestion) => handleAcceptSuggestionWrapper(answer.id, suggestion)}
-                onRegenerateSuggestions={() => answerActions.handleSingleAICategorize(answer.id)}
-                  formatDate={formatRowDate}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
-      ) : (
-        <div
-          className="hidden md:block relative"
-          data-grid-container
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              simpleLogger.info('🧹 Clearing focus - clicked on table container');
-              setFocusedRowId(null);
-            }
-          }}
-        >
-          <div className="overflow-x-auto">
-            <table
-              className="w-full border-collapse min-w-[900px]"
-              onClick={(e) => {
-                if (e.target === e.currentTarget) {
-                  simpleLogger.info('🧹 Clearing focus - clicked on table element');
-                  setFocusedRowId(null);
-                }
-              }}
-            >
-              <TableHeader
-                cellPad={cellPad}
-                sortField={filtering.sortField}
-                sortOrder={filtering.sortOrder}
-                onSort={filtering.handleSort}
-                isAllSelected={batchSelection.isAllSelected(localAnswers.map((a) => String(a.id)))}
-                onSelectAll={() => {
-                  if (batchSelection.isAllSelected(localAnswers.map((a) => String(a.id)))) {
-                    batchSelection.clearSelection();
-                  } else {
-                    batchSelection.selectAll(localAnswers.map((a) => String(a.id)));
-                  }
-                }}
-                onClearAll={batchSelection.clearSelection}
-                onBulkAICategorize={handleBatchAI}
-                isBulkCategorizing={batchProcessor.getProgress().status === 'running'}
-                visibleCount={localAnswers.length}
-              />
-            </table>
-          </div>
-          <div
-            className="mt-0 h-[60vh]"
-            data-answer-container
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                simpleLogger.info('🧹 Clearing focus - clicked on tbody element');
-                setFocusedRowId(null);
-              }
-            }}
-          >
-            <VirtualizedTable
-              answers={localAnswers}
-              focusedRowId={focusedRowId}
-              selectedIds={batchSelection.selectedIds}
-              isCategorizingRow={answerActions.isCategorizingRow}
-              rowAnimations={rowAnimations}
-              onFocus={handleRowFocus}
-              onClick={handleRowClick}
-              onToggleSelection={handleToggleSelection}
-              onQuickStatus={(answer, key) => answerActions.handleQuickStatus(answer, key)}
-              onCodeClick={(answer) => modals.handleCodeClick(answer)}
-              onRollback={(answer) => handleQuickRollback(answer)}
-              onAcceptSuggestion={(answerId, suggestion) =>
-                handleAcceptSuggestionWrapper(answerId, suggestion)
-              }
-              onRegenerateSuggestions={(answerId) => answerActions.handleSingleAICategorize(answerId)}
-              formatDate={formatRowDate}
-            />
-          </div>
-        </div>
-      )}
+      <DesktopTableView
+        isTestEnv={isTestEnv}
+        localAnswers={localAnswers}
+        focusedRowId={focusedRowId}
+        setFocusedRowId={setFocusedRowId}
+        batchSelection={batchSelection}
+        answerActions={answerActions}
+        rowAnimations={rowAnimations}
+        filtering={filtering}
+        modals={modals}
+        cellPad={cellPad}
+        handleRowFocus={handleRowFocus}
+        handleRowClick={handleRowClick}
+        handleToggleSelection={handleToggleSelection}
+        handleAcceptSuggestionWrapper={handleAcceptSuggestionWrapper}
+        handleQuickRollback={handleQuickRollback}
+        handleBatchAI={handleBatchAI}
+        batchProcessor={batchProcessor}
+      />
 
       {/* Mobile Cards */}
-      {isTestEnv ? (
-      <div
-        className="md:hidden space-y-3 p-4"
-        data-grid-container
-        onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            simpleLogger.info('🧹 Clearing focus - clicked on mobile container');
-            setFocusedRowId(null);
-          }
-        }}
-      >
-        {localAnswers.map((answer) => (
-          <MobileCard
-            key={answer.id}
-            answer={answer}
-            isFocused={focusedRowId === answer.id}
-            isSelected={batchSelection.isSelected(String(answer.id))}
-            rowAnimation={rowAnimations[answer.id] || ''}
-            onFocus={() => setFocusedRowId(answer.id)}
-              onClick={() => setFocusedRowId(answer.id)}
-              onToggleSelection={handleToggleSelection}
-            onQuickStatus={(ans, key) => answerActions.handleQuickStatus(ans, key)}
-            onCodeClick={() => modals.handleCodeClick(answer)}
-            onRollback={() => handleQuickRollback(answer)}
-              formatDate={formatRowDate}
-          />
-        ))}
-      </div>
-      ) : (
-        <div
-          className="md:hidden h-[70vh] p-4"
-          data-grid-container
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              simpleLogger.info('🧹 Clearing focus - clicked on mobile container');
-              setFocusedRowId(null);
-            }
-          }}
-        >
-          <VirtualizedMobileList
-            answers={localAnswers}
-            selectedIds={batchSelection.selectedIds}
-            focusedRowId={focusedRowId}
-            rowAnimations={rowAnimations}
-            onSelect={handleRowClick}
-            onToggleSelection={handleToggleSelection}
-            onQuickStatus={(answer, key) => answerActions.handleQuickStatus(answer, key)}
-            onCodeClick={(answer) => modals.handleCodeClick(answer)}
-            onRollback={(answer) => handleQuickRollback(answer)}
-            formatDate={formatRowDate}
-          />
-        </div>
-      )}
+      <MobileListView
+        isTestEnv={isTestEnv}
+        localAnswers={localAnswers}
+        focusedRowId={focusedRowId}
+        setFocusedRowId={setFocusedRowId}
+        batchSelection={batchSelection}
+        answerActions={answerActions}
+        rowAnimations={rowAnimations}
+        modals={modals}
+        handleToggleSelection={handleToggleSelection}
+        handleQuickRollback={handleQuickRollback}
+      />
 
       {/* Modals */}
-      <SelectCodeModal
-        open={modals.modalOpen}
-        onClose={() => {
-          modals.setModalOpen(false);
-          modals.setSelectedAnswer(null);
-          modals.setPreselectedCodes([]);
-        }}
-        selectedAnswerIds={
-          batchSelectedIds.length > 0
-            ? batchSelectedIds
-            : modals.selectedAnswer
-            ? [modals.selectedAnswer.id]
-            : []
-        }
-        allAnswers={answers}
-        currentAnswerIndex={modals.selectedAnswer ? answers.findIndex(a => a.id === modals.selectedAnswer!.id) : 0}
-        preselectedCodes={modals.preselectedCodes}
-        onSaved={handleCodeSaved}
-        onNavigate={(newIndex) => {
-          const newAnswer = answers[newIndex];
-          if (newAnswer) {
-            modals.setSelectedAnswer(newAnswer);
-            modals.setPreselectedCodes([]);
-          }
-        }}
-        mode={modals.assignMode}
-        categoryId={currentCategoryId}
-        selectedAnswer={modals.selectedAnswer?.answer_text || ''}
-        translation={modals.selectedAnswer?.translation_en || ''}
-        aiSuggestions={modals.selectedAnswer?.ai_suggestions || undefined}
-        onGenerateAISuggestions={(answerId) => {
-          answerActions.handleSingleAICategorize(answerId);
-        }}
+      <ModalsSection
+        modals={modals}
+        batchSelectedIds={batchSelectedIds}
+        answers={answers}
+        currentCategoryId={currentCategoryId ?? null}
+        handleCodeSaved={handleCodeSaved}
+        batchProgress={batchProgress}
+        batchProcessor={batchProcessor}
+        answerActions={answerActions}
+        autoConfirmEngine={autoConfirmEngine}
       />
-
-      <RollbackConfirmationModal
-        open={modals.rollbackModalOpen}
-        onClose={() => {
-          modals.setRollbackModalOpen(false);
-          modals.setRollbackAnswer(null);
-        }}
-        record={
-          modals.rollbackAnswer
-            ? {
-                id: modals.rollbackAnswer.id,
-                answer_text: modals.rollbackAnswer.answer_text,
-                selected_code: modals.rollbackAnswer.selected_code || '',
-                general_status: modals.rollbackAnswer.general_status || '',
-                confirmed_by: modals.rollbackAnswer.confirmed_by || '',
-                coding_date: modals.rollbackAnswer.coding_date || '',
-                category_id: modals.rollbackAnswer.category_id,
-              }
-            : {
-                id: 0,
-                answer_text: '',
-                selected_code: '',
-                general_status: '',
-                confirmed_by: '',
-                coding_date: '',
-                category_id: 0,
-              }
-        }
-        onRollback={async () => {
-          /* implement rollback */
-        }}
-        onRollbackAndEdit={async () => {
-          /* implement rollback and edit */
-        }}
-      />
-
-      {modals.showBatchModal && batchProgress && (
-        <BatchProgressModal
-          progress={batchProgress}
-          onPause={() => batchProcessor.pause()}
-          onResume={() => batchProcessor.resume()}
-          onCancel={() => {
-            batchProcessor.cancel();
-            modals.setShowBatchModal(false);
-          }}
-          onClose={() => modals.setShowBatchModal(false)}
-          timeRemaining={batchProcessor.getTimeRemaining()}
-          speed={batchProcessor.getSpeed()}
-        />
-      )}
-
-      {modals.showExportImport && (
-        <ExportImportModal
-          onClose={() => modals.setShowExportImport(false)}
-          categoryId={currentCategoryId}
-        />
-      )}
-
-      {modals.showAnalytics && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-auto">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl max-h-[95vh] overflow-auto">
-            <div className="sticky top-0 z-10 bg-white border-b px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Analytics Dashboard</h2>
-              <button onClick={() => modals.setShowAnalytics(false)}>
-                <X size={20} />
-              </button>
-            </div>
-            <div className="p-6">
-              <AnalyticsDashboard categoryId={currentCategoryId} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modals.showAutoConfirmSettings && (
-        <AutoConfirmSettings
-          engine={autoConfirmEngine}
-          onClose={() => modals.setShowAutoConfirmSettings(false)}
-        />
-      )}
 
       {/* Shortcuts Help */}
-      {modals.showShortcutsHelp && (
-        <div
-          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={() => modals.setShowShortcutsHelp(false)}
-        >
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">⌨️ Keyboard Shortcuts</h3>
-              <button onClick={() => modals.setShowShortcutsHelp(false)}>
-                <X size={20} />
-              </button>
-            </div>
-            <div className="space-y-2 text-sm">
-              <ShortcutRow shortcut="B" description="Mark as Blacklist" />
-              <ShortcutRow shortcut="C" description="Confirm (accepts AI suggestion if available)" />
-              <ShortcutRow shortcut="O" description="Mark as Other" />
-              <ShortcutRow shortcut="I" description="Mark as Ignored" />
-              <ShortcutRow shortcut="G" description="Mark as Global Blacklist" />
-              <ShortcutRow shortcut="A" description="Run AI Categorization" />
-              <ShortcutRow shortcut="S" description="Open Code Selection" />
-              <ShortcutRow shortcut="↑/↓" description="Navigate rows" />
-              <ShortcutRow shortcut="Esc" description="Clear focus" />
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ShortcutRow({ shortcut, description }: { shortcut: string; description: string }) {
-  return (
-    <div className="flex items-center justify-between py-2 border-b">
-      <kbd className="px-2 py-1 bg-gray-100 border rounded text-xs font-mono font-semibold">{shortcut}</kbd>
-      <span className="text-gray-600 flex-1 ml-4 text-sm">{description}</span>
+      <ShortcutsHelpModal
+        isOpen={modals.showShortcutsHelp}
+        onClose={() => modals.setShowShortcutsHelp(false)}
+      />
     </div>
   );
 }

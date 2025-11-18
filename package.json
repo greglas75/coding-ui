@@ -26,6 +26,8 @@
     "test:e2e:report": "playwright show-report",
     "test:e2e:debug": "playwright test --debug",
     "test:all": "npm run test:run && npm run test:e2e",
+    "test:changed": "vitest run --changed",
+    "precommit": "npm run test:changed && npm run lint",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "deploy": "./scripts/deploy/deploy.sh",

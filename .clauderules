@@ -2405,4 +2405,254 @@ use-component-name.ts            # Standalone hooks (kebab-case)
 
 ---
 
+## 🧪 TEST-DRIVEN DEVELOPMENT RULES (MANDATORY)
+
+### MANDATORY: Every new function/component/endpoint MUST have tests
+
+#### WHEN CREATING NEW CODE
+
+1. **Write the test FIRST** (or immediately after)
+2. **Never commit code without corresponding tests**
+3. **No PR/commit without test coverage for new code**
+
+#### NEW FUNCTION → requires:
+
+- ✅ Unit test with happy path
+- ✅ Unit test with error cases
+- ✅ Unit test with edge cases (null, undefined, empty)
+
+#### NEW COMPONENT → requires:
+
+- ✅ Render test
+- ✅ Interaction tests (clicks, inputs)
+- ✅ Props validation tests
+- ✅ Error state tests
+
+#### NEW API ENDPOINT → requires:
+
+- ✅ Success response test (200/201)
+- ✅ Error response tests (400, 401, 404, 500)
+- ✅ Input validation tests
+- ✅ Authentication/authorization tests
+
+#### NEW HOOK → requires:
+
+- ✅ Hook behavior tests
+- ✅ State change tests
+- ✅ Side effect tests
+
+#### BEFORE FINISHING ANY TASK
+
+- ✅ Check if new code has tests
+- ✅ Run test suite to ensure passing
+- ✅ Update coverage report
+- ✅ If coverage drops, add missing tests
+
+#### ALWAYS ask: "Should I write tests for this?"
+
+**Answer is always YES unless explicitly told otherwise.**
+
+#### Test File Naming
+
+```
+ComponentName.test.tsx        # React components
+function-name.test.ts         # TypeScript functions
+test_function_name.py         # Python functions
+```
+
+**Placement:**
+- Place tests next to source file OR in `__tests__` folder
+- Co-located: `Component.tsx` + `Component.test.tsx`
+- Or centralized: `src/__tests__/Component.test.tsx`
+
+#### ACCEPTABLE RESPONSES
+
+- ✅ "I've created the function and its tests"
+- ❌ "I've created the function" (without tests)
+
+---
+
+## 🔄 REFACTORING & TEST MAINTENANCE
+
+### WHEN REFACTORING CODE
+
+#### 1. BEFORE Refactoring
+
+- ✅ Run existing tests to ensure they pass
+- ✅ Note which tests cover this code
+- ✅ Document current test coverage
+
+#### 2. DURING Refactoring
+
+- ✅ Update tests simultaneously with code changes
+- ✅ Never break existing test coverage
+- ✅ Run tests after each refactoring step
+
+#### 3. AFTER Refactoring
+
+- ✅ Update all affected tests
+- ✅ Run full test suite - must pass 100%
+- ✅ If tests fail, fix them OR fix the refactored code
+- ✅ Verify coverage didn't drop
+- ✅ Compare coverage before/after
+
+### SPECIFIC REFACTORING SCENARIOS
+
+#### Function Renamed → Update:
+
+- All test file names
+- All test descriptions
+- All imports in tests
+
+#### Function Split into Multiple → Update:
+
+- Create tests for each new function
+- Update original tests or split them
+- Maintain same coverage level
+
+#### Function Moved to Different File → Update:
+
+- Move corresponding tests
+- Update imports in tests
+
+#### Logic Changed → Update:
+
+- Test assertions to match new behavior
+- Add tests for new edge cases
+- Remove obsolete tests
+
+#### Component Refactored → Update:
+
+- Component tests (props, rendering)
+- Integration tests if API changed
+- Update mocks if needed
+
+### NEVER
+
+- ❌ Leave broken tests after refactoring
+- ❌ Delete tests without replacement
+- ❌ Reduce coverage during refactoring
+- ❌ Commit code with failing tests
+
+### ALWAYS
+
+- ✅ Run tests after each refactoring step
+- ✅ Show test results before/after
+- ✅ Fix or update failing tests immediately
+- ✅ Maintain or improve coverage
+- ✅ Commit only when all tests pass
+
+### If Refactoring Breaks Tests
+
+You have 2 options:
+
+1. **Update tests** to match new implementation
+2. **Adjust refactoring** to maintain compatibility
+
+**ASK:** "Tests are failing after refactoring - should I update tests or modify the refactoring?"
+
+### Refactoring Workflow
+
+```
+Step 1: Run tests (baseline)
+Step 2: Refactor code
+Step 3: Update tests
+Step 4: Run tests again
+Step 5: Compare coverage before/after
+Step 6: If coverage dropped → add missing tests
+Step 7: Commit only when all tests pass
+```
+
+---
+
+## 📸 SNAPSHOT TESTS
+
+### When Refactoring Changes Component Structure or Output
+
+- ✅ Review failed snapshot tests carefully
+- ✅ Ask before updating snapshots: "Should I update snapshots?"
+- ❌ Never blindly update all snapshots (`jest -u`)
+- ✅ Review each snapshot diff manually
+- ✅ Ensure changes are intentional, not bugs
+
+### Snapshots Are Useful For
+
+- UI component structure
+- API response formats
+- Translation output formats
+- Generated content
+
+### Snapshot Update Process
+
+1. Review snapshot diff
+2. Verify changes are intentional
+3. Update snapshot if correct
+4. Fix code if snapshot reveals bug
+5. Never skip snapshot review
+
+---
+
+## 🔧 TEST INFRASTRUCTURE
+
+### Pre-Commit Hooks
+
+**Recommended Setup:**
+
+```json
+// package.json
+{
+  "scripts": {
+    "test:changed": "vitest run --changed",
+    "precommit": "npm run test:changed && npm run lint"
+  }
+}
+```
+
+**Or use Husky:**
+
+```bash
+# .husky/pre-commit
+#!/bin/sh
+npm run test:changed
+npm run lint
+```
+
+This prevents committing untested code.
+
+### CI/CD Test Automation
+
+**Create `.github/workflows/tests.yml`:**
+
+```yaml
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+      - run: npm ci
+      - run: npm run test:run
+      - run: npm run test:coverage
+      - name: Check coverage threshold
+        run: |
+          # Fail if coverage drops below 40%
+          npm run test:coverage -- --coverage.threshold.lines=40
+```
+
+**Requirements:**
+- ✅ Run tests on every PR
+- ✅ Fail if coverage drops below threshold (40% minimum)
+- ✅ Block merge if tests fail
+- ✅ Generate coverage reports
+
+---
+
 **Remember**: This is a **production app** with **10k+ rows** handling, **286 E2E tests**, and **enterprise-grade requirements**. Performance, security, accessibility, and maintainability are **NON-NEGOTIABLE**. Always ask for context if unsure, follow the state management hierarchy, and document your code properly!
