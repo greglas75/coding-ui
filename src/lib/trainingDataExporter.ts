@@ -47,7 +47,7 @@ export class TrainingDataExporter {
 
       // Convert to OpenAI fine-tuning format
       const trainingData: TrainingExample[] = answers.map(answer => {
-        const categoryName = (answer.categories as any)?.name || 'Unknown';
+        const categoryName = (answer.categories as { name: string } | null)?.name || 'Unknown';
         const answerText = answer.answer_text || '';
         const translation = answer.translation_en || '';
         const code = answer.selected_code || '';

@@ -290,12 +290,12 @@ export class BatchAIProcessor {
         } else {
           throw new Error('No AI suggestions generated');
         }
-      } catch (error: any) {
+      } catch (error) {
         simpleLogger.error(`❌ Failed to process answer ${answerId}:`, error);
         this.progress.failed++;
         this.progress.errors.push({
           answerId,
-          error: error.message || 'Unknown error',
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
 
         // Add to retry queue if retries available

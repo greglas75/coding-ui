@@ -4,6 +4,7 @@
  */
 
 import type { ImageResult, WebContext } from './types';
+import type { VisionAnalysisResult } from '../../services/geminiVision';
 
 /**
  * Calculate evidence score from web search results and images
@@ -15,7 +16,7 @@ export function calculateEvidenceScore(
   brandName: string,
   webContext: WebContext[],
   images: ImageResult[],
-  visionResult?: any
+  visionResult?: VisionAnalysisResult | null
 ): { boost: number; details: string } {
   let boost = 0;
   const evidenceItems: string[] = [];

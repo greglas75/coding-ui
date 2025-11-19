@@ -201,7 +201,12 @@ export class ExportEngine {
       throw new Error('No codes to export');
     }
 
-    const codesFormatted = data.codes.map((code: any) => ({
+    const codesFormatted = data.codes.map((code: {
+      id: number;
+      name: string;
+      category_id?: number;
+      created_at?: string;
+    }) => ({
       Name: code.name,
       'Category ID': code.category_id || '',
       ID: code.id,

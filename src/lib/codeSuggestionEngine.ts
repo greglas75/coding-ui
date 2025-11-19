@@ -183,7 +183,14 @@ export class CodeSuggestionEngine {
         return [];
       }
 
-      return data.map((row: any) => ({
+      return data.map((row: {
+        suggestion_code_id: number;
+        suggestion_code_name: string;
+        suggestion_confidence: number;
+        suggestion_avg_similarity: number;
+        suggestion_times_coded: number;
+        suggestion_similar_answers?: string[];
+      }) => ({
         codeId: row.suggestion_code_id,
         codeName: row.suggestion_code_name,
         confidence: row.suggestion_confidence,

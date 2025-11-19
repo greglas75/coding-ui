@@ -68,10 +68,10 @@ export async function searchWithCache<T = any>(
  * @param ttl - Cache TTL in ms (default: 10 minutes)
  * @returns Prefetched data
  */
-export async function prefetchData(
+export async function prefetchData<T = unknown>(
   table: string,
   cacheKey: string,
-  query: any,
+  query: Promise<{ data: T | null; error: Error | null }>,
   ttl: number = 10 * 60 * 1000 // 10 minutes
 ) {
   try {
