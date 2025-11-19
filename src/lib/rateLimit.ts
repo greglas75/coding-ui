@@ -14,7 +14,7 @@ import { simpleLogger } from '../utils/logger';
  * to prevent hitting API rate limits.
  */
 class RateLimiter {
-  private queue: Array<() => Promise<any>> = [];
+  private queue: Array<() => Promise<unknown>> = [];
   private processing = false;
   private requestsPerMinute: number;
   private interval: number;
@@ -121,7 +121,7 @@ class TokenBucketRateLimiter {
   private maxTokens: number;
   private refillRate: number; // tokens per second
   private lastRefill: number;
-  private queue: Array<() => Promise<any>> = [];
+  private queue: Array<() => Promise<unknown>> = [];
   private processing = false;
 
   constructor(maxTokens: number, refillRate: number) {
@@ -243,7 +243,7 @@ export async function retryWithBackoff<T>(
 
       // Don't retry on certain errors
       if (error && typeof error === 'object' && 'status' in error) {
-        const status = (error as any).status;
+        const status = (error as { status: number }).status;
         // Don't retry on auth errors (401, 403) or bad requests (400)
         if (status === 401 || status === 403 || status === 400) {
           throw error;

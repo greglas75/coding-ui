@@ -4,6 +4,7 @@
 
 import OpenAI from 'openai';
 import type { AiSuggestions } from '../../types';
+import type { VisionAnalysisResult } from '../../services/geminiVision';
 import { simpleLogger } from '../../utils/logger';
 import { openaiRateLimiter, retryWithBackoff } from '../rateLimit';
 import { callClaudeAPI, callGeminiAPI } from './apiCalls';
@@ -48,7 +49,7 @@ export async function categorizeAnswer(request: CategorizeRequest): Promise<Cate
             const multiSourceResult = await runMultiSourceValidation(request);
 
             // Format vision result from multi-source validation
-            let visionResult: any = null;
+            let visionResult: VisionAnalysisResult | null = null;
             if (multiSourceResult?.sources?.vision_ai) {
               const v = multiSourceResult.sources.vision_ai;
               visionResult = {
@@ -150,7 +151,7 @@ export async function categorizeAnswer(request: CategorizeRequest): Promise<Cate
               simpleLogger.info('📄 Raw Gemini response:', content.substring(0, 500));
             } else {
               // Call OpenAI API (default)
-              const requestParams: any = {
+              const requestParams: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming = {
                 model: modelToUse,
                 messages: [
                   {
@@ -163,11 +164,8 @@ export async function categorizeAnswer(request: CategorizeRequest): Promise<Cate
                   },
                 ],
                 response_format: { type: 'json_object' },
+                ...(supportsCustomTemperature ? { temperature: 0.3 } : {}),
               };
-
-              if (supportsCustomTemperature) {
-                requestParams.temperature = 0.3;
-              }
 
               const response = await openai!.chat.completions.create(requestParams);
               content = response.choices[0].message.content || '';
@@ -302,32 +300,42 @@ export async function categorizeAnswer(request: CategorizeRequest): Promise<Cate
             });
 
             return finalResult;
-          } catch (error: any) {
+          } catch (error) {
             // Enhanced error handling for common OpenAI errors
             simpleLogger.error('❌ OpenAI API error:', error);
 
-            if (error.status === 429) {
-              throw new Error('Rate limit reached. Please wait a moment and try again.');
+            // Type guard for error with status
+            if (error && typeof error === 'object' && 'status' in error) {
+              const status = (error as { status: number }).status;
+
+              if (status === 429) {
+                throw new Error('Rate limit reached. Please wait a moment and try again.');
+              }
+
+              if (status === 401) {
+                throw new Error('OpenAI API key is invalid. Please check your API key in Settings page.');
+              }
+
+              if (status === 403) {
+                throw new Error('OpenAI account has insufficient quota. Please add credits.');
+              }
+
+              if (status === 400) {
+                const message = (error as { message?: string }).message;
+                throw new Error(`Invalid request to OpenAI: ${message || 'Unknown error'}`);
+              }
+
+              if (status >= 500) {
+                throw new Error('OpenAI service is temporarily unavailable. Please try again later.');
+              }
             }
 
-            if (error.status === 401) {
-              throw new Error('OpenAI API key is invalid. Please check your API key in Settings page.');
-            }
-
-            if (error.status === 403) {
-              throw new Error('OpenAI account has insufficient quota. Please add credits.');
-            }
-
-            if (error.status === 400) {
-              throw new Error(`Invalid request to OpenAI: ${error.message || 'Unknown error'}`);
-            }
-
-            if (error.status >= 500) {
-              throw new Error('OpenAI service is temporarily unavailable. Please try again later.');
-            }
-
-            if (error.message?.includes('fetch')) {
-              throw new Error('Network error. Please check your internet connection.');
+            // Type guard for error with message
+            if (error && typeof error === 'object' && 'message' in error) {
+              const message = (error as { message: string }).message;
+              if (message.includes('fetch')) {
+                throw new Error('Network error. Please check your internet connection.');
+              }
             }
 
             throw error;

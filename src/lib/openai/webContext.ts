@@ -4,6 +4,7 @@
 
 import { buildWebContextSection, googleImageSearch } from '../../services/webContextProvider';
 import { simpleLogger } from '../../utils/logger';
+import type { VisionAnalysisResult } from '../../services/geminiVision';
 import type { CategorizeRequest, ImageResult, WebContext } from './types';
 
 /**
@@ -26,10 +27,10 @@ export function buildSearchQuery(request: CategorizeRequest): string {
 export async function fetchWebContextAndImages(
   request: CategorizeRequest,
   localizedQuery: string
-): Promise<{ webContext: WebContext[]; images: ImageResult[]; visionResult: any }> {
+): Promise<{ webContext: WebContext[]; images: ImageResult[]; visionResult: VisionAnalysisResult | null }> {
   let webContext: WebContext[] = [];
   let images: ImageResult[] = [];
-  let visionResult: any = null;
+  let visionResult: VisionAnalysisResult | null = null;
 
   try {
     simpleLogger.info(`🌐 Fetching web context for: "${request.answer.substring(0, 50)}..."`);
@@ -56,7 +57,7 @@ export async function fetchWebContextAndImages(
       simpleLogger.info(`👁️ Analyzing images with ${request.visionModel}...`);
       try {
         const { analyzeImagesWithGemini } = await import('../../services/geminiVision');
-        const brandNames = request.codes.map((c: any) => c.name);
+        const brandNames = request.codes.map(c => c.name);
         visionResult = await analyzeImagesWithGemini(
           images,
           request.answer,
