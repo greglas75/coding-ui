@@ -204,7 +204,7 @@ export function useUpdateAnswer() {
       const previousData = queryClient.getQueriesData({ queryKey: ['answers'] });
 
       // Optimistically update to the new value
-      queryClient.setQueriesData({ queryKey: ['answers'] }, (old: any) => {
+      queryClient.setQueriesData({ queryKey: ['answers'] }, (old: { data?: Answer[]; count?: number } | undefined) => {
         if (!old) return old;
 
         return {

@@ -51,8 +51,12 @@ export function useManualEntry(categoryId: number, onSuccess: () => void) {
       setCodes([]);
       setCodeName('');
       onSuccess();
-    } catch (error: any) {
-      toast.error(`Failed to create codes: ${error.response?.data?.message || error.message}`);
+    } catch (error) {
+      const errorMessage =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to create codes: ${errorMessage}`);
     } finally {
       setLoading(false);
     }

@@ -81,7 +81,7 @@ function AppContent() {
 }
 
 export default function App() {
-  const handleError = (error: Error, errorInfo: any) => {
+  const handleError = (error: Error, errorInfo: { componentStack?: string }) => {
     // Log error to our error logger
     errorLogger.log(error, errorInfo);
 

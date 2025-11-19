@@ -40,7 +40,7 @@ if (import.meta.env.PROD) {
       return event;
     },
   });
-  (window as any).Sentry = Sentry;
+  (window as Window & { Sentry: typeof Sentry }).Sentry = Sentry;
 }
 
 // ═══════════════════════════════════════════════════════════════

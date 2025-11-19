@@ -45,7 +45,17 @@ export function useCategories() {
         simpleLogger.error('Error fetching category stats via RPC:', statsError);
       }
 
-      const statsMap = new Map<number, any>((statsData || []).map((s: any) => [s.category_id, s]));
+      interface CategoryStats {
+        category_id: number;
+        whitelisted?: number;
+        blacklisted?: number;
+        gibberish?: number;
+        categorized?: number;
+        not_categorized?: number;
+        global_blacklist?: number;
+      }
+
+      const statsMap = new Map<number, CategoryStats>((statsData || []).map((s: CategoryStats) => [s.category_id, s]));
 
       const categoriesWithStats: CategoryWithStats[] = (categoriesData || []).map(cat => {
         const s = statsMap.get(cat.id) || {};

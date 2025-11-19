@@ -174,7 +174,7 @@ export function useCodingGridHandlers({
       const transformedAnswers = updatedAnswers.map((answer) => ({
         ...answer,
         selected_code:
-          answer.answer_codes?.map((ac: any) => ac.codes?.name).filter(Boolean).join(', ') || null,
+          answer.answer_codes?.map((ac: { codes: { name: string } | null }) => ac.codes?.name).filter(Boolean).join(', ') || null,
       }));
 
       setLocalAnswers((prev) =>

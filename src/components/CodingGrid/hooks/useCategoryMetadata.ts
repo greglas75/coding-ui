@@ -104,7 +104,12 @@ export function useCategoryMetadata({
         }
 
         if (data && data.length > 0) {
-          const row = data[0] as any;
+          const row = data[0] as {
+            types?: string[];
+            statuses?: string[];
+            languages?: string[];
+            countries?: string[];
+          };
 
           // Hardcoded fallback statuses if none returned from DB
           const hardcodedStatuses = [

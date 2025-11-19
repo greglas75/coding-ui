@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
+import type { AiSuggestions } from '../types';
 import { simpleLogger } from '../utils/logger';
 
 export interface AnswerState {
@@ -7,7 +8,7 @@ export interface AnswerState {
   selected_code?: string | null;
   quick_status?: string | null;
   coding_date?: string | null;
-  ai_suggestions?: any;
+  ai_suggestions?: AiSuggestions | null;
   confirmed_by?: string;
 }
 

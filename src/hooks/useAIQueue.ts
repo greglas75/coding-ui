@@ -11,7 +11,7 @@ export interface AIQueueOptions {
   autoStart?: boolean;
   maxConcurrent?: number;
   retryAttempts?: number;
-  onTaskComplete?: (taskId: string, result: any) => void;
+  onTaskComplete?: (taskId: string, result: unknown) => void;
   onTaskFailed?: (taskId: string, error: string) => void;
   onQueueEmpty?: () => void;
 }
