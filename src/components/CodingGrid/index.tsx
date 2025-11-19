@@ -281,7 +281,31 @@ export function CodingGrid({
     (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') ||
     (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test');
 
-  // Date formatter is already imported from utils
+  // Memoize expensive computations
+  const resultsCount = useMemo(() => {
+    // Show total count if no filters are active, otherwise show filtered count
+    const hasActiveFilters =
+      filters.search !== '' ||
+      filters.status.length > 0 ||
+      filters.codes.length > 0 ||
+      filters.language !== '' ||
+      filters.country !== '' ||
+      filters.minLength > 0 ||
+      filters.maxLength > 0 ||
+      filterGroup.filters.length > 0 ||
+      advancedSearchTerm !== '';
+
+    return hasActiveFilters
+      ? filtering.sortedAndFilteredAnswers.length
+      : totalAnswers || answers.length;
+  }, [
+    filters,
+    filterGroup.filters.length,
+    advancedSearchTerm,
+    filtering.sortedAndFilteredAnswers.length,
+    totalAnswers,
+    answers.length,
+  ]);
 
   const handleRowFocus = useCallback(
     (answerId: number) => {
@@ -310,21 +334,65 @@ export function CodingGrid({
     [toggleBatchSelection, setFocusedRowId]
   );
 
-  // Prepare context value
-  const contextValue = {
-    localAnswers,
-    focusedRowId,
-    setFocusedRowId,
-    rowAnimations,
-    batchSelection,
-    answerActions,
-    modals,
-    batchProcessor,
-    handleAcceptSuggestion: handleAcceptSuggestionWrapper,
-    handleQuickRollback,
-    handleBatchAI,
-    handleToggleSelection,
-  };
+  const handleSyncNow = useCallback(async () => {
+    await syncPendingChanges();
+  }, [syncPendingChanges]);
+
+  const handleShowShortcuts = useCallback(() => {
+    modals.setShowShortcutsHelp(true);
+  }, [modals]);
+
+  const handleShowAnalytics = useCallback(() => {
+    modals.setShowAnalytics(true);
+  }, [modals]);
+
+  const handleShowExportImport = useCallback(() => {
+    modals.setShowExportImport(true);
+  }, [modals]);
+
+  const handleShowAutoConfirm = useCallback(() => {
+    modals.setShowAutoConfirmSettings(true);
+  }, [modals]);
+
+  const handleSelectAll = useCallback(() => {
+    batchSelection.selectAll(localAnswers.map(a => String(a.id)));
+  }, [batchSelection, localAnswers]);
+
+  const handleCloseShortcutsModal = useCallback(() => {
+    modals.setShowShortcutsHelp(false);
+  }, [modals]);
+
+  // Prepare context value (memoized to prevent unnecessary re-renders)
+  const contextValue = useMemo(
+    () => ({
+      localAnswers,
+      focusedRowId,
+      setFocusedRowId,
+      rowAnimations,
+      batchSelection,
+      answerActions,
+      modals,
+      batchProcessor,
+      handleAcceptSuggestion: handleAcceptSuggestionWrapper,
+      handleQuickRollback,
+      handleBatchAI,
+      handleToggleSelection,
+    }),
+    [
+      localAnswers,
+      focusedRowId,
+      setFocusedRowId,
+      rowAnimations,
+      batchSelection,
+      answerActions,
+      modals,
+      batchProcessor,
+      handleAcceptSuggestionWrapper,
+      handleQuickRollback,
+      handleBatchAI,
+      handleToggleSelection,
+    ]
+  );
 
   return (
     <CodingGridProvider value={contextValue}>
@@ -358,12 +426,10 @@ export function CodingGrid({
             syncStatus={syncStatus}
             pendingCount={pendingCount}
             syncProgress={syncProgress}
-            onSyncNow={async () => {
-              await syncPendingChanges();
-            }}
+            onSyncNow={handleSyncNow}
             density={density}
             onDensityChange={setDensity}
-            onShowShortcuts={() => modals.setShowShortcutsHelp(true)}
+            onShowShortcuts={handleShowShortcuts}
           />
         </div>
       )}
@@ -411,25 +477,9 @@ export function CodingGrid({
             onSavePreset={handleSavePreset}
             onLoadPreset={handleLoadPreset}
             onDeletePreset={handleDeletePreset}
-            resultsCount={(() => {
-              // Show total count if no filters are active, otherwise show filtered count
-              const hasActiveFilters =
-                filters.search !== '' ||
-                filters.status.length > 0 ||
-                filters.codes.length > 0 ||
-                filters.language !== '' ||
-                filters.country !== '' ||
-                filters.minLength > 0 ||
-                filters.maxLength > 0 ||
-                filterGroup.filters.length > 0 ||
-                advancedSearchTerm !== '';
-
-              return hasActiveFilters
-                ? filtering.sortedAndFilteredAnswers.length
-                : totalAnswers || answers.length;
-            })()}
+            resultsCount={resultsCount}
             totalCount={totalAnswers || answers.length}
-            onShowShortcuts={() => modals.setShowShortcutsHelp(true)}
+            onShowShortcuts={handleShowShortcuts}
           />
         </>
       )}
@@ -439,12 +489,12 @@ export function CodingGrid({
         <BatchSelectionToolbar
           selectedCount={batchSelection.selectedCount}
           onBatchAI={handleBatchAI}
-          onSelectAll={() => batchSelection.selectAll(localAnswers.map(a => String(a.id)))}
+          onSelectAll={handleSelectAll}
           onClearSelection={batchSelection.clearSelection}
           totalCount={localAnswers.length}
-          onShowAnalytics={() => modals.setShowAnalytics(true)}
-          onShowExportImport={() => modals.setShowExportImport(true)}
-          onShowAutoConfirm={() => modals.setShowAutoConfirmSettings(true)}
+          onShowAnalytics={handleShowAnalytics}
+          onShowExportImport={handleShowExportImport}
+          onShowAutoConfirm={handleShowAutoConfirm}
           isProcessing={batchProcessor.getProgress().status === 'running'}
         />
       )}
@@ -500,7 +550,7 @@ export function CodingGrid({
       {/* Shortcuts Help */}
       <ShortcutsHelpModal
         isOpen={modals.showShortcutsHelp}
-        onClose={() => modals.setShowShortcutsHelp(false)}
+        onClose={handleCloseShortcutsModal}
       />
       </div>
     </CodingGridProvider>
