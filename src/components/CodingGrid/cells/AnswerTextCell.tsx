@@ -1,11 +1,11 @@
-import type { FC } from 'react';
+import { memo, type FC } from 'react';
 
 interface AnswerTextCellProps {
   text: string;
   translation?: string | null;
 }
 
-export const AnswerTextCell: FC<AnswerTextCellProps> = ({
+const AnswerTextCellComponent: FC<AnswerTextCellProps> = ({
   text,
   translation: _translation  // Keep prop but don't use it
 }) => {
@@ -15,3 +15,5 @@ export const AnswerTextCell: FC<AnswerTextCellProps> = ({
     </div>
   );
 };
+
+export const AnswerTextCell = memo(AnswerTextCellComponent);

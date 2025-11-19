@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { RotateCcw } from 'lucide-react';
-import type { FC } from 'react';
+import { memo, type FC } from 'react';
 
 interface CodeCellProps {
   answerId: number;
@@ -12,7 +12,7 @@ interface CodeCellProps {
   disabled?: boolean;
 }
 
-export const CodeCell: FC<CodeCellProps> = ({
+const CodeCellComponent: FC<CodeCellProps> = ({
   answerId: _answerId, // Kept for future use in analytics/tracking
   selectedCode,
   generalStatus,
@@ -77,3 +77,5 @@ export const CodeCell: FC<CodeCellProps> = ({
     </div>
   );
 };
+
+export const CodeCell = memo(CodeCellComponent);

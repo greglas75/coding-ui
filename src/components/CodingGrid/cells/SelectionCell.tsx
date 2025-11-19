@@ -1,5 +1,5 @@
 import { CheckSquare, Square } from 'lucide-react';
-import type { FC } from 'react';
+import { memo, type FC } from 'react';
 
 interface SelectionCellProps {
   answerId: number;
@@ -7,7 +7,7 @@ interface SelectionCellProps {
   onToggle: (id: string, event: React.MouseEvent) => void;
 }
 
-export const SelectionCell: FC<SelectionCellProps> = ({
+const SelectionCellComponent: FC<SelectionCellProps> = ({
   answerId,
   isSelected,
   onToggle
@@ -36,3 +36,5 @@ export const SelectionCell: FC<SelectionCellProps> = ({
     </div>
   );
 };
+
+export const SelectionCell = memo(SelectionCellComponent);

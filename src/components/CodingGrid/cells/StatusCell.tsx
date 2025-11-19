@@ -1,11 +1,11 @@
-import type { FC } from 'react';
+import { memo, type FC } from 'react';
 import { CANONICAL_STATUS, getStatusLabel, normalizeStatus } from '../../../lib/statusNormalization';
 
 interface StatusCellProps {
   status: string | null;
 }
 
-export const StatusCell: FC<StatusCellProps> = ({ status }) => {
+const StatusCellComponent: FC<StatusCellProps> = ({ status }) => {
   if (!status || status === 'uncategorized') {
     return (
       <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 h-[28px] min-w-[90px] max-w-[140px] leading-none whitespace-nowrap overflow-hidden text-ellipsis">
@@ -34,3 +34,5 @@ export const StatusCell: FC<StatusCellProps> = ({ status }) => {
     </span>
   );
 };
+
+export const StatusCell = memo(StatusCellComponent);
