@@ -231,8 +231,12 @@ export class AutoConfirmEngine {
     let count = 0;
 
     data?.forEach(answer => {
-      const suggestions = (answer.ai_suggestions as any)?.suggestions || [];
-      suggestions.forEach((s: any) => {
+      interface AISuggestionData {
+        suggestions?: Array<{ confidence?: number }>;
+      }
+      const aiSuggestions = answer.ai_suggestions as AISuggestionData | null;
+      const suggestions = aiSuggestions?.suggestions || [];
+      suggestions.forEach(s => {
         if (s.confidence) {
           totalConfidence += s.confidence;
           count++;

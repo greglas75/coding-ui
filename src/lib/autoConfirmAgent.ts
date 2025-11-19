@@ -232,7 +232,8 @@ export async function autoConfirm(
         });
 
         simpleLogger.info(`✅ [AutoConfirm] Confirmed answer ${answer.id}: ${suggestedCode} (${(probability * 100).toFixed(1)}%)`);
-      } catch (err: any) {
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         result.errors++;
         result.details.push({
           id: answer.id,
@@ -240,7 +241,7 @@ export async function autoConfirm(
           code: '',
           probability: 0,
           status: 'error',
-          reason: err.message,
+          reason: errorMessage,
         });
         simpleLogger.error(`❌ [AutoConfirm] Error processing answer ${answer.id}:`, err);
       }
@@ -254,7 +255,7 @@ export async function autoConfirm(
     });
 
     return result;
-  } catch (err: any) {
+  } catch (err) {
     simpleLogger.error('❌ [AutoConfirm] Fatal error:', err);
     throw err;
   }

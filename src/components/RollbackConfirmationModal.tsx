@@ -105,7 +105,7 @@ export function RollbackConfirmationModal({
 
       onRollback();
       onClose();
-    } catch (err: any) {
+    } catch (err) {
       simpleLogger.error("❌ Error rolling back:", err);
       toast.error("Failed to rollback record");
     } finally {
@@ -153,7 +153,7 @@ export function RollbackConfirmationModal({
 
       onRollbackAndEdit?.();
       onClose();
-    } catch (err: any) {
+    } catch (err) {
       simpleLogger.error("❌ Error rolling back:", err);
       toast.error("Failed to rollback record");
     } finally {

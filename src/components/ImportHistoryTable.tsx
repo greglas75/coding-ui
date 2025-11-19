@@ -54,15 +54,21 @@ export function ImportHistoryTable() {
       }
 
       // Map data to include category name
-      const mappedData = (data || []).map((item: any) => ({
+      interface ImportItem {
+        categories?: { name: string };
+        category_name?: string;
+        [key: string]: unknown;
+      }
+      const mappedData = (data || []).map((item: ImportItem) => ({
         ...item,
         category_name: item.categories?.name || item.category_name || 'Unknown'
       }));
 
       setImports(mappedData);
-    } catch (err: any) {
+    } catch (err) {
       simpleLogger.error('Failed to fetch import history:', err);
-      setError(err.message || 'Failed to load history');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load history';
+      setError(errorMessage);
       toast.error('Failed to load import history');
     } finally {
       setLoading(false);

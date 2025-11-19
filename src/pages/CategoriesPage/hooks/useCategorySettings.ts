@@ -21,14 +21,25 @@ export function useCategorySettings({
   activeCategory,
   setActiveCategory,
 }: UseCategorySettingsProps) {
+  interface CategoryFormData {
+    name: string;
+    googleName?: string;
+    description?: string;
+    template?: string;
+    preset?: string;
+    model?: string;
+    visionModel?: string;
+    [key: string]: unknown;
+  }
+
   async function saveCategorySettings(
     editingCategory: Category,
-    data: any,
+    data: CategoryFormData,
     onSuccess?: () => void
   ) {
     try {
       // Build safe payload - remove empty fields to avoid 400 errors
-      const updatePayload: any = {
+      const updatePayload: Record<string, unknown> = {
         name: data.name,
       };
 

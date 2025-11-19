@@ -60,8 +60,11 @@ export function useCodeManagement(currentCategoryId?: number) {
         .range(0, PAGE_SIZE - 1);
 
       if (!error && data) {
-        const codes = data
-          .map((item: any) => item.codes)
+        interface CodeItem {
+          codes: { id: number; name: string } | null;
+        }
+        const codes = (data as CodeItem[])
+          .map(item => item.codes)
           .filter(Boolean)
           .flat() as Array<{ id: number; name: string }>;
 
@@ -108,8 +111,11 @@ export function useCodeManagement(currentCategoryId?: number) {
         .range(nextPage * PAGE_SIZE, (nextPage + 1) * PAGE_SIZE - 1);
 
       if (!error && data) {
-        const codes = data
-          .map((item: any) => item.codes)
+        interface CodeItem {
+          codes: { id: number; name: string } | null;
+        }
+        const codes = (data as CodeItem[])
+          .map(item => item.codes)
           .filter(Boolean)
           .flat() as Array<{ id: number; name: string }>;
 
