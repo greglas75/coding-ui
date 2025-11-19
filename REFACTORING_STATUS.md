@@ -44,11 +44,11 @@
 - **Po:** 5 modułów (~960 linii)
 - **Poprawa:** 100% testowalność, wymienne komponenty
 
-### 6. ✅ Type Safety Holes - 48% COMPLETE ⚡
-- **Status:** Fundament + 18 plików w pełni typed
+### 6. ✅ Type Safety Holes - 52% COMPLETE ⚡
+- **Status:** Fundament + 22 pliki w pełni typed
 - **Przed:** 190 'any' types
-- **Po:** 99 'any' types
-- **Poprawa:** 48% redukcja (91 'any' wyeliminowane)
+- **Po:** 91 'any' types
+- **Poprawa:** 52% redukcja (99 'any' wyeliminowane)
 - **Pliki typed (batch 1-3):**
   - ✅ apiClient.ts (7 → 0)
   - ✅ cacheLayer.ts (7 → 0)
@@ -61,15 +61,19 @@
   - ✅ analyticsEngine.ts (4 → 0)
   - ✅ FileDataCodingPage.tsx (7 → 0)
   - ✅ useCodingStore.ts (3 → 0)
-- **Pliki typed (batch 4-5):**
+- **Pliki typed (batch 4-6):**
   - ✅ rateLimit.ts (3 → 0) - Rate limiting infrastructure
   - ✅ openai/webContext.ts (3 → 0) - Vision AI types
   - ✅ openai/categorize.ts (3 → 0) - Main categorization flow
   - ✅ repositories/codes.ts (2 → 0) - Code repository
   - ✅ hooks/useOfflineSync.ts (2 → 0) - Offline sync
   - ✅ hooks/useErrorHandler.ts (2 → 0) - Error handling
-- **Commitów:** 5 batches type safety improvements
-- **Pozostało:** 99 'any' (głównie testy + edge cases)
+  - ✅ services/geminiVision.ts (2 → 0) - Window debug helpers
+  - ✅ hooks/useCategoriesData.ts (2 → 0) - Category stats RPC
+  - ✅ hooks/useRenderTracking.ts (2 → 0) - Performance tracking
+  - ✅ AdvancedFiltersPanel.tsx (2 → 0) - Filter UI
+- **Commitów:** 6 batches type safety improvements
+- **Pozostało:** 91 'any' (głównie testy + edge cases)
 
 ### 7. ✅ CodeListTable Component - COMPLETE
 - **Status:** 100% ukończone
