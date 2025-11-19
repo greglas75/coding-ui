@@ -105,14 +105,14 @@ WHERE schemaname = 'public'
 
 -- List all indexes
 SELECT
-  tablename,
-  indexname,
-  pg_size_pretty(pg_relation_size(indexrelid::regclass)) as size
-FROM pg_indexes
-LEFT JOIN pg_stat_user_indexes ON indexrelname = indexname
-WHERE schemaname = 'public'
-  AND indexname LIKE 'idx_%'
-ORDER BY tablename, indexname;
+  pi.tablename,
+  pi.indexname,
+  pg_size_pretty(pg_relation_size(psi.indexrelid::regclass)) as size
+FROM pg_indexes pi
+LEFT JOIN pg_stat_user_indexes psi ON pi.indexname = psi.indexrelname AND pi.tablename = psi.relname
+WHERE pi.schemaname = 'public'
+  AND pi.indexname LIKE 'idx_%'
+ORDER BY pi.tablename, pi.indexname;
 
 -- Total size of all indexes
 SELECT
