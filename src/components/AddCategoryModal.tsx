@@ -58,11 +58,12 @@ export function AddCategoryModal({ open, onClose, onSave }: AddCategoryModalProp
       setName('');
       setLoading(false);
       toast.success('Category added successfully!');
-    } catch (err: any) {
+    } catch (err) {
       // 🔧 FIX: Show error and stop loading
       simpleLogger.error('Error saving category:', err);
-      setError(err.message || 'Failed to save category. Please check your connection and try again.');
-      toast.error(err.message || 'Failed to save category');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save category. Please check your connection and try again.';
+      setError(errorMessage);
+      toast.error(errorMessage);
       setLoading(false);
     }
   }

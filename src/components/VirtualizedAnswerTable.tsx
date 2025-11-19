@@ -102,7 +102,7 @@ const AnswerRow = memo(({ index, style, data }: RowProps) => {
       {onStatusChange && (
         <div className={clsx('flex-shrink-0 ml-4', isCompact ? 'w-24' : 'w-32')}>
           <select
-            value={(answer as any).status || 'review'}
+            value={(answer as Answer & { status?: string }).status || 'review'}
             onChange={(e) => onStatusChange(answer, e.target.value)}
             onClick={(e) => e.stopPropagation()}
             className={clsx(

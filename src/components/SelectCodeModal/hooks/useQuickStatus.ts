@@ -33,7 +33,7 @@ export function useQuickStatus({ onSaved }: UseQuickStatusProps) {
       }
     }
 
-    const update: any = {
+    const update: Record<string, string | null> = {
       quick_status: fullStatus,
       general_status: fullStatus,
     };

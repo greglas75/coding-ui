@@ -130,7 +130,7 @@ export function SentimentAnalytics({ categoryId }: SentimentAnalyticsProps) {
                     borderRadius: '0.5rem',
                     color: '#F3F4F6'
                   }}
-                  formatter={(value: number, name: string, props: any) => [
+                  formatter={(value: number, name: string, props: { payload: { percentage: number } }) => [
                     `${value} (${props.payload.percentage}%)`,
                     name
                   ]}

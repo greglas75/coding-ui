@@ -48,9 +48,10 @@ export function FineTuningDashboard({ categoryId }: Props) {
 
       toast.success(`Exported ${result.count} training examples to ${result.filename}`);
       setStep('info');
-    } catch (error: any) {
+    } catch (error) {
       simpleLogger.error('Export error:', error);
-      toast.error(`Export failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Export failed';
+      toast.error(`Export failed: ${errorMessage}`);
     } finally {
       setIsExporting(false);
     }

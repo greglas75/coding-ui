@@ -296,7 +296,7 @@ export function AnalyticsDashboard({ categoryId }: Props) {
                     borderRadius: '8px',
                     color: '#fff',
                   }}
-                  formatter={(value: any, name: string) => {
+                  formatter={(value: number, name: string) => {
                     if (name === 'count') return [value, 'Count'];
                     return [value, name];
                   }}

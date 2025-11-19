@@ -59,8 +59,9 @@ export function TestPromptModal({ open, onClose, template, model }: TestPromptMo
         tokens: String(data?.usage?.total_tokens ?? "-")
       });
       setResponseJson(JSON.stringify(data, null, 2));
-    } catch (err: any) {
-      setResponseJson(JSON.stringify({ error: err.message }, null, 2));
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setResponseJson(JSON.stringify({ error: errorMessage }, null, 2));
       setStats({ time: "-", tokens: "-" });
     } finally {
       setIsLoading(false);
