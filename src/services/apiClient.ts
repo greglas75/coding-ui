@@ -10,6 +10,16 @@ import { logAPICall, logError as loggerError } from '../utils/logger';
 // Types & Interfaces
 // ───────────────────────────────────────────────────────────────
 
+/**
+ * JSON-serializable value types
+ */
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonArray = JsonValue[];
+export type JsonObject = { [key: string]: JsonValue };
+export type JsonValue = JsonPrimitive | JsonArray | JsonObject;
+
+export type RequestBody = JsonValue | FormData;
+
 export interface ApiClientConfig {
   baseUrl: string;
   timeout: number;
@@ -37,7 +47,7 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 export interface RequestOptions {
   method?: HttpMethod;
   headers?: Record<string, string>;
-  body?: any;
+  body?: RequestBody;
   timeout?: number;
   retries?: number;
   signal?: AbortSignal;
@@ -323,14 +333,14 @@ export class ApiClient {
   /**
    * POST request
    */
-  async post<T>(endpoint: string, body?: any, options: Omit<RequestOptions, 'method'> = {}): Promise<ApiResponse<T>> {
+  async post<T>(endpoint: string, body?: RequestBody, options: Omit<RequestOptions, 'method'> = {}): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { ...options, method: 'POST', body });
   }
 
   /**
    * PUT request
    */
-  async put<T>(endpoint: string, body?: any, options: Omit<RequestOptions, 'method'> = {}): Promise<ApiResponse<T>> {
+  async put<T>(endpoint: string, body?: RequestBody, options: Omit<RequestOptions, 'method'> = {}): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { ...options, method: 'PUT', body });
   }
 
@@ -344,7 +354,7 @@ export class ApiClient {
   /**
    * PATCH request
    */
-  async patch<T>(endpoint: string, body?: any, options: Omit<RequestOptions, 'method'> = {}): Promise<ApiResponse<T>> {
+  async patch<T>(endpoint: string, body?: RequestBody, options: Omit<RequestOptions, 'method'> = {}): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { ...options, method: 'PATCH', body });
   }
 
@@ -395,7 +405,7 @@ export async function get<T>(endpoint: string, options?: Omit<RequestOptions, 'm
 /**
  * POST request using default client
  */
-export async function post<T>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<T> {
+export async function post<T>(endpoint: string, body?: RequestBody, options?: Omit<RequestOptions, 'method'>): Promise<T> {
   const response = await apiClient.post<T>(endpoint, body, options);
   return response.data;
 }
@@ -403,7 +413,7 @@ export async function post<T>(endpoint: string, body?: any, options?: Omit<Reque
 /**
  * PUT request using default client
  */
-export async function put<T>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<T> {
+export async function put<T>(endpoint: string, body?: RequestBody, options?: Omit<RequestOptions, 'method'>): Promise<T> {
   const response = await apiClient.put<T>(endpoint, body, options);
   return response.data;
 }
@@ -419,7 +429,7 @@ export async function del<T>(endpoint: string, options?: Omit<RequestOptions, 'm
 /**
  * PATCH request using default client
  */
-export async function patch<T>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<T> {
+export async function patch<T>(endpoint: string, body?: RequestBody, options?: Omit<RequestOptions, 'method'>): Promise<T> {
   const response = await apiClient.patch<T>(endpoint, body, options);
   return response.data;
 }

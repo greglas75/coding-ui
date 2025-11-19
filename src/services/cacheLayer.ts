@@ -280,7 +280,7 @@ interface GenericCacheEntry<T> {
 }
 
 // Separate caches for each namespace
-const namespaceCaches = new Map<CacheNamespace, Map<string, GenericCacheEntry<any>>>();
+const namespaceCaches = new Map<CacheNamespace, Map<string, GenericCacheEntry<unknown>>>();
 
 const DEFAULT_TTL = 3600000; // 1 hour
 const MAX_CACHE_SIZE_PER_NAMESPACE = 500;
@@ -288,11 +288,11 @@ const MAX_CACHE_SIZE_PER_NAMESPACE = 500;
 /**
  * Gets cache for specific namespace.
  */
-function getNamespaceCache(namespace: CacheNamespace): Map<string, GenericCacheEntry<any>> {
+function getNamespaceCache<T = unknown>(namespace: CacheNamespace): Map<string, GenericCacheEntry<T>> {
   if (!namespaceCaches.has(namespace)) {
     namespaceCaches.set(namespace, new Map());
   }
-  return namespaceCaches.get(namespace)!;
+  return namespaceCaches.get(namespace) as Map<string, GenericCacheEntry<T>>;
 }
 
 /**
@@ -309,7 +309,7 @@ function makeKey(namespace: CacheNamespace, key: string): string {
  * @param value - Value to cache
  * @param options - Cache options (ttl, namespace)
  */
-export function setCache<T = any>(key: string, value: T, options?: CacheOptions): void {
+export function setCache<T = unknown>(key: string, value: T, options?: CacheOptions): void {
   const { ttl = DEFAULT_TTL, namespace = 'general' } = options || {};
   const now = Date.now();
   const cache = getNamespaceCache(namespace);
@@ -364,7 +364,7 @@ export function setCache<T = any>(key: string, value: T, options?: CacheOptions)
  * @param options - Cache options (namespace)
  * @returns Cached value or null if not found/expired
  */
-export function getCache<T = any>(key: string, options?: CacheOptions): T | null {
+export function getCache<T = unknown>(key: string, options?: CacheOptions): T | null {
   const { namespace = 'general' } = options || {};
   const cache = getNamespaceCache(namespace);
   const cacheKey = makeKey(namespace, key);
@@ -512,7 +512,12 @@ export function getAllCacheStats(): Record<
     oldestEntry: number;
   }
 > {
-  const stats: any = {};
+  const stats: Record<string, {
+    size: number;
+    totalHits: number;
+    averageHits: number;
+    oldestEntry: number;
+  }> = {};
 
   for (const namespace of [
     'prompt',
@@ -547,7 +552,13 @@ export function getAllCacheStats(): Record<
  * Exports all cache data for backup/persistence.
  */
 export function exportAllCache(): string {
-  const allData: Record<string, any[]> = {};
+  const allData: Record<string, Array<{
+    key: string;
+    value: unknown;
+    timestamp: number;
+    expiresAt: number;
+    hits: number;
+  }>> = {};
 
   for (const [namespace, cache] of namespaceCaches.entries()) {
     const entries = Array.from(cache.entries()).map(([key, entry]) => ({
@@ -569,7 +580,13 @@ export function exportAllCache(): string {
  */
 export function importAllCache(data: string): void {
   try {
-    const allData: Record<string, any[]> = JSON.parse(data);
+    const allData: Record<string, Array<{
+      key: string;
+      value: unknown;
+      timestamp: number;
+      expiresAt: number;
+      hits: number;
+    }>> = JSON.parse(data);
     const now = Date.now();
     let totalImported = 0;
 

@@ -53,8 +53,34 @@ export interface GoogleSearchResponse {
   };
 }
 
-interface CacheEntry {
-  data: WebContext[] | ImageSearchResult[] | any;
+export interface GoogleImageSearchItem {
+  title: string;
+  link: string;
+  snippet?: string;
+  mime?: string;
+  fileFormat?: string;
+  image?: {
+    contextLink?: string;
+    width?: number;
+    height?: number;
+    byteSize?: number;
+    thumbnailLink?: string;
+    thumbnailHeight?: number;
+    thumbnailWidth?: number;
+  };
+  displayLink?: string;
+}
+
+export interface GoogleImageSearchResponse {
+  items?: GoogleImageSearchItem[];
+  error?: {
+    code: number;
+    message: string;
+  };
+}
+
+interface CacheEntry<T = WebContext[] | ImageSearchResult[]> {
+  data: T;
   timestamp: number;
 }
 
@@ -188,7 +214,7 @@ export function extractKeyTerms(input: string, maxTerms: number = 5): string {
  * @param options - Additional options (cache, timeout, etc.)
  * @returns Array of search results
  */
-async function _googleSearchBase<T = any>(
+async function _googleSearchBase<T>(
   query: string,
   searchType: 'web' | 'image',
   numResults: number,
@@ -196,7 +222,7 @@ async function _googleSearchBase<T = any>(
     maxSnippetLength?: number;
     cacheTTL?: number;
     cachePrefix?: string;
-    resultMapper?: (item: any) => T;
+    resultMapper?: (item: GoogleImageSearchItem | GoogleSearchResponse['items'][0]) => T;
   }
 ): Promise<T[]> {
   const {
@@ -280,7 +306,7 @@ async function _googleSearchBase<T = any>(
           throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
 
-        const data: any = await response.json();
+        const data: GoogleSearchResponse | GoogleImageSearchResponse = await response.json();
 
         // Check for API errors
         if (data.error) {
@@ -291,9 +317,9 @@ async function _googleSearchBase<T = any>(
         const items = data.items || [];
         const results: T[] = resultMapper
           ? items.map(resultMapper)
-          : items.map((item: any) => ({
+          : items.map((item) => ({
               title: item.title || 'No title',
-              snippet: item.snippet ? truncateSnippet(item.snippet, maxSnippetLength) : '',
+              snippet: 'snippet' in item && item.snippet ? truncateSnippet(item.snippet, maxSnippetLength) : '',
               url: item.link || '',
             } as T));
 
@@ -374,11 +400,20 @@ export async function googleSearch(
     {
       maxSnippetLength,
       cacheTTL,
-      resultMapper: (item: any) => ({
-        title: item.title || 'No title',
-        snippet: truncateSnippet(item.snippet || '', maxSnippetLength),
-        url: item.link || '',
-      }),
+      resultMapper: (item) => {
+        if ('snippet' in item) {
+          return {
+            title: item.title || 'No title',
+            snippet: truncateSnippet(item.snippet || '', maxSnippetLength),
+            url: item.link || '',
+          };
+        }
+        return {
+          title: item.title || 'No title',
+          snippet: '',
+          url: item.link || '',
+        };
+      },
     }
   );
 }
@@ -555,21 +590,25 @@ export async function googleImageSearch(
     {
       cacheTTL: 3600000, // 1 hour TTL
       cachePrefix: 'image',
-      resultMapper: (item: any) => ({
-        title: item.title || '',
-        link: item.link || '',
-        thumbnailLink: item.image?.thumbnailLink || undefined,
-        contextLink: item.image?.contextLink || undefined,
-        displayLink: item.displayLink || undefined, // Domain (e.g., "sensodyne.com")
-        snippet: item.snippet || undefined, // Image description
-        mime: item.mime || undefined, // MIME type (e.g., "image/jpeg")
-        fileFormat: item.fileFormat || undefined, // File format
-        width: item.image?.width || undefined, // Image width
-        height: item.image?.height || undefined, // Image height
-        byteSize: item.image?.byteSize || undefined, // File size
-        thumbnailWidth: item.image?.thumbnailWidth || undefined,
-        thumbnailHeight: item.image?.thumbnailHeight || undefined,
-      }),
+      resultMapper: (item) => {
+        // Type guard to check if item is GoogleImageSearchItem
+        const imageItem = item as GoogleImageSearchItem;
+        return {
+          title: imageItem.title || '',
+          link: imageItem.link || '',
+          thumbnailLink: imageItem.image?.thumbnailLink || undefined,
+          contextLink: imageItem.image?.contextLink || undefined,
+          displayLink: imageItem.displayLink || undefined, // Domain (e.g., "sensodyne.com")
+          snippet: imageItem.snippet || undefined, // Image description
+          mime: imageItem.mime || undefined, // MIME type (e.g., "image/jpeg")
+          fileFormat: imageItem.fileFormat || undefined, // File format
+          width: imageItem.image?.width || undefined, // Image width
+          height: imageItem.image?.height || undefined, // Image height
+          byteSize: imageItem.image?.byteSize || undefined, // File size
+          thumbnailWidth: imageItem.image?.thumbnailWidth || undefined,
+          thumbnailHeight: imageItem.image?.thumbnailHeight || undefined,
+        };
+      },
     }
   );
 }
