@@ -189,7 +189,7 @@ export function AdvancedFiltersPanel({
                   {/* Field Select */}
                   <select
                     value={filter.field}
-                    onChange={(e) => updateFilter(filter.id, { field: e.target.value as any })}
+                    onChange={(e) => updateFilter(filter.id, { field: e.target.value as Filter['field'] })}
                     className="px-3 py-1.5 text-sm border border-gray-300 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="text">Text</option>
@@ -203,7 +203,7 @@ export function AdvancedFiltersPanel({
                   {/* Operator Select */}
                   <select
                     value={filter.operator}
-                    onChange={(e) => updateFilter(filter.id, { operator: e.target.value as any })}
+                    onChange={(e) => updateFilter(filter.id, { operator: e.target.value as Filter['operator'] })}
                     className="px-3 py-1.5 text-sm border border-gray-300 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="contains">Contains</option>

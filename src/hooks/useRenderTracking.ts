@@ -26,7 +26,7 @@ export function useRenderTracking(
 
   const renderCountRef = useRef(0);
   const renderStartRef = useRef(performance.now());
-  const propsRef = useRef<any>(null);
+  const propsRef = useRef<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
@@ -49,7 +49,7 @@ export function useRenderTracking(
   });
 
   // Store props for tracking
-  const trackPropsUpdate = (props: any) => {
+  const trackPropsUpdate = (props: Record<string, unknown>) => {
     propsRef.current = props;
   };
 

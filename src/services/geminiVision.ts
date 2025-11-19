@@ -418,7 +418,11 @@ export function viewCorsBlacklist(): string[] {
 
 // Expose functions to window for debugging (DEV ONLY)
 if (import.meta.env.DEV && typeof window !== 'undefined') {
-  (window as any).clearCorsBlacklist = clearCorsBlacklist;
-  (window as any).viewCorsBlacklist = viewCorsBlacklist;
+  interface DebugWindow extends Window {
+    clearCorsBlacklist: typeof clearCorsBlacklist;
+    viewCorsBlacklist: typeof viewCorsBlacklist;
+  }
+  (window as unknown as DebugWindow).clearCorsBlacklist = clearCorsBlacklist;
+  (window as unknown as DebugWindow).viewCorsBlacklist = viewCorsBlacklist;
   console.info('🛠️ Debug helpers available: window.clearCorsBlacklist(), window.viewCorsBlacklist()');
 }
