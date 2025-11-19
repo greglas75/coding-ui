@@ -15,13 +15,13 @@ export class LazyLoader<T> {
   private currentPage: number = 0;
   private totalCount: number = 0;
   private hasMore: boolean = true;
-  private filters: Record<string, any>;
+  private filters: Record<string, unknown>;
   private orderBy?: { column: string; ascending?: boolean };
 
   constructor(
     table: string,
     pageSize: number = 100,
-    filters: Record<string, any> = {},
+    filters: Record<string, unknown> = {},
     orderBy?: { column: string; ascending?: boolean }
   ) {
     this.table = table;
@@ -60,7 +60,7 @@ export class LazyLoader<T> {
     this.totalCount = 0;
   }
 
-  updateFilters(newFilters: Record<string, any>) {
+  updateFilters(newFilters: Record<string, unknown>) {
     this.filters = newFilters;
     this.reset();
   }
@@ -119,11 +119,11 @@ export const performanceMonitor = new PerformanceMonitor();
  * @param queryFn - Query function to monitor
  * @returns Query result
  */
-export async function monitoredQuery(
+export async function monitoredQuery<T = unknown>(
   table: string,
   operation: string,
-  queryFn: () => Promise<any>
-): Promise<any> {
+  queryFn: () => Promise<T>
+): Promise<T> {
   const startTime = performance.now();
   const result = await queryFn();
   const duration = performance.now() - startTime;

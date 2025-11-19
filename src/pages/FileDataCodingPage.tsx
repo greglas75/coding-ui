@@ -23,7 +23,7 @@ export function FileDataCodingPage() {
   } | null>(null);
 
   // File preview state
-  const [previewData, setPreviewData] = useState<any[]>([]);
+  const [previewData, setPreviewData] = useState<string[][]>([]);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
@@ -46,7 +46,7 @@ export function FileDataCodingPage() {
     try {
       toast.info('Parsing file preview...');
       const extension = selectedFile.name.split('.').pop()?.toLowerCase();
-      let rows: any[] = [];
+      let rows: string[][] = [];
 
       if (extension === 'csv') {
         const text = await selectedFile.text();
@@ -70,7 +70,7 @@ export function FileDataCodingPage() {
         // Convert to array of arrays (same format as before)
         rows = [];
         worksheet.eachRow((row, _rowNumber) => {
-          const rowValues: any[] = [];
+          const rowValues: string[] = [];
           row.eachCell({ includeEmpty: true }, (cell, _colNumber) => {
             // Convert cell value to string for consistency
             rowValues.push(cell.value?.toString() || '');
@@ -87,7 +87,7 @@ export function FileDataCodingPage() {
       }
 
       // Validate structure (must have at least ID and text)
-      const invalidRows = rows.filter((r: any[]) => !r[0] || !r[1]);
+      const invalidRows = rows.filter((r) => !r[0] || !r[1]);
       if (invalidRows.length > 0) {
         setPreviewError(`Found ${invalidRows.length} row(s) missing required ID or text columns.`);
       }
@@ -95,9 +95,10 @@ export function FileDataCodingPage() {
       setPreviewData(rows.slice(0, 10)); // Show first 10 rows
       setShowPreview(true);
       toast.success('Preview loaded successfully');
-    } catch (err: any) {
-      simpleLogger.error('Preview parsing error:', err);
-      setPreviewError(`Parsing error: ${err.message}`);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      simpleLogger.error('Preview parsing error:', error);
+      setPreviewError(`Parsing error: ${error.message}`);
       toast.error('Failed to parse file preview');
     }
   };
@@ -187,7 +188,8 @@ export function FileDataCodingPage() {
       setShowPreview(false);
       setPreviewError(null);
       (document.getElementById('file-input') as HTMLInputElement).value = '';
-    } catch (error: any) {
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
       simpleLogger.error('Upload error:', error);
       setUploadResult({
         success: false,

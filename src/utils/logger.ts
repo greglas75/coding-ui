@@ -17,7 +17,7 @@ export interface LogContext {
   userId?: string;
   sessionId?: string;
   tags?: Record<string, string>;
-  extra?: Record<string, any>;
+  extra?: Record<string, unknown>;
 }
 
 export interface LogEntry {
@@ -392,7 +392,7 @@ export function addBreadcrumb(
   message: string,
   category: string = 'user-action',
   level: Sentry.SeverityLevel = 'info',
-  data?: Record<string, any>
+  data?: Record<string, unknown>
 ) {
   if (config.enableSentry) {
     Sentry.addBreadcrumb({
@@ -472,19 +472,19 @@ export function initLogger() {
  */
 export function createComponentLogger(componentName: string) {
   return {
-    debug: (message: string, extra?: Record<string, any>) =>
+    debug: (message: string, extra?: Record<string, unknown>) =>
       logDebug(message, { component: componentName, extra }),
 
-    info: (message: string, extra?: Record<string, any>) =>
+    info: (message: string, extra?: Record<string, unknown>) =>
       logInfo(message, { component: componentName, extra }),
 
-    warn: (message: string, extra?: Record<string, any>) =>
+    warn: (message: string, extra?: Record<string, unknown>) =>
       logWarn(message, { component: componentName, extra }),
 
-    error: (message: string, error?: Error, extra?: Record<string, any>) =>
+    error: (message: string, error?: Error, extra?: Record<string, unknown>) =>
       logError(message, { component: componentName, extra }, error),
 
-    fatal: (message: string, error?: Error, extra?: Record<string, any>) =>
+    fatal: (message: string, error?: Error, extra?: Record<string, unknown>) =>
       logFatal(message, { component: componentName, extra }, error),
   };
 }
@@ -609,17 +609,17 @@ if (typeof window !== 'undefined') {
  * Production: Errors go to Sentry, other logs are suppressed
  */
 export const simpleLogger = {
-  info: (msg: string, ...args: any[]) => {
+  info: (msg: string, ...args: unknown[]) => {
     if (import.meta.env.DEV) {
       console.info(msg, ...args);
     }
   },
-  warn: (msg: string, ...args: any[]) => {
+  warn: (msg: string, ...args: unknown[]) => {
     if (import.meta.env.DEV) {
       console.warn(msg, ...args);
     }
   },
-  error: (msg: string, ...args: any[]) => {
+  error: (msg: string, ...args: unknown[]) => {
     if (import.meta.env.PROD) {
       // Extract error object if present
       const error = args.find(arg => arg instanceof Error);
@@ -628,7 +628,7 @@ export const simpleLogger = {
       console.error(msg, ...args);
     }
   },
-  log: (msg: string, ...args: any[]) => {
+  log: (msg: string, ...args: unknown[]) => {
     if (import.meta.env.DEV) {
       console.log(msg, ...args);
     }

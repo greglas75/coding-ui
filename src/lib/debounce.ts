@@ -21,13 +21,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * debouncedSearch('test'); // Will execute after 300ms
  * debouncedSearch.cancel(); // Cancel pending execution
  */
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: never[]) => unknown>(
   func: T,
   wait: number
 ): T & { cancel: () => void } {
   let timeoutId: NodeJS.Timeout | undefined;
 
-  const debounced = function (this: any, ...args: Parameters<T>) {
+  const debounced = function (this: unknown, ...args: Parameters<T>) {
     clearTimeout(timeoutId);
 
     timeoutId = setTimeout(() => {
@@ -56,7 +56,7 @@ export function debounce<T extends (...args: any[]) => any>(
  *
  * debouncedSave(formData);
  */
-export function useDebouncedCallback<T extends (...args: any[]) => any>(
+export function useDebouncedCallback<T extends (...args: never[]) => unknown>(
   callback: T,
   delay: number
 ): T & { cancel: () => void } {

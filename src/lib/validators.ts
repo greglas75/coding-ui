@@ -8,8 +8,8 @@ export class ValidationError extends Error {
   }
 }
 
-export function validateAnswerId(id: any): number {
-  const parsed = typeof id === 'string' ? parseInt(id, 10) : id;
+export function validateAnswerId(id: unknown): number {
+  const parsed = typeof id === 'string' ? parseInt(id, 10) : (id as number);
 
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new ValidationError('Answer ID must be a positive integer', 'answerId');
@@ -18,8 +18,8 @@ export function validateAnswerId(id: any): number {
   return parsed;
 }
 
-export function validateCategoryId(id: any): number {
-  const parsed = typeof id === 'string' ? parseInt(id, 10) : id;
+export function validateCategoryId(id: unknown): number {
+  const parsed = typeof id === 'string' ? parseInt(id, 10) : (id as number);
 
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new ValidationError('Category ID must be a positive integer', 'categoryId');
@@ -28,7 +28,7 @@ export function validateCategoryId(id: any): number {
   return parsed;
 }
 
-export function validateFilterValue(value: any, type: 'search' | 'status' | 'codes'): any {
+export function validateFilterValue(value: unknown, type: 'search' | 'status' | 'codes'): string | string[] {
   switch (type) {
     case 'search':
       if (typeof value !== 'string') {

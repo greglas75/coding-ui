@@ -65,12 +65,15 @@ export class RealtimeService {
         const state = this.channel!.presenceState();
         this.presenceData.clear();
 
-        Object.values(state).forEach((presences: any) => {
-          presences.forEach((presence: any) => {
-            this.presenceData.set(presence.userId, {
-              ...presence,
-              isOnline: true
-            } as UserPresence);
+        Object.values(state).forEach((presences: unknown[]) => {
+          presences.forEach((presence: unknown) => {
+            const p = presence as Partial<UserPresence>;
+            if (p.userId) {
+              this.presenceData.set(p.userId, {
+                ...p,
+                isOnline: true
+              } as UserPresence);
+            }
           });
         });
 
@@ -79,18 +82,24 @@ export class RealtimeService {
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
         simpleLogger.info(`👋 User joined:`, key);
-        newPresences.forEach((presence: any) => {
-          this.presenceData.set(presence.userId, {
-            ...presence,
-            isOnline: true
-          } as UserPresence);
+        (newPresences as unknown[]).forEach((presence: unknown) => {
+          const p = presence as Partial<UserPresence>;
+          if (p.userId) {
+            this.presenceData.set(p.userId, {
+              ...p,
+              isOnline: true
+            } as UserPresence);
+          }
         });
         this.notifyPresenceChange();
       })
       .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
         simpleLogger.info(`👋 User left:`, key);
-        leftPresences.forEach((presence: any) => {
-          this.presenceData.delete(presence.userId);
+        (leftPresences as unknown[]).forEach((presence: unknown) => {
+          const p = presence as Partial<UserPresence>;
+          if (p.userId) {
+            this.presenceData.delete(p.userId);
+          }
         });
         this.notifyPresenceChange();
       });

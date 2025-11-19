@@ -122,10 +122,10 @@ export class AnalyticsEngine {
         .gte('coding_date', range.from.toISOString())
         .lte('coding_date', range.to.toISOString());
 
-      const aiCoded = aiSuggestedAnswers?.filter(a =>
-        a.ai_suggestions &&
-        (a.ai_suggestions as any)?.suggestions?.length > 0
-      ).length || 0;
+      const aiCoded = aiSuggestedAnswers?.filter(a => {
+        const suggestions = a.ai_suggestions as { suggestions?: unknown[] } | null;
+        return a.ai_suggestions && suggestions?.suggestions && suggestions.suggestions.length > 0;
+      }).length || 0;
       const manualCoded = (aiSuggestedAnswers?.length || 0) - aiCoded;
 
       const aiVsManual = {
@@ -147,10 +147,11 @@ export class AnalyticsEngine {
       let rejected = 0;
 
       aiAnswers?.forEach(answer => {
-        const suggestions = (answer.ai_suggestions as any)?.suggestions || [];
+        const aiSuggestions = answer.ai_suggestions as { suggestions?: Array<{ code_name?: string }> } | null;
+        const suggestions = aiSuggestions?.suggestions || [];
         const selectedCode = answer.selected_code;
 
-        if (suggestions.some((s: any) => s.code_name === selectedCode)) {
+        if (suggestions.some((s) => s.code_name === selectedCode)) {
           accepted++;
         } else {
           rejected++;
@@ -179,7 +180,8 @@ export class AnalyticsEngine {
         const categoryCount = new Map<number, { name: string; count: number }>();
         codedAnswers.forEach(answer => {
           const catId = answer.category_id;
-          const catName = (answer.categories as any)?.name || 'Unknown';
+          const categories = answer.categories as { name?: string } | null;
+          const catName = categories?.name || 'Unknown';
           const existing = categoryCount.get(catId);
           if (existing) {
             existing.count++;
