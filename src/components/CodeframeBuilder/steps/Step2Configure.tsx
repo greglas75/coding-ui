@@ -19,7 +19,7 @@ export function Step2Configure({
   onGenerate,
   isLoading,
 }: Step2ConfigureProps) {
-  const updateAlgorithmConfig = (key: string, value: any) => {
+  const updateAlgorithmConfig = (key: string, value: string | number | boolean) => {
     onChange({
       ...config,
       algorithm_config: {
@@ -109,7 +109,7 @@ export function Step2Configure({
               onChange={(e) =>
                 updateAlgorithmConfig(
                   'hierarchy_preference',
-                  e.target.value as any
+                  e.target.value
                 )
               }
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"

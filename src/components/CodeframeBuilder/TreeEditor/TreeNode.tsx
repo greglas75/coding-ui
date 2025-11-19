@@ -451,7 +451,7 @@ export function TreeNode({
                 className="text-xs text-gray-400 dark:text-gray-500 ml-2 mt-1"
                 style={{ paddingLeft: `${depth * 24 + 32}px` }}
               >
-                Examples: {examples.slice(0, 2).map((ex: any) => typeof ex === 'string' ? `"${ex}"` : `"${ex.text}"`).join(', ')}
+                Examples: {examples.slice(0, 2).map((ex: string | { text: string }) => typeof ex === 'string' ? `"${ex}"` : `"${ex.text}"`).join(', ')}
               </div>
             );
           }
@@ -517,7 +517,7 @@ export function TreeNode({
                         <div>• Confidence: {Math.round(aiVisionConfidence * 100)}%</div>
                       )}
                       {aiVisionDetails.length > 0 && (
-                        <div>• Details: {aiVisionDetails.slice(0, 2).map((d: any) => d.brand || d.name).filter(Boolean).join(', ')}</div>
+                        <div>• Details: {aiVisionDetails.slice(0, 2).map((d: { brand?: string; name?: string }) => d.brand || d.name).filter(Boolean).join(', ')}</div>
                       )}
                       {visionAnalysis.distinctive_features && (
                         <div className="text-gray-600 dark:text-gray-400 italic">

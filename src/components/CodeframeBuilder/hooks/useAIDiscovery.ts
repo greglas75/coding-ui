@@ -77,9 +77,13 @@ export function useAIDiscovery(categoryId: number, onSuccess: () => void) {
       } else {
         toast.warning('No brands could be verified. Try different search terms.');
       }
-    } catch (error: any) {
+    } catch (error) {
       simpleLogger.error('[AI Discovery] Error:', error);
-      toast.error(`Discovery failed: ${error.response?.data?.message || error.message}`);
+      const errorMessage =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Discovery failed: ${errorMessage}`);
       setVerificationStep('idle');
     } finally {
       setLoading(false);
@@ -106,8 +110,12 @@ export function useAIDiscovery(categoryId: number, onSuccess: () => void) {
       setDiscoveredCodes([]);
       setVerificationStep('idle');
       onSuccess();
-    } catch (error: any) {
-      toast.error(`Failed to create codes: ${error.response?.data?.message || error.message}`);
+    } catch (error) {
+      const errorMessage =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to create codes: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
