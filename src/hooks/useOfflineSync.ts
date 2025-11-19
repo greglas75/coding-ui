@@ -8,8 +8,10 @@ import {
   getCachedAnswers,
   getCacheStats,
   getUnsyncedChanges,
-  markMultipleAsSynced
+  markMultipleAsSynced,
+  type ChangeData,
 } from '../lib/offlineStorage';
+import type { Answer } from '../types';
 import { simpleLogger } from '../utils/logger';
 import { getSupabaseClient } from '../lib/supabase';
 
@@ -72,7 +74,7 @@ export function useOfflineSync() {
   const queueChange = useCallback(async (change: {
     action: 'update' | 'insert' | 'delete';
     table: string;
-    data: any;
+    data: ChangeData;
   }): Promise<string> => {
     try {
       const changeId = await addPendingChange(change);
@@ -272,7 +274,7 @@ export function useOfflineSync() {
   /**
    * Cache answers for offline access
    */
-  const cacheAnswersOffline = useCallback(async (answers: any[]) => {
+  const cacheAnswersOffline = useCallback(async (answers: Answer[]) => {
     try {
       await cacheAnswers(answers);
       simpleLogger.info(`💾 Cached ${answers.length} answers for offline access`);

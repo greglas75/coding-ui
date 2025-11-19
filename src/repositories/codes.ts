@@ -124,7 +124,7 @@ export async function saveCodesForAnswer(
 
     // Update selected_code column in answers table
     await updateSelectedCodeColumn(answerId);
-  } catch (error: any) {
+  } catch (error) {
     simpleLogger.error('❌ [saveCodesForAnswer] Error:', error);
   }
 }
@@ -154,7 +154,7 @@ async function updateSelectedCodeColumn(answerId: number) {
 
     const allCodeNames =
       allAnswerCodes
-        ?.map((ac: any) => ac.codes?.name)
+        ?.map((ac: { codes: { name: string } | null }) => ac.codes?.name)
         .filter(Boolean)
         .join(', ') || null;
 

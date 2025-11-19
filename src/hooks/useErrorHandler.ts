@@ -93,11 +93,11 @@ export function useErrorHandler(options: ErrorHandlerOptions = {}) {
     return err;
   }, [showToast, shouldLogError, fallbackMessage, onError, reportToSentry, defaultContext, tags, errorCount]);
 
-  const wrapAsync = useCallback(<T extends (...args: any[]) => Promise<any>>(
+  const wrapAsync = useCallback(<T extends (...args: never[]) => Promise<unknown>>(
     fn: T,
     contextOverride?: string
   ): T => {
-    return (async (...args: any[]) => {
+    return (async (...args: Parameters<T>) => {
       try {
         return await fn(...args);
       } catch (error) {
