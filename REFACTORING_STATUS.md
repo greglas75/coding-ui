@@ -44,12 +44,12 @@
 - **Po:** 5 modułów (~960 linii)
 - **Poprawa:** 100% testowalność, wymienne komponenty
 
-### 6. ✅ Type Safety Holes - 40% COMPLETE ⚡
-- **Status:** Fundament + 12 plików w pełni typed
+### 6. ✅ Type Safety Holes - 48% COMPLETE ⚡
+- **Status:** Fundament + 18 plików w pełni typed
 - **Przed:** 190 'any' types
-- **Po:** 114 'any' types
-- **Poprawa:** 40% redukcja (76 'any' wyeliminowane)
-- **Pliki typed:**
+- **Po:** 99 'any' types
+- **Poprawa:** 48% redukcja (91 'any' wyeliminowane)
+- **Pliki typed (batch 1-3):**
   - ✅ apiClient.ts (7 → 0)
   - ✅ cacheLayer.ts (7 → 0)
   - ✅ webContextProvider.ts (7 → 0)
@@ -61,8 +61,15 @@
   - ✅ analyticsEngine.ts (4 → 0)
   - ✅ FileDataCodingPage.tsx (7 → 0)
   - ✅ useCodingStore.ts (3 → 0)
-- **Commitów:** 3 batche type safety improvements
-- **Pozostało:** 114 'any' (głównie testy + edge cases)
+- **Pliki typed (batch 4-5):**
+  - ✅ rateLimit.ts (3 → 0) - Rate limiting infrastructure
+  - ✅ openai/webContext.ts (3 → 0) - Vision AI types
+  - ✅ openai/categorize.ts (3 → 0) - Main categorization flow
+  - ✅ repositories/codes.ts (2 → 0) - Code repository
+  - ✅ hooks/useOfflineSync.ts (2 → 0) - Offline sync
+  - ✅ hooks/useErrorHandler.ts (2 → 0) - Error handling
+- **Commitów:** 5 batches type safety improvements
+- **Pozostało:** 99 'any' (głównie testy + edge cases)
 
 ### 7. ✅ CodeListTable Component - COMPLETE
 - **Status:** 100% ukończone
