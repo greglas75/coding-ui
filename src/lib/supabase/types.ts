@@ -28,6 +28,6 @@ export interface OptimizedQueryResult<T> {
   success: boolean;
   data: T[];
   source?: 'cache' | 'database';
-  error?: any;
+  error?: Error;
 }
 

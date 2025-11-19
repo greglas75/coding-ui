@@ -14,7 +14,7 @@ class ErrorLogger {
   private logs: ErrorLog[] = [];
   private maxLogs = 50;
 
-  log(error: Error, errorInfo?: any, context?: Record<string, any>) {
+  log(error: Error, errorInfo?: { componentStack?: string }, context?: Record<string, unknown>) {
     const errorLog: ErrorLog = {
       message: error.message,
       stack: error.stack,
