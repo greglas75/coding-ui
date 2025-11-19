@@ -1,4 +1,4 @@
-import type { FC } from 'react';
+import { memo, type FC } from 'react';
 
 interface AIButtonCellProps {
   isCategorizing: boolean;
@@ -51,7 +51,7 @@ const getTimestampColor = (timestamp: string | Date): string => {
   return 'text-gray-400';                        // Older
 };
 
-export const AIButtonCell: FC<AIButtonCellProps> = ({
+const AIButtonCellComponent: FC<AIButtonCellProps> = ({
   isCategorizing,
   timestamp,
   onRegenerate
@@ -90,3 +90,5 @@ export const AIButtonCell: FC<AIButtonCellProps> = ({
     </div>
   );
 };
+
+export const AIButtonCell = memo(AIButtonCellComponent);

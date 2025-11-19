@@ -1,6 +1,5 @@
 import { Info, RotateCw } from 'lucide-react';
-import type { FC } from 'react';
-import { useState } from 'react';
+import { memo, useState, type FC } from 'react';
 import type { ImageResult } from '../../../types';
 import { Tooltip } from '../../shared/Tooltip';
 import { BrandValidationModal } from '../modals/BrandValidationModal';
@@ -53,7 +52,7 @@ interface AISuggestionsCellProps {
   translation?: string;
 }
 
-export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
+const AISuggestionsCellComponent: FC<AISuggestionsCellProps> = ({
   answerId: _answerId, // Kept for future use in analytics/logging
   aiSuggestions,
   isCategorizing,
@@ -244,3 +243,5 @@ export const AISuggestionsCell: FC<AISuggestionsCellProps> = ({
     </div>
   );
 };
+
+export const AISuggestionsCell = memo(AISuggestionsCellComponent);

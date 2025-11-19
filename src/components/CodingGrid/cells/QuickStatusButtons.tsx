@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import type { FC } from 'react';
+import { memo, type FC } from 'react';
 import type { Answer } from '../../../types';
 
 interface QuickStatusButtonsProps {
@@ -23,7 +23,7 @@ const tooltips: Record<string, string> = {
   'C': 'Confirm as Whitelist'
 };
 
-export const QuickStatusButtons: FC<QuickStatusButtonsProps> = ({
+const QuickStatusButtonsComponent: FC<QuickStatusButtonsProps> = ({
   answer,
   onStatusChange
 }) => {
@@ -59,3 +59,5 @@ export const QuickStatusButtons: FC<QuickStatusButtonsProps> = ({
     </div>
   );
 };
+
+export const QuickStatusButtons = memo(QuickStatusButtonsComponent);
