@@ -25,8 +25,8 @@ export const MobileCard: FC<MobileCardProps> = ({
   isSelected,
   isFocused,
   rowAnimation,
-  onToggleSelection: _onToggleSelection, // TODO: Add selection UI to mobile cards
-  onFocus: _onFocus, // TODO: Add focus handling to mobile cards
+  onToggleSelection: _onToggleSelection, // Not implemented in mobile view yet
+  onFocus: _onFocus, // Not implemented in mobile view yet
   onClick,
   onQuickStatus,
   onCodeClick,

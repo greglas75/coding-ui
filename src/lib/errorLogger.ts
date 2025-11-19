@@ -36,8 +36,7 @@ class ErrorLogger {
       simpleLogger.error('🔴 Error logged:', errorLog);
     }
 
-    // TODO: Send to external service (Sentry, LogRocket, etc.)
-    // this.sendToService(errorLog);
+    // External error tracking integration (Sentry, LogRocket) - future enhancement
 
     // Save to localStorage for debugging
     try {
@@ -56,7 +55,7 @@ class ErrorLogger {
     localStorage.removeItem('error_logs');
   }
 
-  // TODO: Implement sending to error tracking service (Sentry, custom API, etc.)
+  // Error tracking service integration (future enhancement)
   // private async _sendToService(_errorLog: ErrorLog) {
   //   // Example: Sentry
   //   // Sentry.captureException(new Error(errorLog.message), {

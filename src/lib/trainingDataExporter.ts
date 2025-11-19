@@ -15,7 +15,7 @@ export class TrainingDataExporter {
    */
   async exportTrainingData(
     categoryId?: number,
-    _minConfidence: number = 0 // TODO: Apply confidence filtering during export
+    _minConfidence: number = 0 // Confidence filtering not yet implemented
   ): Promise<{ data: TrainingExample[]; count: number; filename: string }> {
     simpleLogger.info(`📦 Exporting training data for category: ${categoryId || 'all'}`);
 

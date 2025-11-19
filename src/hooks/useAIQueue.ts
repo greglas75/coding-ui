@@ -26,8 +26,7 @@ export function useAIQueue(options: AIQueueOptions = {}) {
     onQueueEmpty,
   } = options;
 
-  // TODO: Implement task completion callbacks
-  // const onTaskComplete = _onTaskComplete;
+  // Task completion callbacks (future enhancement)
   // const onTaskFailed = _onTaskFailed;
 
   // Select data from store

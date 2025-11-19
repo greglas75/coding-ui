@@ -85,8 +85,7 @@ export default function App() {
     // Log error to our error logger
     errorLogger.log(error, errorInfo);
 
-    // TODO: Send to analytics
-    // analytics.track('error_occurred', {
+    // Analytics tracking for errors (future enhancement)
     //   error: error.message,
     //   component: errorInfo.componentStack
     // });

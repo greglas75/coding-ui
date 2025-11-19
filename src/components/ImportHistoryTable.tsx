@@ -76,8 +76,7 @@ export function ImportHistoryTable() {
   const handleReimport = async (importRecord: FileImport) => {
     toast.info('Re-import feature coming soon!');
     simpleLogger.info('Re-import requested for:', importRecord);
-    // TODO: Implement re-import functionality
-    // This would require storing the original file or file path
+    // Re-import functionality requires storing original file/path
   };
 
   const getStatusIcon = (status: string) => {
