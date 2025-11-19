@@ -13,14 +13,24 @@
 // TODO: Install @sentry/react to enable error tracking
 // import * as Sentry from '@sentry/react';
 import { simpleLogger } from '../utils/logger';
-const Sentry = {
+
+interface SentryStub {
+  addBreadcrumb: (breadcrumb: unknown) => void;
+  captureException: (error: unknown, context?: unknown) => void;
+  captureMessage: (message: string, options?: unknown) => void;
+  setUser: (user: unknown) => void;
+  setContext: (key: string, data: unknown) => void;
+  startSpan: <T>(options: unknown, callback: () => T) => T;
+}
+
+const Sentry: SentryStub = {
   addBreadcrumb: () => {},
   captureException: () => {},
   captureMessage: () => {},
   setUser: () => {},
   setContext: () => {},
-  startSpan: (_options: any, callback: () => any) => callback(),
-} as any;
+  startSpan: (_options, callback) => callback(),
+};
 
 /**
  * Check if Sentry is initialized
@@ -41,7 +51,7 @@ export function isSentryEnabled(): boolean {
 export function trackAction(
   category: string,
   action: string,
-  data?: Record<string, any>
+  data?: Record<string, unknown>
 ) {
   if (!isSentryEnabled()) return;
 
@@ -133,7 +143,7 @@ export function trackSupabaseQuery(
 export function setUserContext(user: {
   id: string;
   role?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }) {
   if (!isSentryEnabled()) return;
 
@@ -147,7 +157,7 @@ export function setUserContext(user: {
 /**
  * Set custom context (current category, filters, etc.)
  */
-export function setCustomContext(key: string, data: Record<string, any>) {
+export function setCustomContext(key: string, data: Record<string, unknown>) {
   if (!isSentryEnabled()) return;
 
   Sentry.setContext(key, data);
@@ -165,7 +175,7 @@ export function clearUserContext() {
 /**
  * Manually capture exception
  */
-export function captureException(error: Error, context?: Record<string, any>) {
+export function captureException(error: Error, context?: Record<string, unknown>) {
   if (!isSentryEnabled()) {
     simpleLogger.error('Error (Sentry disabled):', error, context);
     return;
@@ -182,7 +192,7 @@ export function captureException(error: Error, context?: Record<string, any>) {
 export function captureMessage(
   message: string,
   level: 'error' | 'warning' | 'info' = 'info',
-  context?: Record<string, any>
+  context?: Record<string, unknown>
 ) {
   if (!isSentryEnabled()) return;
 
@@ -202,7 +212,7 @@ export function captureMessage(
  * });
  * ```
  */
-export function startSpan(name: string, callback: () => any) {
+export function startSpan<T>(name: string, callback: () => T): T {
   if (!isSentryEnabled()) {
     return callback();
   }

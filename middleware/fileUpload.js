@@ -1,0 +1,36 @@
+/**
+import logger from '../utils/logger.js';
+ * File Upload Middleware
+ *
+ * Multer configuration for CSV/Excel file uploads
+ */
+import multer from 'multer';
+import path from 'path';
+
+const strictUpload = process.env.STRICT_UPLOAD_VALIDATION === 'true';
+
+/**
+ * Multer upload configuration
+ */
+export const upload = multer({
+  dest: 'uploads/',
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedExt = ['.csv', '.xlsx', '.xls'];
+    const allowedMime = [
+      'text/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ];
+    const ext = path.extname(file.originalname).toLowerCase();
+    const mimeOk = allowedMime.includes(file.mimetype);
+    const extOk = allowedExt.includes(ext);
+
+    if (strictUpload) {
+      if (!mimeOk || !extOk) {
+        return cb(new Error(`Invalid file type. Allowed: ${allowedExt.join(', ')}`), false);
+      }
+    }
+    cb(null, true);
+  },
+});

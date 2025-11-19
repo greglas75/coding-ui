@@ -6,6 +6,7 @@
 
 import { memo, useCallback, useState } from 'react';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import type { FiltersState } from '../hooks/useFilters';
 import type { Answer } from '../types';
 import { simpleLogger } from '../utils/logger';
 import { CodingGrid } from './CodingGrid';
@@ -26,7 +27,7 @@ interface OptimizedCodingGridProps {
   setDensity?: (density: 'compact' | 'comfortable') => void;
   currentCategoryId?: number;
   onCodingStart?: (categoryId: number | undefined) => void;
-  onFiltersChange?: (filters: any) => void;
+  onFiltersChange?: (filters: FiltersState) => void;
 
   // Optimization props
   virtualizationThreshold?: number;

@@ -1,4 +1,5 @@
 /**
+import logger from '../utils/logger.js';
  * Sentiment Analysis API Routes
  * Endpoints for context-aware sentiment analysis
  */
@@ -128,7 +129,7 @@ router.post('/analyze/:id', sentimentRateLimiter, async (req, res) => {
       skipped: false,
     });
   } catch (error) {
-    console.error('Sentiment analysis error:', error);
+    logger.error('Sentiment analysis error:', error);
     res.status(500).json({
       error: 'Failed to analyze sentiment',
       message: error.message,
@@ -262,7 +263,7 @@ router.post('/batch-analyze', sentimentRateLimiter, async (req, res) => {
       results,
     });
   } catch (error) {
-    console.error('Batch sentiment error:', error);
+    logger.error('Batch sentiment error:', error);
     res.status(500).json({
       error: 'Failed to batch analyze sentiment',
       message: error.message,
@@ -301,7 +302,7 @@ router.post('/mark-not-applicable', sentimentRateLimiter, async (req, res) => {
       message: 'Marked as not applicable',
     });
   } catch (error) {
-    console.error('Mark not applicable error:', error);
+    logger.error('Mark not applicable error:', error);
     res.status(500).json({
       error: 'Failed to mark as not applicable',
       message: error.message,
@@ -336,7 +337,7 @@ router.post('/mark-applicable', sentimentRateLimiter, async (req, res) => {
       message: 'Marked as applicable - re-analyze to calculate sentiment',
     });
   } catch (error) {
-    console.error('Mark applicable error:', error);
+    logger.error('Mark applicable error:', error);
     res.status(500).json({
       error: 'Failed to mark as applicable',
       message: error.message,
@@ -417,7 +418,7 @@ router.get('/stats/:categoryId', sentimentRateLimiter, async (req, res) => {
       by_code: byCode || [],
     });
   } catch (error) {
-    console.error('Get stats error:', error);
+    logger.error('Get stats error:', error);
     res.status(500).json({
       error: 'Failed to get sentiment stats',
       message: error.message,

@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useDebounce } from '../../../hooks/useDebounce';
 import type { Answer } from '../../../types';
+import type { FiltersState } from '../../../hooks/useFilters';
+import type { FilterGroup } from '../../../lib/filterEngine';
 
 export function useAnswerFiltering(
   answers: Answer[],
-  filters: any,
-  filterGroup: any,
+  filters: FiltersState,
+  filterGroup: FilterGroup,
   advancedSearchTerm: string
 ) {
   const [sortField, setSortField] = useState<keyof Answer | null>(null);
@@ -99,8 +101,8 @@ export function useAnswerFiltering(
     // Advanced filters
     if (filterGroup.filters.length > 0) {
       results = results.filter(answer => {
-        const filterResults = filterGroup.filters.map((filter: any) => {
-          let fieldValue: any;
+        const filterResults = filterGroup.filters.map((filter) => {
+          let fieldValue: string | number | null | undefined;
           switch (filter.field) {
             case 'text': fieldValue = answer.answer_text; break;
             case 'code': fieldValue = answer.selected_code; break;
@@ -123,8 +125,8 @@ export function useAnswerFiltering(
         });
 
         return filterGroup.logic === 'AND'
-          ? filterResults.every((r: boolean) => r)
-          : filterResults.some((r: boolean) => r);
+          ? filterResults.every((r) => r)
+          : filterResults.some((r) => r);
       });
     }
 

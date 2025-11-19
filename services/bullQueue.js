@@ -1,4 +1,5 @@
 /**
+import logger from '../utils/logger.js';
  * Bull Queue Configuration for AI Codeframe Generation
  * Handles background processing of cluster-based codeframe generation
  */
@@ -61,14 +62,14 @@ const codeframeQueue = new Bull('codeframe-generation', {
 codeframeQueue.process('generate-cluster', 1, async (job) => {
   const { generation_id, cluster_id, cluster_texts, category_info, config } = job.data;
 
-  console.log(`[Job ${job.id}] Processing cluster ${cluster_id} for generation ${generation_id}`);
+  logger.info(`[Job ${job.id}] Processing cluster ${cluster_id} for generation ${generation_id}`);
 
   try {
     // Update job progress
     await job.progress(10);
 
     // Call Python microservice to generate codeframe
-    console.log(`[Job ${job.id}] Calling Python service...`);
+    logger.info(`[Job ${job.id}] Calling Python service...`);
     const response = await axios.post(
       `${PYTHON_SERVICE_URL}/api/generate-codeframe`,
       {
@@ -92,10 +93,10 @@ codeframeQueue.process('generate-cluster', 1, async (job) => {
 
     const codeframeResult = response.data;
 
-    console.log(`[Job ${job.id}] Received codeframe from Python service`);
-    console.log(`[Job ${job.id}] Theme: ${codeframeResult.theme.name}`);
-    console.log(`[Job ${job.id}] Codes: ${codeframeResult.codes.length}`);
-    console.log(`[Job ${job.id}] MECE Score: ${codeframeResult.mece_score}`);
+    logger.info(`[Job ${job.id}] Received codeframe from Python service`);
+    logger.info(`[Job ${job.id}] Theme: ${codeframeResult.theme.name}`);
+    logger.info(`[Job ${job.id}] Codes: ${codeframeResult.codes.length}`);
+    logger.info(`[Job ${job.id}] MECE Score: ${codeframeResult.mece_score}`);
 
     // Save cluster result to database
     await saveClusterResult(generation_id, cluster_id, codeframeResult, category_info);
@@ -107,7 +108,7 @@ codeframeQueue.process('generate-cluster', 1, async (job) => {
 
     await job.progress(100);
 
-    console.log(`[Job ${job.id}] Cluster ${cluster_id} completed successfully`);
+    logger.info(`[Job ${job.id}] Cluster ${cluster_id} completed successfully`);
 
     return {
       success: true,
@@ -119,8 +120,8 @@ codeframeQueue.process('generate-cluster', 1, async (job) => {
       cost_usd: codeframeResult.cost_usd,
     };
   } catch (error) {
-    console.error(`[Job ${job.id}] Cluster ${cluster_id} failed:`, error.message);
-    console.error(`[Job ${job.id}] Error details:`, {
+    logger.error(`[Job ${job.id}] Cluster ${cluster_id} failed:`, error.message);
+    logger.error(`[Job ${job.id}] Error details:`, {
       name: error.name,
       message: error.message,
       stack: error.stack,
@@ -139,7 +140,7 @@ codeframeQueue.process('generate-cluster', 1, async (job) => {
  * Save cluster codeframe result to database
  */
 async function saveClusterResult(generation_id, cluster_id, codeframeResult, category_info) {
-  console.log(`Saving cluster ${cluster_id} result to database...`);
+  logger.info(`Saving cluster ${cluster_id} result to database...`);
 
   // 1. Insert theme node into hierarchy
   const { data: themeNode, error: themeError } = await supabase
@@ -160,11 +161,11 @@ async function saveClusterResult(generation_id, cluster_id, codeframeResult, cat
     .single();
 
   if (themeError) {
-    console.error('Error inserting theme node:', themeError);
+    logger.error('Error inserting theme node:', themeError);
     throw themeError;
   }
 
-  console.log(`Theme node created: ${themeNode.id}`);
+  logger.info(`Theme node created: ${themeNode.id}`);
 
   // 2. Insert code nodes (with recursive sub-codes support)
   const insertCodeNodes = async (codes, parent_id, level) => {
@@ -189,11 +190,11 @@ async function saveClusterResult(generation_id, cluster_id, codeframeResult, cat
         .single();
 
       if (codeError) {
-        console.error(`Error inserting code node ${code.name}:`, codeError);
+        logger.error(`Error inserting code node ${code.name}:`, codeError);
         throw codeError;
       }
 
-      console.log(`Code node created: ${codeNode.name} (${codeNode.id})`);
+      logger.info(`Code node created: ${codeNode.name} (${codeNode.id})`);
 
       // Recursively insert sub-codes
       if (code.sub_codes && code.sub_codes.length > 0) {
@@ -214,18 +215,18 @@ async function saveClusterResult(generation_id, cluster_id, codeframeResult, cat
   });
 
   if (updateError) {
-    console.warn('Could not update cluster stats (RPC function may not exist):', updateError.message);
+    logger.warn('Could not update cluster stats (RPC function may not exist):', updateError.message);
     // Non-critical, continue
   }
 
-  console.log(`Cluster ${cluster_id} saved successfully`);
+  logger.info(`Cluster ${cluster_id} saved successfully`);
 }
 
 /**
  * Update generation progress and status
  */
 async function updateGenerationProgress(generation_id) {
-  console.log(`Updating generation ${generation_id} progress...`);
+  logger.info(`Updating generation ${generation_id} progress...`);
 
   // Get all hierarchy nodes for this generation
   const { data: nodes, error: nodesError } = await supabase
@@ -234,7 +235,7 @@ async function updateGenerationProgress(generation_id) {
     .eq('generation_id', generation_id);
 
   if (nodesError) {
-    console.error('Error fetching hierarchy nodes:', nodesError);
+    logger.error('Error fetching hierarchy nodes:', nodesError);
     return;
   }
 
@@ -250,7 +251,7 @@ async function updateGenerationProgress(generation_id) {
     .single();
 
   if (genError) {
-    console.error('Error fetching generation:', genError);
+    logger.error('Error fetching generation:', genError);
     return;
   }
 
@@ -269,9 +270,9 @@ async function updateGenerationProgress(generation_id) {
     .eq('id', generation_id);
 
   if (updateError) {
-    console.error('Error updating generation progress:', updateError);
+    logger.error('Error updating generation progress:', updateError);
   } else {
-    console.log(
+    logger.info(
       `Generation ${generation_id}: ${n_completed_clusters}/${n_total_clusters} clusters complete`
     );
   }
@@ -281,7 +282,7 @@ async function updateGenerationProgress(generation_id) {
  * Log cluster failure to database
  */
 async function logClusterFailure(generation_id, cluster_id, error) {
-  console.log(`Logging failure for cluster ${cluster_id}...`);
+  logger.info(`Logging failure for cluster ${cluster_id}...`);
 
   try {
     const { error: updateError } = await supabase
@@ -297,10 +298,10 @@ async function logClusterFailure(generation_id, cluster_id, error) {
       .eq('id', generation_id);
 
     if (updateError) {
-      console.error('Error logging failure:', updateError);
+      logger.error('Error logging failure:', updateError);
     }
   } catch (err) {
-    console.error('Error in logClusterFailure:', err);
+    logger.error('Error in logClusterFailure:', err);
   }
 }
 
@@ -308,24 +309,24 @@ async function logClusterFailure(generation_id, cluster_id, error) {
  * Event handlers for queue monitoring
  */
 codeframeQueue.on('completed', (job, result) => {
-  console.log(`✓ Job ${job.id} completed:`, result);
+  logger.info(`✓ Job ${job.id} completed:`, result);
 });
 
 codeframeQueue.on('failed', (job, err) => {
-  console.error(`✗ Job ${job.id} failed:`, err.message);
+  logger.error(`✗ Job ${job.id} failed:`, err.message);
 });
 
 codeframeQueue.on('stalled', (job) => {
-  console.warn(`⚠ Job ${job.id} stalled`);
+  logger.warn(`⚠ Job ${job.id} stalled`);
 });
 
 codeframeQueue.on('error', (error) => {
-  console.error('Queue error:', error);
+  logger.error('Queue error:', error);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, closing queue...');
+  logger.info('SIGTERM received, closing queue...');
   await codeframeQueue.close();
   process.exit(0);
 });

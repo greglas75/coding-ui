@@ -32,11 +32,11 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
   if (!isOpen) return null;
 
   // Parse validation_evidence as EnhancedValidationResult
-  let validationData: any = null;
+  let validationData: Record<string, unknown> | null = null;
   try {
     validationData = typeof node.validation_evidence === 'string'
       ? JSON.parse(node.validation_evidence)
-      : node.validation_evidence;
+      : (node.validation_evidence as Record<string, unknown>);
   } catch (e) {
     console.error('Failed to parse validation_evidence:', e);
   }
@@ -226,7 +226,7 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
                 MATCHED CODES (from existing database)
               </h3>
               <div className="space-y-2">
-                {suggestedCodes.slice(0, 5).map((code: any, i: number) => (
+                {suggestedCodes.slice(0, 5).map((code: Record<string, unknown>, i: number) => (
                   <div
                     key={i}
                     className={`flex items-center justify-between p-3 rounded-lg ${
@@ -263,7 +263,7 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
               </h3>
               <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                 <div className="flex flex-wrap gap-3">
-                  {Object.entries(variants).map(([variant, count], i) => (
+                  {Object.entries(variants).map(([variant, count]: [string, unknown], i) => (
                     <div
                       key={i}
                       className="inline-flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600"
@@ -292,7 +292,7 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
                 </p>
               </div>
               <div className="space-y-2">
-                {searchValidation.web_results.slice(0, 5).map((result: any, i: number) => {
+                {searchValidation.web_results.slice(0, 5).map((result: Record<string, string>, i: number) => {
                   const url = result.link || result.url;
                   let hostname = url;
                   try {
@@ -338,13 +338,13 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
                 IMAGES ANALYZED ({visionAnalysis.analyzed_images.length})
               </h3>
               <div className="grid grid-cols-6 gap-2">
-                {visionAnalysis.analyzed_images.slice(0, 6).map((img: any, i: number) => (
+                {visionAnalysis.analyzed_images.slice(0, 6).map((img: Record<string, unknown> | string, i: number) => (
                   <div
                     key={i}
                     className="relative aspect-square bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden group hover:ring-2 hover:ring-purple-500 transition-all"
                   >
                     <img
-                      src={img.url || img.link || img}
+                      src={typeof img === 'string' ? img : (img.url as string || img.link as string || '')}
                       alt={`Product ${i + 1}`}
                       className="w-full h-full object-cover"
                       loading="lazy"
@@ -352,9 +352,9 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
                         e.currentTarget.style.display = 'none';
                       }}
                     />
-                    {img.similarity && (
+                    {typeof img === 'object' && img.similarity && (
                       <div className="absolute bottom-0 left-0 right-0 bg-black/75 text-white text-xs p-1 text-center">
-                        {Math.round(img.similarity * 100)}%
+                        {Math.round((img.similarity as number) * 100)}%
                       </div>
                     )}
                   </div>

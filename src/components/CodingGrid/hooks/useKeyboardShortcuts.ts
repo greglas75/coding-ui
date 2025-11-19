@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import type { Answer } from '../../../types';
+import type { Answer, AiCodeSuggestion } from '../../../types';
 
 export function useKeyboardShortcuts({
   focusedRowId,
@@ -16,7 +16,7 @@ export function useKeyboardShortcuts({
   localAnswers: Answer[];
   setFocusedRowId: (id: number | null) => void;
   handleQuickStatus: (answer: Answer, key: string) => void;
-  handleAcceptSuggestion: (answerId: number, suggestion: any) => void;
+  handleAcceptSuggestion: (answerId: number, suggestion: AiCodeSuggestion) => void;
   handleSingleAICategorize: (answerId: number) => void;
   openCodeModal: (answer: Answer) => void;
   undo: () => void;

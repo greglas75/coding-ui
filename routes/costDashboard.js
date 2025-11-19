@@ -1,4 +1,5 @@
 /**
+import logger from '../utils/logger.js';
  * Cost Dashboard API Routes
  * Endpoints for AI cost tracking, budgeting, and analytics
  */
@@ -36,7 +37,7 @@ router.get('/overview', async (req, res) => {
 
     res.json(overview);
   } catch (error) {
-    console.error('Error fetching cost overview:', error);
+    logger.error('Error fetching cost overview:', error);
     res.status(500).json({
       error: 'Failed to fetch cost overview',
       message: error.message
@@ -81,7 +82,7 @@ router.get('/trend', async (req, res) => {
 
     res.json({ period, trend });
   } catch (error) {
-    console.error('Error fetching cost trend:', error);
+    logger.error('Error fetching cost trend:', error);
     res.status(500).json({
       error: 'Failed to fetch cost trend',
       message: error.message
@@ -124,7 +125,7 @@ router.get('/detailed', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('Error fetching detailed breakdown:', error);
+    logger.error('Error fetching detailed breakdown:', error);
     res.status(500).json({
       error: 'Failed to fetch detailed breakdown',
       message: error.message
@@ -142,7 +143,7 @@ router.get('/budget', async (req, res) => {
     const budget = await costDashboardService.getBudgetStatus(req.user?.id || null);
     res.json(budget);
   } catch (error) {
-    console.error('Error fetching budget status:', error);
+    logger.error('Error fetching budget status:', error);
     res.status(500).json({
       error: 'Failed to fetch budget status',
       message: error.message
@@ -181,7 +182,7 @@ router.put('/budget', async (req, res) => {
 
     res.json(updated);
   } catch (error) {
-    console.error('Error updating budget settings:', error);
+    logger.error('Error updating budget settings:', error);
     res.status(500).json({
       error: 'Failed to update budget settings',
       message: error.message
@@ -214,7 +215,7 @@ router.get('/export', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="ai-costs-${Date.now()}.csv"`);
     res.send(csvData);
   } catch (error) {
-    console.error('Error exporting cost data:', error);
+    logger.error('Error exporting cost data:', error);
     res.status(500).json({
       error: 'Failed to export cost data',
       message: error.message
@@ -232,7 +233,7 @@ router.get('/predictions', async (req, res) => {
     const predictions = await costDashboardService.getPredictions(req.user?.id || null);
     res.json(predictions);
   } catch (error) {
-    console.error('Error fetching predictions:', error);
+    logger.error('Error fetching predictions:', error);
     res.status(500).json({
       error: 'Failed to fetch predictions',
       message: error.message

@@ -1,6 +1,7 @@
 import CryptoJS from 'crypto-js';
 import type { DBSchema, IDBPDatabase } from 'idb';
 import { openDB } from 'idb';
+import type { Answer } from '../types';
 import { simpleLogger } from '../utils/logger';
 
 // ───────────────────────────────────────────────────────────────
@@ -125,7 +126,7 @@ validateEncryptionKey(KEY);
 /**
  * Encrypt data before storing in IndexedDB
  */
-function encrypt(data: any): string {
+function encrypt(data: unknown): string {
   try {
     const jsonData = JSON.stringify(data);
     return CryptoJS.AES.encrypt(jsonData, KEY).toString();
@@ -138,7 +139,7 @@ function encrypt(data: any): string {
 /**
  * Decrypt data after retrieving from IndexedDB
  */
-function decrypt(ciphertext: string): any {
+function decrypt(ciphertext: string): unknown {
   try {
     const bytes = CryptoJS.AES.decrypt(ciphertext, KEY);
     const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
@@ -166,8 +167,8 @@ export interface PendingChange {
 export interface ChangeData {
   ids?: number[];
   id?: number;
-  updates?: Record<string, any>;
-  [key: string]: any;
+  updates?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export interface CachedItem {
@@ -202,14 +203,14 @@ export async function initOfflineDB(): Promise<IDBPDatabase<OfflineDB>> {
 
         if (!upgradeDb.objectStoreNames.contains('pending-changes')) {
           const pendingStore = upgradeDb.createObjectStore('pending-changes', { keyPath: 'id' });
-          (pendingStore as any).createIndex('timestamp', 'timestamp');
-          (pendingStore as any).createIndex('synced', 'synced');
+          pendingStore.createIndex('timestamp', 'timestamp');
+          pendingStore.createIndex('synced', 'synced');
           simpleLogger.info('✅ Created pending-changes store');
         }
 
         if (!upgradeDb.objectStoreNames.contains('local-cache')) {
           const cacheStore = upgradeDb.createObjectStore('local-cache', { keyPath: 'id' });
-          (cacheStore as any).createIndex('timestamp', 'timestamp');
+          cacheStore.createIndex('timestamp', 'timestamp');
           simpleLogger.info('✅ Created local-cache store');
         }
 
@@ -236,7 +237,7 @@ export async function initOfflineDB(): Promise<IDBPDatabase<OfflineDB>> {
 export async function addPendingChange(change: {
   action: 'update' | 'insert' | 'delete';
   table: string;
-  data: any;
+  data: ChangeData;
 }): Promise<string> {
   const db = await initOfflineDB();
   const id = `change-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -298,7 +299,7 @@ export async function markMultipleAsSynced(ids: string[]): Promise<void> {
 /**
  * Cache answers locally for offline access (encrypted)
  */
-export async function cacheAnswers(answers: any[]): Promise<void> {
+export async function cacheAnswers(answers: Answer[]): Promise<void> {
   const db = await initOfflineDB();
   const tx = db.transaction('local-cache', 'readwrite');
 
@@ -317,12 +318,16 @@ export async function cacheAnswers(answers: any[]): Promise<void> {
 /**
  * Get cached answers (decrypted)
  */
-export async function getCachedAnswers(): Promise<any[]> {
+export async function getCachedAnswers(): Promise<Answer[]> {
   const db = await initOfflineDB();
   const cached = await db.getAll('local-cache');
 
   try {
-    return cached.map(item => decrypt(item.encryptedData));
+    return cached.map(item => {
+      const decrypted = decrypt(item.encryptedData);
+      // Type assertion is safe here because we encrypted Answer objects
+      return decrypted as Answer;
+    });
   } catch (error) {
     simpleLogger.error('❌ Failed to decrypt cached answers:', error);
     // If decryption fails, try to return empty array or handle gracefully

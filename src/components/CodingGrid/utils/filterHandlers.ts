@@ -1,9 +1,10 @@
 import type { FilterGroup } from '../../../lib/filterEngine';
 import type { FiltersState } from '../../../hooks/useFilters';
+import type { Answer } from '../../../types';
 
 interface FilterHandlersProps {
   setFilter: <K extends keyof FiltersState>(key: K, value: FiltersState[K]) => void;
-  onFiltersChange?: (filters: any) => void;
+  onFiltersChange?: (filters: FiltersState) => void;
 }
 
 /**
@@ -35,10 +36,10 @@ export function createFilterChangeHandler({ setFilter, onFiltersChange }: Filter
  * Apply filters to local answers
  */
 export function createApplyFiltersHandler(
-  filteredAnswers: any[],
-  setLocalAnswers: (answers: any[]) => void,
-  filters: any,
-  onFiltersChange?: (filters: any) => void
+  filteredAnswers: Answer[],
+  setLocalAnswers: (answers: Answer[]) => void,
+  filters: FiltersState,
+  onFiltersChange?: (filters: FiltersState) => void
 ) {
   return () => {
     setLocalAnswers(filteredAnswers);
@@ -53,7 +54,7 @@ export function createApplyFiltersHandler(
  */
 export function createResetFiltersHandler(
   resetFilters: () => void,
-  onFiltersChange?: (filters: any) => void
+  onFiltersChange?: (filters: FiltersState) => void
 ) {
   return () => {
     resetFilters();

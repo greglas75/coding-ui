@@ -1,0 +1,298 @@
+/**
+import logger from '../utils/logger.js';
+ * File Upload Route - CSV/Excel Processing
+ * Handles file uploads, parsing, validation, and Supabase insertion
+ */
+import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import Papa from 'papaparse';
+import ExcelJS from 'exceljs';
+import { createClient } from '@supabase/supabase-js';
+import { validateFileContent } from '../utils/fileValidation.js';
+
+const router = express.Router();
+
+// Supabase client
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.VITE_SUPABASE_ANON_KEY
+);
+
+/**
+ * POST /api/file-upload
+ * Uploads CSV/Excel file, parses rows, and inserts to Supabase
+ */
+router.post('/', async (req, res) => {
+  const log = req.log || console;
+  const startTime = Date.now();
+  let uploadedFilePath = null;
+
+  try {
+    log.info('[File Upload] Request received', { id: req.requestId });
+
+    // Check if file was uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        status: 'error',
+        error: 'No file uploaded',
+      });
+    }
+
+    uploadedFilePath = req.file.path;
+
+    // ✅ SECURITY: Validate magic bytes (real file content)
+    try {
+      await validateFileContent(uploadedFilePath);
+      log.info('[File Upload] File content validated (magic bytes OK)', { id: req.requestId });
+    } catch (validationError) {
+      log.error('[File Upload] File validation failed', { id: req.requestId }, validationError);
+      // Delete invalid file
+      if (uploadedFilePath && fs.existsSync(uploadedFilePath)) {
+        fs.unlinkSync(uploadedFilePath);
+      }
+      return res.status(400).json({
+        status: 'error',
+        error: `File validation failed: ${validationError.message}`,
+      });
+    }
+
+    const originalName = path.basename(req.file.originalname).replace(/[\\/]/g, '');
+    const fileExtension = path.extname(originalName).toLowerCase();
+    const categoryId = req.body.category_id;
+
+    log.info('[File Upload] File', {
+      id: req.requestId,
+      name: originalName,
+      sizeKB: Number((req.file.size / 1024).toFixed(2)),
+      extension: fileExtension,
+      hasCategoryId: Boolean(categoryId),
+    });
+
+    // Validate category
+    if (!categoryId) {
+      return res.status(400).json({
+        status: 'error',
+        error: 'Category ID is required',
+      });
+    }
+
+    let parsedRows = [];
+    const errors = [];
+
+    // Parse CSV
+    if (fileExtension === '.csv') {
+      log.info('[File Upload] Parsing CSV file...', { id: req.requestId });
+      const fileContent = fs.readFileSync(uploadedFilePath, 'utf8');
+
+      const parseResult = Papa.parse(fileContent, {
+        skipEmptyLines: true,
+        delimiter: ',',
+        transformHeader: header => header.trim(),
+      });
+
+      if (parseResult.errors.length > 0) {
+        parseResult.errors.forEach(err => {
+          errors.push(`Row ${err.row}: ${err.message}`);
+        });
+      }
+
+      parsedRows = parseResult.data
+        .map((row, index) => {
+          if (!Array.isArray(row) || row.length < 2) {
+            errors.push(`Row ${index + 1}: Invalid format (need at least 2 columns)`);
+            return null;
+          }
+
+          return {
+            external_id: String(row[0] || '').trim(),
+            answer_text: String(row[1] || '').trim(),
+            language: row[2] ? String(row[2]).trim() : null,
+            country: row[3] ? String(row[3]).trim() : null,
+          };
+        })
+        .filter(Boolean);
+    }
+    // Parse Excel
+    else if (['.xlsx', '.xls'].includes(fileExtension)) {
+      log.info('[File Upload] Parsing Excel file...', { id: req.requestId });
+      const fileBuffer = fs.readFileSync(uploadedFilePath);
+
+      // ✅ ExcelJS (safe, instead of xlsx)
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(fileBuffer);
+      const worksheet = workbook.worksheets[0];
+
+      // Convert to JSON format (array of arrays)
+      const jsonData = [];
+      worksheet.eachRow((row, rowNumber) => {
+        // row.values has values from index 1, so slice(1) gives us proper data
+        jsonData.push(row.values.slice(1));
+      });
+
+      parsedRows = jsonData
+        .map((row, index) => {
+          if (!Array.isArray(row) || row.length < 2) {
+            errors.push(`Row ${index + 1}: Invalid format (need at least 2 columns)`);
+            return null;
+          }
+
+          return {
+            external_id: String(row[0] || '').trim(),
+            answer_text: String(row[1] || '').trim(),
+            language: row[2] ? String(row[2]).trim() : null,
+            country: row[3] ? String(row[3]).trim() : null,
+          };
+        })
+        .filter(Boolean);
+    } else {
+      return res.status(415).json({
+        status: 'error',
+        error: 'Unsupported file format. Only CSV and Excel (.xlsx, .xls) are supported.',
+      });
+    }
+
+    // Validate parsed rows
+    const validRows = parsedRows.filter(row => {
+      if (!row.external_id || !row.answer_text) {
+        errors.push(`Row with ID "${row.external_id || 'unknown'}": Missing required fields`);
+        return false;
+      }
+      return true;
+    });
+
+    const skipped = parsedRows.length - validRows.length;
+
+    log.info('[File Upload] Parsing results', {
+      id: req.requestId,
+      total: parsedRows.length,
+      valid: validRows.length,
+      skipped,
+      errors: errors.length,
+    });
+
+    // Check if any valid rows
+    if (validRows.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        error: 'No valid rows found in file',
+        imported: 0,
+        skipped: parsedRows.length,
+        errors,
+      });
+    }
+
+    // Prepare data for Supabase insert
+    const answersToInsert = validRows.map(row => ({
+      answer_text: row.answer_text,
+      language: row.language,
+      country: row.country,
+      category_id: parseInt(categoryId),
+      general_status: 'uncategorized',
+      created_at: new Date().toISOString(),
+      // Store external_id in metadata if you have a jsonb column, or add a dedicated column
+    }));
+
+    log.info('[File Upload] Inserting to Supabase...', { id: req.requestId });
+
+    // Insert to Supabase
+    const { data: insertedData, error: insertError } = await supabase
+      .from('answers')
+      .insert(answersToInsert)
+      .select();
+
+    if (insertError) {
+      log.error('[File Upload] Supabase insert failed', { id: req.requestId }, insertError);
+      throw new Error(`Database insert failed: ${insertError.message}`);
+    }
+
+    const elapsed = Date.now() - startTime;
+    log.info('[File Upload] Success', {
+      id: req.requestId,
+      inserted: insertedData.length,
+      timeMs: elapsed,
+    });
+
+    // Log import to history table
+    try {
+      const { error: historyError } = await supabase.from('file_imports').insert({
+        file_name: originalName,
+        category_id: parseInt(categoryId),
+        rows_imported: insertedData.length,
+        rows_skipped: skipped,
+        user_email: req.headers['x-user-email'] || 'system',
+        status: skipped === 0 ? 'success' : 'partial',
+        file_size_kb: (req.file.size / 1024).toFixed(2),
+        processing_time_ms: elapsed,
+        created_at: new Date().toISOString(),
+      });
+
+      if (historyError) {
+        log.warn('[File Upload] Failed to log import history', {
+          id: req.requestId,
+          error: historyError.message,
+        });
+      } else {
+        log.info('[File Upload] Import logged to history', { id: req.requestId });
+      }
+    } catch (historyErr) {
+      logger.warn('⚠️ [File Upload] History logging error:', historyErr);
+    }
+
+    // Clean up uploaded file
+    if (uploadedFilePath && fs.existsSync(uploadedFilePath)) {
+      fs.unlinkSync(uploadedFilePath);
+      log.info('[File Upload] Temp file cleaned up', { id: req.requestId });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      imported: insertedData.length,
+      skipped,
+      errors: errors.length > 0 ? errors.slice(0, 10) : [], // Return max 10 errors
+      totalErrors: errors.length,
+      timeMs: elapsed,
+    });
+  } catch (error) {
+    log.error('[File Upload] Error', { id: req.requestId }, error);
+
+    // Log failed import to history
+    try {
+      const elapsed = Date.now() - startTime;
+      await supabase.from('file_imports').insert({
+        file_name: req.file?.originalname || 'unknown',
+        category_id: req.body.category_id ? parseInt(req.body.category_id) : null,
+        rows_imported: 0,
+        rows_skipped: 0,
+        user_email: req.headers['x-user-email'] || 'system',
+        status: 'failed',
+        error_message: error.message || 'Unknown error',
+        file_size_kb: req.file ? (req.file.size / 1024).toFixed(2) : null,
+        processing_time_ms: elapsed,
+        created_at: new Date().toISOString(),
+      });
+      log.info('[File Upload] Failed import logged to history', { id: req.requestId });
+    } catch (historyErr) {
+      log.warn('[File Upload] Failed to log error to history', { id: req.requestId });
+    }
+
+    // Clean up uploaded file on error
+    if (uploadedFilePath && fs.existsSync(uploadedFilePath)) {
+      try {
+        fs.unlinkSync(uploadedFilePath);
+      } catch (cleanupError) {
+        log.error('Failed to cleanup temp file', { id: req.requestId }, cleanupError);
+      }
+    }
+
+    res.status(500).json({
+      status: 'error',
+      error: error.message || 'Internal server error',
+      imported: 0,
+      skipped: 0,
+      errors: [error.message],
+    });
+  }
+});
+
+export default router;

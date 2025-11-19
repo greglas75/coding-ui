@@ -14,7 +14,7 @@ interface MobileCardProps {
   onToggleSelection: (id: string, event: React.MouseEvent) => void;
   onFocus: () => void;
   onClick: (e: React.MouseEvent) => void;
-  onQuickStatus: (answer: Answer, key: any) => void;
+  onQuickStatus: (answer: Answer, key: string) => void;
   onCodeClick: () => void;
   onRollback: () => void;
   formatDate: (date: string | null | undefined) => string;

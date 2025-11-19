@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAnswers, useBulkUpdateAnswers } from '../hooks/useAnswersQuery';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import type { FiltersState } from '../hooks/useFilters';
 import { getSupabaseClient } from '../lib/supabase';
 import type { Answer } from '../types';
 import { simpleLogger } from '../utils/logger';
@@ -18,7 +19,7 @@ export function AnswerTable() {
   const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
   const [currentCategoryId, setCurrentCategoryId] = useState<number | undefined>(undefined);
   const [page, setPage] = useState(0);
-  const [currentFilters, setCurrentFilters] = useState<any>(null);
+  const [currentFilters, setCurrentFilters] = useState<FiltersState | null>(null);
   const pageSize = 100;
 
   // Get categoryId from URL parameters
@@ -41,7 +42,7 @@ export function AnswerTable() {
   };
 
   // Function to update filters from CodingGrid
-  const handleFiltersChange = useCallback((filters: any) => {
+  const handleFiltersChange = useCallback((filters: FiltersState) => {
     simpleLogger.info('🔍 AnswerTable: Filters changed:', filters);
     setCurrentFilters(filters);
   }, []);
@@ -68,8 +69,8 @@ export function AnswerTable() {
   // Log data when it loads
   useEffect(() => {
     if (answers.length > 0) {
-      const categoryStats = answers.reduce((acc: any, answer: any) => {
-        const catId = answer.category_id || 'null';
+      const categoryStats = answers.reduce((acc: Record<string, number>, answer: Answer) => {
+        const catId = String(answer.category_id || 'null');
         acc[catId] = (acc[catId] || 0) + 1;
         return acc;
       }, {});

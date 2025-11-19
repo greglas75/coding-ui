@@ -1,0 +1,200 @@
+/**
+import logger from '../utils/logger.js';
+ * Answers Routes
+ *
+ * Filter and query answers
+ */
+import express from 'express';
+import { createClient } from '@supabase/supabase-js';
+import { z } from 'zod';
+
+const router = express.Router();
+const isProd = process.env.NODE_ENV === 'production';
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL || '',
+  process.env.VITE_SUPABASE_ANON_KEY || ''
+);
+
+/**
+ * POST /api/answers/filter
+ * Filter answers with multiple criteria
+ */
+router.post('/filter', async (req, res) => {
+  const log = req.log || console;
+
+  try {
+    const filterSchema = z.object({
+      search: z.string().max(200).optional().nullable(),
+      types: z.array(z.string()).max(10).optional(),
+      status: z.string().max(50).optional().nullable(),
+      codes: z.array(z.string().max(100)).max(50).optional(),
+      language: z.string().max(10).optional().nullable(),
+      country: z.string().max(50).optional().nullable(),
+      categoryId: z.number().int().positive().optional(),
+    });
+
+    const parseResult = filterSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid filter parameters', id: req.requestId });
+    }
+
+    const { search, types, status, codes, language, country, categoryId } = parseResult.data;
+
+    log.info('[Filter] Request', {
+      id: req.requestId,
+      filters: {
+        hasSearch: Boolean(search?.trim()),
+        typesCount: Array.isArray(types) ? types.length : 0,
+        hasStatus: Boolean(status),
+        codesCount: Array.isArray(codes) ? codes.length : 0,
+        hasLanguage: Boolean(language),
+        hasCountry: Boolean(country),
+        hasCategoryId: Boolean(categoryId),
+      },
+    });
+
+    // Check if Supabase is configured
+    if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_ANON_KEY) {
+      // Mock mode - return demo data
+      const mockData = [
+        {
+          id: 1,
+          answer_text: 'Gucci',
+          translation_en: 'Gucci',
+          language: 'en',
+          country: 'Poland',
+          quick_status: 'Confirmed',
+          general_status: 'whitelist',
+          selected_code: 'Gucci',
+          ai_suggested_code: 'Gucci',
+          category_id: 1,
+          coding_date: '2025-01-06T10:52:00Z',
+          created_at: '2025-01-06T10:52:00Z',
+        },
+        {
+          id: 2,
+          answer_text: 'Dior perfume',
+          translation_en: 'Dior perfume',
+          language: 'en',
+          country: 'Vietnam',
+          quick_status: 'Confirmed',
+          general_status: 'categorized',
+          selected_code: 'Dior',
+          ai_suggested_code: 'Dior',
+          category_id: 1,
+          coding_date: '2025-01-06T10:55:00Z',
+          created_at: '2025-01-06T10:55:00Z',
+        },
+        {
+          id: 3,
+          answer_text: 'Nike shoes',
+          translation_en: 'Nike shoes',
+          language: 'en',
+          country: 'USA',
+          quick_status: null,
+          general_status: 'uncategorized',
+          selected_code: null,
+          ai_suggested_code: 'Nike',
+          category_id: 1,
+          coding_date: null,
+          created_at: '2025-01-06T11:00:00Z',
+        },
+      ];
+
+      const filtered = mockData.filter(item => {
+        if (search && !item.answer_text.toLowerCase().includes(search.toLowerCase())) return false;
+        if (types?.length && !types.includes(item.general_status)) return false;
+        if (status && item.quick_status !== status) return false;
+        if (codes?.length && !codes.some(c => item.selected_code?.includes(c))) return false;
+        if (language && item.language !== language) return false;
+        if (country && item.country !== country) return false;
+        if (categoryId && item.category_id !== categoryId) return false;
+        return true;
+      });
+
+      log.info(`[Filter] Mock mode: ${filtered.length} results`, { id: req.requestId });
+      return res.status(200).json({
+        success: true,
+        count: filtered.length,
+        results: filtered,
+        mode: 'mock',
+      });
+    }
+
+    // Build Supabase query
+    let query = supabase
+      .from('answers')
+      .select(
+        'id, answer_text, translation, translation_en, language, country, quick_status, general_status, selected_code, ai_suggested_code, category_id, coding_date, created_at, updated_at'
+      )
+      .order('id', { ascending: false })
+      .limit(100);
+
+    // Apply filters dynamically
+    if (categoryId) {
+      query = query.eq('category_id', categoryId);
+    }
+
+    if (search && search.trim() !== '') {
+      query = query.ilike('answer_text', `%${search.trim()}%`);
+    }
+
+    if (types && Array.isArray(types) && types.length > 0) {
+      query = query.in('general_status', types);
+    }
+
+    if (status && status.trim() !== '') {
+      query = query.eq('quick_status', status);
+    }
+
+    if (language && language.trim() !== '') {
+      query = query.eq('language', language);
+    }
+
+    if (country && country.trim() !== '') {
+      query = query.eq('country', country);
+    }
+
+    // Execute query
+    const { data, error } = await query;
+
+    if (error) {
+      log.error('Supabase query failed', { id: req.requestId }, error);
+      throw error;
+    }
+
+    // Filter by codes on the client side (since selected_code is comma-separated string)
+    let results = data || [];
+    if (codes && Array.isArray(codes) && codes.length > 0) {
+      results = results.filter(item => {
+        if (!item.selected_code) return false;
+        return codes.some(code => item.selected_code.toLowerCase().includes(code.toLowerCase()));
+      });
+    }
+
+    log.info('[Filter] Results', {
+      id: req.requestId,
+      filtered: results.length,
+      total: data?.length || 0,
+    });
+
+    res.status(200).json({
+      success: true,
+      count: results.length,
+      results: results,
+      mode: 'supabase',
+    });
+  } catch (err) {
+    log.error('Filter endpoint error', { id: req.requestId }, err);
+    const safe = isProd
+      ? { success: false, error: 'Internal server error', id: req.requestId }
+      : { success: false, error: err.message, id: req.requestId };
+    res.status(500).json(safe);
+  }
+});
+
+export default router;

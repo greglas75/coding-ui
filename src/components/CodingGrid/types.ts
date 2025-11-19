@@ -1,4 +1,5 @@
 import type { Answer } from '../../types';
+import type { FiltersState } from '../../hooks/useFilters';
 
 export interface CodingGridProps {
   answers: Answer[];
@@ -7,11 +8,11 @@ export interface CodingGridProps {
   setDensity: (density: 'comfortable' | 'compact') => void;
   currentCategoryId?: number;
   onCodingStart?: (categoryId: number | undefined) => void;
-  onFiltersChange?: (filters: any) => void;
+  onFiltersChange?: (filters: FiltersState) => void;
 }
 
 export interface LocalAnswer extends Answer {
-  // Add any local-only fields if needed
+  // Add local-only fields if needed (currently none)
 }
 
 export interface FilterOptions {

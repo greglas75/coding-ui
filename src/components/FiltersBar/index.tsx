@@ -20,7 +20,7 @@ import { countryNames, languageNames, mergeStatusOptions } from './utils/filterH
 
 interface FiltersBarProps {
   filters: FiltersType;
-  updateFilter: (key: string, value: any) => void;
+  updateFilter: <K extends keyof FiltersType>(key: K, value: FiltersType[K]) => void;
   typesList: Array<{ key: string; label: string; count?: number }>;
   codesList: string[];
   statusesList: string[];

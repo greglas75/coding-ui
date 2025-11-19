@@ -1,10 +1,13 @@
+import type { Answer } from '../types';
 import { simpleLogger } from '../utils/logger';
+
+export type FilterValue = string | number | string[] | number[] | [string, string] | [number, number];
 
 export interface Filter {
   id: string;
   field: 'code' | 'status' | 'text' | 'date' | 'category' | 'assignedBy';
   operator: 'equals' | 'contains' | 'startsWith' | 'endsWith' | 'in' | 'notIn' | 'before' | 'after' | 'between';
-  value: any;
+  value: FilterValue;
 }
 
 export interface FilterGroup {
@@ -24,9 +27,9 @@ export class FilterEngine {
    * Apply filters to answers array
    */
   async applyFilters(
-    answers: any[],
+    answers: Answer[],
     filterGroup: FilterGroup
-  ): Promise<any[]> {
+  ): Promise<Answer[]> {
     if (filterGroup.filters.length === 0) {
       return answers;
     }
@@ -49,7 +52,7 @@ export class FilterEngine {
   /**
    * Evaluate single filter against answer
    */
-  private evaluateFilter(answer: any, filter: Filter): boolean {
+  private evaluateFilter(answer: Answer, filter: Filter): boolean {
     const fieldValue = this.getFieldValue(answer, filter.field);
 
     switch (filter.operator) {
@@ -115,7 +118,7 @@ export class FilterEngine {
   /**
    * Get field value from answer
    */
-  private getFieldValue(answer: any, field: string): any {
+  private getFieldValue(answer: Answer, field: string): string | number | null {
     switch (field) {
       case 'code':
         // Return selected code name

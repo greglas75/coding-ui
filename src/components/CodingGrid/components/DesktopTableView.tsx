@@ -1,7 +1,7 @@
 import { TableHeader } from '../toolbars/TableHeader';
 import { DesktopRow } from '../rows/DesktopRow';
 import { VirtualizedTable } from '../VirtualizedTable';
-import type { Answer } from '../../../types';
+import type { Answer, AiCodeSuggestion } from '../../../types';
 import { simpleLogger } from '../../../utils/logger';
 import type { BatchSelection } from '../../../hooks/useBatchSelection';
 import type { BatchAIProcessor } from '../../../lib/batchAIProcessor';
@@ -31,7 +31,7 @@ interface DesktopTableViewProps {
   handleRowFocus: (answerId: number) => void;
   handleRowClick: (answerId: number) => void;
   handleToggleSelection: (id: string, event: React.MouseEvent) => void;
-  handleAcceptSuggestionWrapper: (answerId: number, suggestion: any) => Promise<void>;
+  handleAcceptSuggestionWrapper: (answerId: number, suggestion: AiCodeSuggestion) => Promise<void>;
   handleQuickRollback: (answer: Answer) => Promise<void>;
   handleBatchAI: () => Promise<void>;
   batchProcessor: BatchAIProcessor;

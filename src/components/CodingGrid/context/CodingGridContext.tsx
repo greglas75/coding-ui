@@ -6,7 +6,7 @@
  */
 
 import { createContext, useContext, type ReactNode } from 'react';
-import type { Answer } from '../../../types';
+import type { Answer, AiCodeSuggestion } from '../../../types';
 import type { UseBatchSelectionReturn } from '../../../hooks/useBatchSelection';
 import type { UseModalManagementReturn } from '../hooks/useModalManagement';
 import type { UseAnswerActionsReturn } from '../hooks/useAnswerActions';
@@ -33,7 +33,7 @@ export interface CodingGridContextValue {
   batchProcessor: BatchAIProcessor;
 
   // Handlers
-  handleAcceptSuggestion: (answerId: number, suggestion: any) => Promise<void>;
+  handleAcceptSuggestion: (answerId: number, suggestion: AiCodeSuggestion) => Promise<void>;
   handleQuickRollback: () => void;
   handleBatchAI: () => void;
   handleToggleSelection: (id: string, event: React.MouseEvent) => void;

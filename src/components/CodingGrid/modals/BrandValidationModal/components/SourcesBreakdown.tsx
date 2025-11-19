@@ -134,7 +134,7 @@ export function SourcesBreakdown({ result, userResponse, categoryName }: Sources
                     </div>
                     <div className="space-y-2">
                       {Object.entries(result.sources.web_search_ai_b.brands).map(
-                        ([brand, data]: [string, any]) => (
+                        ([brand, data]: [string, { confidence: number; reasoning: string }]) => (
                           <div key={brand} className="space-y-1">
                             <div className="flex items-center justify-between text-sm">
                               <span className="font-medium text-purple-900 dark:text-purple-100">

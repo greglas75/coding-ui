@@ -8,6 +8,7 @@ import {
   TrendingUp,
   ArrowDown,
   AlertCircle,
+  type LucideIcon,
 } from 'lucide-react';
 import type { MultiSourceValidationResult } from '../../../../../services/multiSourceValidator';
 
@@ -15,12 +16,21 @@ interface DecisionTreeProps {
   result: MultiSourceValidationResult;
 }
 
+interface DecisionStep {
+  step: string;
+  icon: string;
+  label: string;
+  result: boolean;
+  details?: string;
+  confidence?: number;
+}
+
 export function DecisionTree({ result }: DecisionTreeProps) {
   if (!result.sources?.decision_tree) return null;
 
-  const decisionTree = result.sources.decision_tree;
+  const decisionTree = result.sources.decision_tree as DecisionStep[];
 
-  const iconMap: Record<string, any> = {
+  const iconMap: Record<string, LucideIcon> = {
     eye: Eye,
     search: Search,
     'check-circle': CheckCircle,
@@ -37,7 +47,7 @@ export function DecisionTree({ result }: DecisionTreeProps) {
       </div>
 
       <div className="space-y-3">
-        {decisionTree.map((step: any, index: number) => {
+        {decisionTree.map((step, index) => {
           const isLast = index === decisionTree.length - 1;
           const Icon = iconMap[step.icon] || CheckCircle;
 

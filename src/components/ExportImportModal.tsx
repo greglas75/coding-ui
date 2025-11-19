@@ -33,9 +33,9 @@ export function ExportImportModal({ onClose, categoryId }: Props) {
     try {
       const result = await exportEngine.export(exportOptions);
       toast.success(`Exported to ${result.filename}`);
-    } catch (error: any) {
+    } catch (error) {
       simpleLogger.error('Export error:', error);
-      toast.error(`Export failed: ${error.message}`);
+      toast.error(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setExporting(false);
     }
@@ -73,9 +73,9 @@ export function ExportImportModal({ onClose, categoryId }: Props) {
         toast.error('Import failed. Check console for details.');
         simpleLogger.error('Import errors:', result.errors);
       }
-    } catch (error: any) {
+    } catch (error) {
       simpleLogger.error('Import error:', error);
-      toast.error(`Import failed: ${error.message}`);
+      toast.error(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setImporting(false);
       e.target.value = ''; // Reset input

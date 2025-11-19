@@ -1,4 +1,5 @@
 /**
+import logger from '../utils/logger.js';
  * Budget Check Middleware
  * Protects expensive AI operations by checking if user has exceeded budget
  */
@@ -31,12 +32,12 @@ export async function checkBudget(req, res, next) {
 
     // Log warning if approaching limit
     if (budget.percentage >= budget.alert_threshold) {
-      console.warn(`⚠️  User ${userId} approaching budget limit: ${budget.percentage}% used`);
+      logger.warn(`⚠️  User ${userId} approaching budget limit: ${budget.percentage}% used`);
     }
 
     next();
   } catch (error) {
-    console.error('Budget check failed:', error);
+    logger.error('Budget check failed:', error);
     // Don't block request on budget check failure
     // This ensures the system remains functional even if budget check breaks
     next();
@@ -65,7 +66,7 @@ export async function checkBudgetStrict(req, res, next) {
 
     next();
   } catch (error) {
-    console.error('Strict budget check failed:', error);
+    logger.error('Strict budget check failed:', error);
     // Don't block request on budget check failure
     next();
   }

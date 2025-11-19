@@ -1,4 +1,5 @@
 /**
+import logger from '../utils/logger.js';
  * 💰 Pricing Fetcher
  *
  * Manages fetching and caching of AI model pricing data
@@ -25,14 +26,14 @@ class PricingFetcher {
   async fetchPricing() {
     // Check if cache is valid
     if (this.isCacheValid()) {
-      console.log('✅ Returning cached pricing data');
+      logger.info('✅ Returning cached pricing data');
       return {
         ...this.cache,
         dataSource: 'cache',
       };
     }
 
-    console.log('🔄 Fetching fresh pricing data...');
+    logger.info('🔄 Fetching fresh pricing data...');
 
     try {
       const [openaiPricing, anthropicPricing, googlePricing] = await Promise.all([
@@ -58,10 +59,10 @@ class PricingFetcher {
       // Save to disk as backup
       await this.saveToDisk(pricingData);
 
-      console.log('✅ Pricing data fetched and cached successfully');
+      logger.info('✅ Pricing data fetched and cached successfully');
       return pricingData;
     } catch (error) {
-      console.error('❌ Error fetching pricing:', error.message);
+      logger.error('❌ Error fetching pricing:', error.message);
 
       // Fallback to disk cache
       return this.loadFromDisk();
@@ -391,9 +392,9 @@ class PricingFetcher {
       // Write data
       await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
 
-      console.log('💾 Pricing data saved to disk');
+      logger.info('💾 Pricing data saved to disk');
     } catch (error) {
-      console.error('❌ Error saving pricing to disk:', error.message);
+      logger.error('❌ Error saving pricing to disk:', error.message);
     }
   }
 
@@ -408,10 +409,10 @@ class PricingFetcher {
       const parsed = JSON.parse(data);
       parsed.dataSource = 'cache';
 
-      console.log('📂 Loaded pricing from disk cache');
+      logger.info('📂 Loaded pricing from disk cache');
       return parsed;
     } catch (error) {
-      console.warn('⚠️ Failed to load from disk, using hardcoded fallback');
+      logger.warn('⚠️ Failed to load from disk, using hardcoded fallback');
       return this.getFallbackData();
     }
   }
@@ -441,7 +442,7 @@ class PricingFetcher {
    * Force refresh cache (clear and fetch new)
    */
   async forceRefresh() {
-    console.log('🔄 Forcing cache refresh...');
+    logger.info('🔄 Forcing cache refresh...');
     this.cache = null;
     this.cacheTime = null;
     return this.fetchPricing();

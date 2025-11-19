@@ -65,7 +65,15 @@ export function CategoryDetails({
           .eq('category_id', selectedCategory.id);
 
         // Transform the data to match our interface
-        const enriched: CodeWithAssignment[] = (codesData || []).map((item: any) => ({
+        interface CodesCategoriesRow {
+          code_id: number;
+          codes: {
+            id: number;
+            name: string;
+            is_whitelisted: boolean;
+          };
+        }
+        const enriched: CodeWithAssignment[] = (codesData || []).map((item: CodesCategoriesRow) => ({
           id: item.codes.id,
           name: item.codes.name,
           is_whitelisted: item.codes.is_whitelisted,
@@ -134,7 +142,15 @@ export function CategoryDetails({
         )
         .eq('category_id', selectedCategory.id);
 
-      const enriched: CodeWithAssignment[] = (codesData || []).map((item: any) => ({
+      interface CodesCategoriesRow {
+        code_id: number;
+        codes: {
+          id: number;
+          name: string;
+          is_whitelisted: boolean;
+        };
+      }
+      const enriched: CodeWithAssignment[] = (codesData || []).map((item: CodesCategoriesRow) => ({
         id: item.codes.id,
         name: item.codes.name,
         is_whitelisted: item.codes.is_whitelisted,

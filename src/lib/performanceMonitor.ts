@@ -13,7 +13,7 @@ interface PerformanceMetric {
   duration: number;
   timestamp: number;
   category: 'render' | 'api' | 'db' | 'ai' | 'import' | 'export' | 'other';
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 class PerformanceMonitorClass {
@@ -31,7 +31,7 @@ class PerformanceMonitorClass {
   measure(
     name: string,
     category: PerformanceMetric['category'] = 'other',
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ) {
     const start = performance.now();
     const startMark = `${name}-start`;
@@ -121,7 +121,7 @@ class PerformanceMonitorClass {
     name: string,
     fn: () => Promise<T>,
     category: PerformanceMetric['category'] = 'other',
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<T> {
     const measure = this.measure(name, category, metadata);
 
@@ -309,7 +309,7 @@ class PerformanceMonitorClass {
     try {
       const fidObserver = new PerformanceObserver(list => {
         for (const entry of list.getEntries()) {
-          const fid = entry as any;
+          const fid = entry as PerformanceEventTiming;
           const delay = fid.processingStart - fid.startTime;
 
           this.record({
@@ -360,7 +360,7 @@ if (typeof window !== 'undefined') {
 
 // Expose to window for debugging
 if (typeof window !== 'undefined' && import.meta.env.DEV) {
-  (window as any).PerformanceMonitor = PerformanceMonitor;
+  (window as Window & { PerformanceMonitor: PerformanceMonitorClass }).PerformanceMonitor = PerformanceMonitor;
   simpleLogger.info('💡 Performance Monitor available: window.PerformanceMonitor');
   simpleLogger.info('   - .getMetrics() - all metrics');
   simpleLogger.info('   - .getSummary() - summary');

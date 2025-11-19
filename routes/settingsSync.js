@@ -1,4 +1,5 @@
 /**
+import logger from '../utils/logger.js';
  * Settings Synchronization Routes
  * Handles encrypted user settings sync across browsers/devices
  *
@@ -37,12 +38,12 @@ if (!ENCRYPTION_KEY) {
 // Logger
 const log = {
   info: (msg, meta) =>
-    console.log(JSON.stringify({ level: 'info', time: new Date().toISOString(), msg, ...meta })),
+    logger.info(JSON.stringify({ level: 'info', time: new Date().toISOString(), msg, ...meta })),
   error: (msg, meta, err) => {
     const safeErr = err
       ? { name: err.name, message: err.message }
       : undefined;
-    console.error(
+    logger.error(
       JSON.stringify({
         level: 'error',
         time: new Date().toISOString(),

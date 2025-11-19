@@ -83,7 +83,7 @@ export function Tier2VisionAI({ result, userResponse, categoryName }: Tier2Visio
                       Brands Detected:
                     </div>
                     {Object.entries(result.sources.vision_ai_search_a.brands).map(
-                      ([brand, data]: [string, any]) => (
+                      ([brand, data]: [string, { count: number; frequency: number; avg_confidence?: number }]) => (
                         <div key={brand} className="text-xs text-gray-700 dark:text-gray-300">
                           • {brand}: {data.count} images ({Math.round(data.frequency * 100)}%)
                           {data.avg_confidence && (
@@ -153,7 +153,7 @@ export function Tier2VisionAI({ result, userResponse, categoryName }: Tier2Visio
                       Brands Detected:
                     </div>
                     {Object.entries(result.sources.vision_ai_search_b.brands).map(
-                      ([brand, data]: [string, any]) => (
+                      ([brand, data]: [string, { count: number; frequency: number; avg_confidence?: number }]) => (
                         <div key={brand} className="text-xs text-gray-700 dark:text-gray-300">
                           • {brand}: {data.count} images ({Math.round(data.frequency * 100)}%)
                           {data.avg_confidence && (
@@ -231,7 +231,7 @@ export function Tier2VisionAI({ result, userResponse, categoryName }: Tier2Visio
                   </div>
                   <div className="space-y-2">
                     {Object.entries(result.sources.vision_ai.brands_detected).map(
-                      ([brand, data]: [string, any]) => (
+                      ([brand, data]: [string, { count: number; frequency: number; avg_confidence?: number }]) => (
                         <div
                           key={brand}
                           className="flex items-center justify-between text-sm"

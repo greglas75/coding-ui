@@ -1,8 +1,16 @@
-import { AlertTriangle, AlertCircle, Info } from 'lucide-react';
+import { AlertTriangle, AlertCircle, Info, type LucideIcon } from 'lucide-react';
 import type { MultiSourceValidationResult } from '../../../../../services/multiSourceValidator';
 
 interface IssuesWarningsProps {
   result: MultiSourceValidationResult;
+}
+
+interface ValidationIssue {
+  icon: string;
+  severity: 'high' | 'medium' | 'low';
+  title: string;
+  message: string;
+  details?: string;
 }
 
 export function IssuesWarnings({ result }: IssuesWarningsProps) {
@@ -10,9 +18,9 @@ export function IssuesWarnings({ result }: IssuesWarningsProps) {
     return null;
   }
 
-  const issues = result.sources.issues_detected;
+  const issues = result.sources.issues_detected as ValidationIssue[];
 
-  const iconMap: Record<string, any> = {
+  const iconMap: Record<string, LucideIcon> = {
     'alert-triangle': AlertTriangle,
     'alert-circle': AlertCircle,
     info: Info,
@@ -52,7 +60,7 @@ export function IssuesWarnings({ result }: IssuesWarningsProps) {
       </div>
 
       <div className="space-y-3">
-        {issues.map((issue: any, index: number) => {
+        {issues.map((issue, index) => {
           const Icon = iconMap[issue.icon] || AlertCircle;
           const config =
             severityConfig[issue.severity as keyof typeof severityConfig] || severityConfig.low;

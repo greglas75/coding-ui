@@ -85,13 +85,22 @@ export class ImportEngine {
 
       // Import each row
       for (let i = 0; i < data.length; i++) {
-        const row: any = data[i];
+        const row = data[i] as Record<string, unknown>;
 
         try {
           // Validation - check for Name field (case insensitive)
           const nameField = row.Name || row.name || row.NAME || row['Code Name'] || row['code name'];
 
-          if (!nameField || !nameField.toString().trim()) {
+          if (!nameField || typeof nameField !== 'string' && typeof nameField !== 'number') {
+            result.errors.push({
+              row: i + 2, // +2 because Excel is 1-indexed and has header
+              error: 'Name is required and must be a string or number'
+            });
+            result.failed++;
+            continue;
+          }
+
+          if (!nameField.toString().trim()) {
             result.errors.push({
               row: i + 2, // +2 because Excel is 1-indexed and has header
               error: 'Name is required'
@@ -169,11 +178,12 @@ export class ImportEngine {
 
           simpleLogger.info(`✅ Imported code: ${codeName}`);
           result.imported++;
-        } catch (error: any) {
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           simpleLogger.error(`❌ Error importing row ${i + 2}:`, error);
           result.errors.push({
             row: i + 2,
-            error: error.message || 'Unknown error'
+            error: errorMessage
           });
           result.failed++;
         }
@@ -183,12 +193,13 @@ export class ImportEngine {
       simpleLogger.info(`📊 Import complete: ${result.imported} imported, ${result.failed} failed, ${result.skipped} skipped`);
 
       return result;
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       simpleLogger.error('❌ Import failed:', error);
       return {
         ...result,
         success: false,
-        errors: [{ row: 0, error: `File error: ${error.message}` }]
+        errors: [{ row: 0, error: `File error: ${errorMessage}` }]
       };
     }
   }
@@ -213,7 +224,7 @@ export class ImportEngine {
       }
 
       // Check if first row has Name field
-      const firstRow: any = data[0];
+      const firstRow = data[0] as Record<string, unknown>;
       const hasName = 'Name' in firstRow || 'name' in firstRow || 'NAME' in firstRow;
 
       if (!hasName) {
@@ -221,8 +232,9 @@ export class ImportEngine {
       }
 
       return { valid: true };
-    } catch (error: any) {
-      return { valid: false, error: error.message };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return { valid: false, error: errorMessage };
     }
   }
 }

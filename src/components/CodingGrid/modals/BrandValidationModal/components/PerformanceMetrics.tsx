@@ -5,10 +5,26 @@ interface PerformanceMetricsProps {
   result: MultiSourceValidationResult;
 }
 
+interface PerformanceTier {
+  name: string;
+  time_ms: number;
+  time_seconds: string;
+  percentage: number;
+  cost: number;
+  color: string;
+}
+
+interface PerformanceBreakdown {
+  total_time_ms: number;
+  total_time_seconds: string;
+  total_cost: number;
+  tiers: PerformanceTier[];
+}
+
 export function PerformanceMetrics({ result }: PerformanceMetricsProps) {
   // Detailed performance breakdown
   if (result.sources?.performance_breakdown) {
-    const breakdown = result.sources.performance_breakdown;
+    const breakdown = result.sources.performance_breakdown as PerformanceBreakdown;
 
     const colorMap: Record<string, string> = {
       blue: 'bg-blue-500',
@@ -21,12 +37,12 @@ export function PerformanceMetrics({ result }: PerformanceMetricsProps) {
     };
 
     const slowestTier = breakdown.tiers.reduce(
-      (max: any, tier: any) => (tier.time_ms > max.time_ms ? tier : max),
+      (max, tier) => (tier.time_ms > max.time_ms ? tier : max),
       breakdown.tiers[0]
     );
 
     const mostExpensive = breakdown.tiers.reduce(
-      (max: any, tier: any) => (tier.cost > max.cost ? tier : max),
+      (max, tier) => (tier.cost > max.cost ? tier : max),
       breakdown.tiers[0]
     );
 
@@ -78,7 +94,7 @@ export function PerformanceMetrics({ result }: PerformanceMetricsProps) {
             Time & Cost per Tier:
           </div>
 
-          {breakdown.tiers.map((tier: any, index: number) => {
+          {breakdown.tiers.map((tier, index) => {
             const barColor = colorMap[tier.color] || 'bg-gray-500';
 
             return (
@@ -138,7 +154,7 @@ export function PerformanceMetrics({ result }: PerformanceMetricsProps) {
               <div>
                 • Parallel execution saved ~
                 {Math.round(
-                  breakdown.tiers.reduce((sum: number, t: any) => sum + t.time_ms, 0) -
+                  breakdown.tiers.reduce((sum, t) => sum + t.time_ms, 0) -
                     breakdown.total_time_ms
                 )}
                 ms by running tiers concurrently

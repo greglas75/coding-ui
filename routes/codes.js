@@ -1,4 +1,5 @@
 /**
+import logger from '../utils/logger.js';
  * Codes API Routes
  * Endpoints for basic code CRUD operations and bulk operations
  */
@@ -72,7 +73,7 @@ router.post('/bulk-create', standardRateLimiter, async (req, res) => {
       .select();
 
     if (insertError) {
-      console.error('[Codes] Bulk insert failed:', insertError);
+      logger.error('[Codes] Bulk insert failed:', insertError);
       return res.status(500).json({
         error: 'Failed to create codes',
         message: insertError.message
@@ -90,7 +91,7 @@ router.post('/bulk-create', standardRateLimiter, async (req, res) => {
       .insert(assignments);
 
     if (assignError) {
-      console.error('[Codes] Category assignment failed:', assignError);
+      logger.error('[Codes] Category assignment failed:', assignError);
       // Rollback: Delete the codes we just created
       await supabase
         .from('codes')
@@ -111,7 +112,7 @@ router.post('/bulk-create', standardRateLimiter, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Codes] Bulk create error:', error);
+    logger.error('[Codes] Bulk create error:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: error.message
@@ -156,7 +157,7 @@ router.post('/ai-discover', standardRateLimiter, async (req, res) => {
       .limit(parseInt(limit));
 
     if (answersError) {
-      console.error('[Codes] Failed to fetch answers:', answersError);
+      logger.error('[Codes] Failed to fetch answers:', answersError);
       return res.status(500).json({
         error: 'Failed to fetch answers',
         message: answersError.message
@@ -221,7 +222,7 @@ Return ONLY valid JSON array, no markdown formatting:`;
       const parsed = JSON.parse(cleanJson);
       discoveredCodes = Array.isArray(parsed) ? parsed : [];
     } catch (parseError) {
-      console.error('[Codes] Failed to parse AI response:', parseError);
+      logger.error('[Codes] Failed to parse AI response:', parseError);
       // Fallback to line-by-line parsing
       discoveredCodes = responseText
         .split('\n')
@@ -243,7 +244,7 @@ Return ONLY valid JSON array, no markdown formatting:`;
     });
 
   } catch (error) {
-    console.error('[Codes] AI discovery error:', error);
+    logger.error('[Codes] AI discovery error:', error);
     res.status(500).json({
       error: 'AI discovery failed',
       message: error.message
@@ -272,7 +273,7 @@ router.get('/category/:category_id', standardRateLimiter, async (req, res) => {
       .eq('category_id', category_id);
 
     if (error) {
-      console.error('[Codes] Failed to fetch category codes:', error);
+      logger.error('[Codes] Failed to fetch category codes:', error);
       return res.status(500).json({
         error: 'Failed to fetch codes',
         message: error.message
@@ -291,7 +292,7 @@ router.get('/category/:category_id', standardRateLimiter, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Codes] Get category codes error:', error);
+    logger.error('[Codes] Get category codes error:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: error.message
@@ -315,7 +316,7 @@ router.post('/verify-brands', standardRateLimiter, async (req, res) => {
 
     // Check if Google API credentials are configured
     if (!process.env.GOOGLE_API_KEY || !process.env.GOOGLE_CSE_CX) {
-      console.warn('[Codes] Google API not configured, skipping verification');
+      logger.warn('[Codes] Google API not configured, skipping verification');
       return res.json({
         verified: codes.map(c => ({
           ...c,
@@ -426,7 +427,7 @@ router.post('/verify-brands', standardRateLimiter, async (req, res) => {
           }
         } catch (imgError) {
           // Image search is optional, continue without it
-          console.warn(`[Codes] Image search failed for ${brandName}:`, imgError.message);
+          logger.warn(`[Codes] Image search failed for ${brandName}:`, imgError.message);
         }
 
         // Calculate confidence score
@@ -482,7 +483,7 @@ router.post('/verify-brands', standardRateLimiter, async (req, res) => {
         await new Promise(resolve => setTimeout(resolve, 100));
 
       } catch (apiError) {
-        console.error(`[Codes] Verification failed for "${brandName}":`, apiError.message);
+        logger.error(`[Codes] Verification failed for "${brandName}":`, apiError.message);
 
         // If API error, accept with low confidence
         verified.push({
@@ -508,7 +509,7 @@ router.post('/verify-brands', standardRateLimiter, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Codes] Brand verification error:', error);
+    logger.error('[Codes] Brand verification error:', error);
     res.status(500).json({
       error: 'Brand verification failed',
       message: error.message

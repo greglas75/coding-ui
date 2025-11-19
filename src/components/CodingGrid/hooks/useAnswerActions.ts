@@ -2,10 +2,39 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { getSupabaseClient } from '../../../lib/supabase';
-import type { Answer } from '../../../types';
+import type { Answer, GeneralStatus } from '../../../types';
 import { simpleLogger } from '../../../utils/logger';
 
 const supabase = getSupabaseClient();
+
+interface OfflineChange {
+  action: 'update' | 'delete' | 'insert';
+  table: string;
+  data: {
+    ids?: number[];
+    updates?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+}
+
+interface AnswerStateSnapshot {
+  general_status: GeneralStatus;
+  quick_status: string | null;
+  selected_code: string | null;
+  coding_date: string | null;
+}
+
+interface HistoryAction {
+  id: string;
+  type: 'status_change' | 'accept_suggestion' | 'code_change';
+  timestamp: number;
+  description: string;
+  answerIds: number[];
+  previousState: Record<number, AnswerStateSnapshot>;
+  newState: Record<number, AnswerStateSnapshot>;
+  undo: () => Promise<void>;
+  redo: () => Promise<void>;
+}
 
 export function useAnswerActions({
   localAnswers,
@@ -19,8 +48,8 @@ export function useAnswerActions({
   localAnswers: Answer[];
   setLocalAnswers: (updater: (prev: Answer[]) => Answer[]) => void;
   isOnline: boolean;
-  queueChange: (change: any) => Promise<void>;
-  addAction: (action: any) => void;
+  queueChange: (change: OfflineChange) => Promise<void>;
+  addAction: (action: HistoryAction) => void;
   triggerRowAnimation: (id: number, animation: string) => void;
   categorizeAnswer: (answerId: number) => void;
 }) {
@@ -92,7 +121,7 @@ export function useAnswerActions({
       );
 
       // Capture previous state for undo
-      const previousState: Record<number, any> = {};
+      const previousState: Record<number, AnswerStateSnapshot> = {};
       allIds.forEach(id => {
         const ans = localAnswers.find(a => a.id === id);
         if (ans) {
@@ -106,9 +135,9 @@ export function useAnswerActions({
       });
 
       // Optimistic update
-      const optimisticUpdate: any = {
-        quick_status: newStatus,
-        general_status: newStatus as any,
+      const optimisticUpdate: Partial<Answer> = {
+        quick_status: newStatus as Answer['quick_status'],
+        general_status: newStatus as GeneralStatus,
       };
 
       if (statusKey === 'C') {
@@ -154,9 +183,9 @@ export function useAnswerActions({
 
       // Save to database
       try {
-        const update: any = {
-          quick_status: newStatus,
-          general_status: newStatus,
+        const update: Partial<Answer> = {
+          quick_status: newStatus as Answer['quick_status'],
+          general_status: newStatus as GeneralStatus,
         };
 
         if (statusKey === 'C') {
@@ -216,10 +245,10 @@ export function useAnswerActions({
             previousState,
             newState: allIds.reduce(
               (acc, id) => {
-                acc[id] = optimisticUpdate;
+                acc[id] = optimisticUpdate as AnswerStateSnapshot;
                 return acc;
               },
-              {} as Record<number, any>
+              {} as Record<number, AnswerStateSnapshot>
             ),
             undo: async () => {
               setLocalAnswers(prev =>

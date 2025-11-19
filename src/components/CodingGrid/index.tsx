@@ -129,7 +129,17 @@ export function CodingGrid({
   } = useOfflineSync();
 
   // Wrap queueChange to return void
-  const queueChange = async (change: any) => {
+  interface OfflineChange {
+    action: 'update' | 'delete' | 'insert';
+    table: string;
+    data: {
+      ids?: number[];
+      updates?: Record<string, unknown>;
+      [key: string]: unknown;
+    };
+  }
+
+  const queueChange = async (change: OfflineChange) => {
     await queueChangeOriginal(change);
   };
 
@@ -196,10 +206,7 @@ export function CodingGrid({
   // ========================================
 
   // Filter handlers
-  const handleFilterChange = createFilterChangeHandler({ setFilter, onFiltersChange }) as (
-    key: string,
-    value: any
-  ) => void;
+  const handleFilterChange = createFilterChangeHandler({ setFilter, onFiltersChange });
   const applyFilters = createApplyFiltersHandler(
     filtering.filteredAnswers,
     setLocalAnswers,

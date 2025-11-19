@@ -13,10 +13,17 @@ import { useEffect, type Dispatch, type SetStateAction } from 'react';
 import { normalizeStatus } from '../../../lib/statusNormalization';
 import { simpleLogger } from '../../../utils/logger';
 import type { Answer } from '../../../types';
+import type { FiltersState } from '../../../hooks/useFilters';
+
+interface CacheStats {
+  unsyncedChanges: number;
+  totalSize: number;
+  oldestChange: Date | null;
+}
 
 interface UseGridEffectsOptions {
   // URL filters
-  setFilter: (key: string, value: any) => void;
+  setFilter: <K extends keyof FiltersState>(key: K, value: FiltersState[K]) => void;
 
   // Local answers sync
   sortedAndFilteredAnswers: Answer[];
@@ -25,7 +32,7 @@ interface UseGridEffectsOptions {
 
   // Auto-save
   localAnswers: Answer[];
-  getCacheStats: () => Promise<any>;
+  getCacheStats: () => Promise<CacheStats>;
   syncPendingChanges: () => Promise<void>;
 
   // Auto-focus

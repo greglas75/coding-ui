@@ -1,0 +1,23 @@
+/**
+ * Health Check Routes
+ */
+import express from 'express';
+const router = express.Router();
+const isProd = process.env.NODE_ENV === 'production';
+
+router.get('/', (req, res) => {
+  const payload = {
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    id: req.requestId,
+  };
+  if (!isProd) {
+    payload.supabaseConfigured = !!(
+      process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY
+    );
+    payload.openaiConfigured = !!process.env.OPENAI_API_KEY;
+  }
+  res.status(200).json(payload);
+});
+
+export default router;

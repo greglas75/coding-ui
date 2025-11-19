@@ -15,9 +15,16 @@ export interface ExportOptions {
   categoryId?: number;
 }
 
+interface ExportData {
+  categories?: Array<{id: number; name: string; description?: string}>;
+  codes?: Array<{id: number; name: string; category_id?: number; created_at?: string}>;
+  answers?: Array<{id: number; answer_text: string; translation_en?: string; category_id?: number; general_status?: string; selected_code?: string; coding_date?: string; created_at?: string}>;
+  codedAnswers?: Array<{id: number; answer_text: string; selected_code: string; category_id?: number; coding_date?: string}>;
+}
+
 export class ExportEngine {
   async export(options: ExportOptions) {
-    const data: any = {};
+    const data: ExportData = {};
 
     simpleLogger.info('📦 Starting export with options:', options);
 
@@ -51,8 +58,8 @@ export class ExportEngine {
 
           const codes = codeCategories
             ?.map(cc => cc.codes)
-            .filter(Boolean)
-            .flat() as any[];
+            .filter((code): code is NonNullable<typeof code> => code !== null && code !== undefined)
+            .flat();
 
           data.codes = codes || [];
         } else {
@@ -112,12 +119,12 @@ export class ExportEngine {
     }
   }
 
-  private generateExcel(data: any) {
+  private generateExcel(data: ExportData) {
     const workbook = XLSX.utils.book_new();
 
     // Categories sheet
     if (data.categories && data.categories.length > 0) {
-      const categoriesFormatted = data.categories.map((cat: any) => ({
+      const categoriesFormatted = data.categories.map(cat => ({
         ID: cat.id,
         Name: cat.name,
         Description: cat.description || '',
@@ -129,7 +136,7 @@ export class ExportEngine {
 
     // Codes sheet
     if (data.codes && data.codes.length > 0) {
-      const codesFormatted = data.codes.map((code: any) => ({
+      const codesFormatted = data.codes.map(code => ({
         ID: code.id,
         Name: code.name,
         'Category ID': code.category_id || '',
@@ -141,7 +148,7 @@ export class ExportEngine {
 
     // Answers sheet
     if (data.answers && data.answers.length > 0) {
-      const answersFormatted = data.answers.map((answer: any) => ({
+      const answersFormatted = data.answers.map(answer => ({
         ID: answer.id,
         'Answer Text': answer.answer_text,
         'Translation': answer.translation_en || '',
@@ -157,7 +164,7 @@ export class ExportEngine {
 
     // Coded Answers sheet
     if (data.codedAnswers && data.codedAnswers.length > 0) {
-      const formatted = data.codedAnswers.map((answer: any) => ({
+      const formatted = data.codedAnswers.map(answer => ({
         'Answer ID': answer.id,
         'Answer Text': answer.answer_text?.substring(0, 100) + (answer.answer_text?.length > 100 ? '...' : ''),
         'Selected Code': answer.selected_code,
@@ -188,7 +195,7 @@ export class ExportEngine {
     return { success: true, filename };
   }
 
-  private generateCSV(data: any) {
+  private generateCSV(data: ExportData) {
     // For CSV, we'll export codes only (most common use case)
     if (!data.codes || data.codes.length === 0) {
       throw new Error('No codes to export');
@@ -219,7 +226,7 @@ export class ExportEngine {
     return { success: true, filename };
   }
 
-  private generateJSON(data: any) {
+  private generateJSON(data: ExportData) {
     const json = JSON.stringify(data, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const timestamp = new Date().toISOString().split('T')[0];

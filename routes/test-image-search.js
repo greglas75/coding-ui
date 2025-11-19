@@ -1,4 +1,5 @@
 /**
+import logger from '../utils/logger.js';
  * 🧪 Image Search Tester API
  *
  * Tests different AI models to search for images using natural language
@@ -26,7 +27,7 @@ router.post('/test-image-search', async (req, res) => {
       });
     }
 
-    console.log(`🧪 Image Search Test - Model: ${model}, Prompt: "${prompt}"`);
+    logger.info(`🧪 Image Search Test - Model: ${model}, Prompt: "${prompt}"`);
 
     // Route to appropriate AI service based on model
     let result;
@@ -46,7 +47,7 @@ router.post('/test-image-search', async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    console.error('❌ Image search test error:', error);
+    logger.error('❌ Image search test error:', error);
     res.status(500).json({
       error: error.message || 'Internal server error',
     });

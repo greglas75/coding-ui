@@ -1,0 +1,45 @@
+/**
+ * Rate Limiting Middleware
+ *
+ * Global, upload, and AI-specific rate limiters
+ */
+import rateLimit from 'express-rate-limit';
+
+const isProd = process.env.NODE_ENV === 'production';
+
+/**
+ * Global rate limiter for all requests
+ */
+export const globalLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: isProd ? 100 : 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests. Please try again later.',
+});
+
+/**
+ * Rate limiter for file upload operations
+ */
+export const uploadRateLimitMiddleware = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 20,
+  message: 'Upload rate limit exceeded. Please wait before uploading again.',
+});
+
+/**
+ * Rate limiter for AI API calls
+ */
+export const aiRateLimitMiddleware = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10,
+  message: 'AI rate limit exceeded. Please wait before trying again.',
+});
+
+/**
+ * Configure global rate limiting
+ */
+export function configureRateLimiting(app, log) {
+  app.use(globalLimiter);
+  log.info(`✅ Rate limiting enabled: ${isProd ? 100 : 300} req/min`);
+}

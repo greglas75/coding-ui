@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { getTemplate, type TemplatePreset } from '../config/DefaultTemplates';
 import { useAIPricing } from '../hooks/useAIPricing';
 import { simpleLogger } from '../utils/logger';
+import type { AIModel, ModelOption } from '../types/models';
 import { TestPromptModal } from './TestPromptModal';
 
 interface EditCategoryModalProps {
@@ -123,8 +124,8 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
   // ✅ Load ALL models from live pricing data (auto-updated every 24h)
   const allModels = [
     ...getPricingForProvider('openai')
-      .filter((m: any) => m.available)
-      .map((m: any) => ({
+      .filter((m: AIModel) => m.available)
+      .map((m: AIModel) => ({
         id: m.id,
         name: m.name,
         provider: '🤖 OpenAI',
@@ -132,8 +133,8 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
         costPer1M: m.costPer1000Responses,
       })),
     ...getPricingForProvider('anthropic')
-      .filter((m: any) => m.available)
-      .map((m: any) => ({
+      .filter((m: AIModel) => m.available)
+      .map((m: AIModel) => ({
         id: m.id,
         name: m.name,
         provider: '🧠 Anthropic',
@@ -141,8 +142,8 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
         costPer1M: m.costPer1000Responses,
       })),
     ...getPricingForProvider('google')
-      .filter((m: any) => m.available)
-      .map((m: any) => ({
+      .filter((m: AIModel) => m.available)
+      .map((m: AIModel) => ({
         id: m.id,
         name: m.name,
         provider: '🔮 Google',
@@ -154,8 +155,8 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
   // ✅ Vision-capable models for image analysis (cheaper options first)
   const visionModels = [
     ...getPricingForProvider('google')
-      .filter((m: any) => m.available)
-      .map((m: any) => ({
+      .filter((m: AIModel) => m.available)
+      .map((m: AIModel) => ({
         id: m.id,
         name: m.name,
         provider: '🔮 Google',
@@ -163,8 +164,8 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
         costPer1M: m.costPer1000Responses,
       })),
     ...getPricingForProvider('openai')
-      .filter((m: any) => m.available && (m.id.startsWith('gpt-4o') || m.id.startsWith('gpt-5')))
-      .map((m: any) => ({
+      .filter((m: AIModel) => m.available && (m.id.startsWith('gpt-4o') || m.id.startsWith('gpt-5')))
+      .map((m: AIModel) => ({
         id: m.id,
         name: m.name,
         provider: '🤖 OpenAI',
@@ -172,8 +173,8 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
         costPer1M: m.costPer1000Responses,
       })),
     ...getPricingForProvider('anthropic')
-      .filter((m: any) => m.available && !m.id.includes('-3'))
-      .map((m: any) => ({
+      .filter((m: AIModel) => m.available && !m.id.includes('-3'))
+      .map((m: AIModel) => ({
         id: m.id,
         name: m.name,
         provider: '🧠 Anthropic',
@@ -342,7 +343,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                   {pricingLoading ? (
                     <option>🔄 Loading models...</option>
                   ) : (
-                    allModels.map((model: any) => (
+                    allModels.map((model: ModelOption) => (
                       <option key={model.id} value={model.id}>
                         {model.provider} {model.name} - ${model.costPer1M}/1M
                       </option>
@@ -364,7 +365,7 @@ export function EditCategoryModal({ category, onClose, onSave }: EditCategoryMod
                   onChange={e => setForm({ ...form, visionModel: e.target.value })}
                   className="w-full border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none"
                 >
-                  {visionModels.map((model: any) => (
+                  {visionModels.map((model: ModelOption) => (
                     <option key={model.id} value={model.id}>
                       {model.provider} {model.name} - ${model.costPer1M}/1M
                     </option>

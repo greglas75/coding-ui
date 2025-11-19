@@ -3,9 +3,28 @@ import { useCallback } from 'react';
 import { toast } from 'sonner';
 import { getSupabaseClient, createCode } from '../../../lib/supabase';
 import { simpleLogger } from '../../../utils/logger';
-import type { Answer } from '../../../types';
+import type { Answer, AiCodeSuggestion, GeneralStatus } from '../../../types';
 
 const supabase = getSupabaseClient();
+
+interface AnswerStateSnapshot {
+  general_status: GeneralStatus;
+  quick_status: string | null;
+  selected_code: string | null;
+  coding_date: string | null;
+}
+
+interface HistoryAction {
+  id: string;
+  type: 'status_change' | 'accept_suggestion' | 'code_change';
+  timestamp: number;
+  description: string;
+  answerIds: number[];
+  previousState: Record<number, AnswerStateSnapshot>;
+  newState: Record<number, AnswerStateSnapshot>;
+  undo: () => Promise<void>;
+  redo: () => Promise<void>;
+}
 
 interface UseAcceptSuggestionHandlerProps {
   localAnswers: Answer[];
@@ -19,7 +38,7 @@ interface UseAcceptSuggestionHandlerProps {
     codeName: string;
     confidence: number;
   }) => void;
-  addAction: (action: any) => void;
+  addAction: (action: HistoryAction) => void;
 }
 
 export function useAcceptSuggestionHandler({
@@ -32,12 +51,12 @@ export function useAcceptSuggestionHandler({
   const queryClient = useQueryClient();
 
   const handleAcceptSuggestion = useCallback(
-    async (answerId: number, suggestion: any) => {
+    async (answerId: number, suggestion: AiCodeSuggestion) => {
       // Find current answer to save previous state for undo
       const currentAnswer = localAnswers.find((a) => a.id === answerId);
       if (!currentAnswer) return;
 
-      const previousState = {
+      const previousState: AnswerStateSnapshot = {
         selected_code: currentAnswer.selected_code,
         quick_status: currentAnswer.quick_status,
         general_status: currentAnswer.general_status,
@@ -75,7 +94,7 @@ export function useAcceptSuggestionHandler({
         }
       }
 
-      const newState = {
+      const newState: AnswerStateSnapshot = {
         selected_code: newSelectedCode,
         quick_status: 'Confirmed' as const,
         general_status: 'whitelist' as const,
@@ -103,7 +122,7 @@ export function useAcceptSuggestionHandler({
       );
 
       // ✅ Build previous state for ALL affected answers (for undo history)
-      const previousStateMap: Record<number, any> = {};
+      const previousStateMap: Record<number, AnswerStateSnapshot> = {};
       allIds.forEach((id) => {
         const ans = localAnswers.find((a) => a.id === id);
         if (ans) {
@@ -133,7 +152,7 @@ export function useAcceptSuggestionHandler({
             acc[id] = newState;
             return acc;
           },
-          {} as Record<number, any>
+          {} as Record<number, AnswerStateSnapshot>
         ),
         undo: async () => {
           // Revert ALL duplicates - need to update each individually due to different previous states

@@ -5,7 +5,19 @@ import { getSupabaseClient, createCode } from '../../../lib/supabase';
 import { simpleLogger } from '../../../utils/logger';
 import { saveFilterPreset, deleteFilterPreset } from '../utils/filterPresets';
 import type { FilterGroup, FilterPreset } from '../../../lib/filterEngine';
-import type { Answer } from '../../../types';
+import type { Answer, GeneralStatus } from '../../../types';
+
+interface HistoryAction {
+  id: string;
+  type: 'status_change' | 'accept_suggestion' | 'code_change';
+  timestamp: number;
+  description: string;
+  answerIds: number[];
+  previousState: Record<number, unknown>;
+  newState: Record<number, unknown>;
+  undo: () => Promise<void>;
+  redo: () => Promise<void>;
+}
 
 const supabase = getSupabaseClient();
 
@@ -26,7 +38,7 @@ interface UseCodingGridHandlersProps {
   answerActions: {
     findDuplicateAnswers: (answer: Answer, includeCoded?: boolean) => Promise<number[]>;
   };
-  addAction: (action: any) => void;
+  addAction: (action: HistoryAction) => void;
   modals: {
     setShowBatchModal: (show: boolean) => void;
     setModalOpen: (open: boolean) => void;

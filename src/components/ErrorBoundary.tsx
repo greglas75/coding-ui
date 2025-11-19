@@ -1,13 +1,13 @@
 import * as Sentry from '@sentry/react';
 import { AlertTriangle, Bug, Home, RefreshCw, RotateCcw } from 'lucide-react';
-import { Component, type ReactNode } from 'react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { logError, logFatal, simpleLogger } from '../utils/logger';
 
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
-  onError?: (error: Error, errorInfo: any) => void;
-  onReport?: (error: Error, errorInfo: any) => void;
+  onError?: (error: Error, errorInfo: ErrorInfo) => void;
+  onReport?: (error: Error, errorInfo: ErrorInfo) => void;
   showReloadButton?: boolean;
   showReportButton?: boolean;
 }
@@ -15,7 +15,7 @@ interface Props {
 interface State {
   hasError: boolean;
   error?: Error;
-  errorInfo?: any;
+  errorInfo?: ErrorInfo;
   eventId?: string;
   isReporting?: boolean;
 }
@@ -30,7 +30,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: any) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Log to console
     simpleLogger.error('🔴 Error caught by boundary:', error);
     simpleLogger.error('📍 Component stack:', errorInfo.componentStack);

@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { memo, type FC } from 'react';
-import type { Answer } from '../../../types';
+import type { Answer, AiCodeSuggestion } from '../../../types';
 import { AIButtonCell } from '../cells/AIButtonCell';
 import { AISuggestionsCell } from '../cells/AISuggestionsCell';
 import { AnswerTextCell } from '../cells/AnswerTextCell';
@@ -20,10 +20,10 @@ interface DesktopRowProps {
   onToggleSelection: (id: string, event: React.MouseEvent) => void;
   onFocus: () => void;
   onClick: (e: React.MouseEvent) => void;
-  onQuickStatus: (answer: Answer, key: any) => void;
+  onQuickStatus: (answer: Answer, key: string) => void;
   onCodeClick: () => void;
   onRollback: () => void;
-  onAcceptSuggestion: (suggestion: any) => void;
+  onAcceptSuggestion: (suggestion: AiCodeSuggestion) => void;
   onRegenerateSuggestions: () => void;
   formatDate: (date: string | null | undefined) => string;
 }

@@ -1,4 +1,6 @@
-import { categorizeAnswer } from '../lib/openai';
+import type { Code } from '../types';
+import { simpleLogger } from '../utils/logger';
+import { categorizeAnswer } from './openai';
 
 export interface ModelComparisonResult {
   generic: {
@@ -29,7 +31,7 @@ export class ModelComparison {
     answerTranslation: string,
     categoryName: string,
     correctCodes: string[],
-    availableCodes: any[]
+    availableCodes: Code[]
   ): Promise<ModelComparisonResult> {
     simpleLogger.info('🔬 Comparing models for answer...');
 
@@ -39,8 +41,8 @@ export class ModelComparison {
         answer: answerText,
         answerTranslation,
         categoryName,
-        template: 'Default categorization',
-        codes: availableCodes,
+        presetName: 'Default categorization',
+        codes: availableCodes.map(c => ({ id: c.id.toString(), name: c.name })),
         context: { language: 'unknown', country: 'unknown' }
       });
 
@@ -54,14 +56,14 @@ export class ModelComparison {
       }
 
       // Calculate accuracy for both
-      const genericCodes = genericResult.map((r: any) => r.code_name);
-      const customCodes = customResult.map((r: any) => r.code_name);
+      const genericCodes = genericResult.suggestions.map(r => r.code_name);
+      const customCodes = customResult.suggestions.map(r => r.code_name);
 
       const genericAccuracy = this.calculateAccuracy(genericCodes, correctCodes);
       const customAccuracy = this.calculateAccuracy(customCodes, correctCodes);
 
-      const genericConfidence = this.calculateAvgConfidence(genericResult);
-      const customConfidence = this.calculateAvgConfidence(customResult);
+      const genericConfidence = this.calculateAvgConfidence(genericResult.suggestions);
+      const customConfidence = this.calculateAvgConfidence(customResult.suggestions);
 
       const improvement = customAccuracy - genericAccuracy;
 
@@ -99,7 +101,7 @@ export class ModelComparison {
   /**
    * Calculate average confidence
    */
-  private calculateAvgConfidence(results: any[]): number {
+  private calculateAvgConfidence(results: Array<{ confidence?: number }>): number {
     if (results.length === 0) return 0;
 
     const total = results.reduce((acc, r) => acc + (r.confidence || 0), 0);
@@ -115,7 +117,7 @@ export class ModelComparison {
       answerTranslation: string;
       categoryName: string;
       correctCodes: string[];
-      availableCodes: any[];
+      availableCodes: Code[];
     }>
   ): Promise<{
     genericAvgAccuracy: number;

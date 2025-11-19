@@ -1,11 +1,12 @@
 /**
+import logger from '../utils/logger.js';
  * Codeframe API Routes
  * Endpoints for AI-powered codeframe generation
  */
 
 import express from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
-import codeframeService from '../services/codeframeService.js';
+import codeframeService from '../services/codeframe/index.js';
 import {
   validateRequest,
   generateCodeframeSchema,
@@ -95,7 +96,7 @@ router.post(
       // Get user from session/auth
       const userId = req.user?.email || req.session?.user?.email || 'system';
 
-      console.log(
+      logger.info(
         `[Codeframe] User ${userId} requesting generation for category ${validatedData.category_id}, type: ${validatedData.coding_type}`
       );
 
@@ -125,7 +126,7 @@ router.post(
         cost_estimate: costEstimate,
       });
     } catch (error) {
-      console.error('[Codeframe] Generation start failed:', error);
+      logger.error('[Codeframe] Generation start failed:', error);
 
       const { statusCode, body } = formatErrorResponse(error);
       res.status(statusCode).json(body);
@@ -141,13 +142,13 @@ router.get('/:generation_id/status', checkFeatureEnabled, standardRateLimiter, a
   try {
     const { generation_id } = req.params;
 
-    console.log(`[Codeframe] Status check for generation ${generation_id}`);
+    logger.info(`[Codeframe] Status check for generation ${generation_id}`);
 
     const status = await codeframeService.getStatus(generation_id);
 
     res.json(status);
   } catch (error) {
-    console.error('[Codeframe] Status check failed:', error);
+    logger.error('[Codeframe] Status check failed:', error);
 
     const { statusCode, body } = formatErrorResponse(error);
     res.status(statusCode).json(body);
@@ -166,13 +167,13 @@ router.get(
     try {
       const { generation_id } = req.params;
 
-      console.log(`[Codeframe] Hierarchy fetch for generation ${generation_id}`);
+      logger.info(`[Codeframe] Hierarchy fetch for generation ${generation_id}`);
 
       const hierarchy = await codeframeService.getHierarchy(generation_id);
 
       res.json(hierarchy);
     } catch (error) {
-      console.error('[Codeframe] Hierarchy fetch failed:', error);
+      logger.error('[Codeframe] Hierarchy fetch failed:', error);
 
       const { statusCode, body } = formatErrorResponse(error);
       res.status(statusCode).json(body);
@@ -195,7 +196,7 @@ router.patch(
       // Validate request body
       const validatedData = validateRequest(updateHierarchySchema, req.body);
 
-      console.log(
+      logger.info(
         `[Codeframe] Hierarchy update for generation ${generation_id}: ${validatedData.action}`
       );
 
@@ -209,7 +210,7 @@ router.patch(
 
       res.json(result);
     } catch (error) {
-      console.error('[Codeframe] Hierarchy update failed:', error);
+      logger.error('[Codeframe] Hierarchy update failed:', error);
 
       const { statusCode, body } = formatErrorResponse(error);
       res.status(statusCode).json(body);
@@ -232,14 +233,14 @@ router.post(
       // Validate request body
       const validatedData = validateRequest(applyCodeframeSchema, req.body);
 
-      console.log(`[Codeframe] Applying codeframe ${generation_id}`);
+      logger.info(`[Codeframe] Applying codeframe ${generation_id}`);
 
       const result = await codeframeService.applyCodeframe(generation_id, validatedData);
 
       // Return 202 Accepted (async process)
       res.status(202).json(result);
     } catch (error) {
-      console.error('[Codeframe] Apply codeframe failed:', error);
+      logger.error('[Codeframe] Apply codeframe failed:', error);
 
       const { statusCode, body } = formatErrorResponse(error);
       res.status(statusCode).json(body);
@@ -259,7 +260,7 @@ router.delete(
     try {
       const { generation_id } = req.params;
 
-      console.log(`[Codeframe] Deleting generation ${generation_id}`);
+      logger.info(`[Codeframe] Deleting generation ${generation_id}`);
 
       // Note: CASCADE delete will handle hierarchy nodes
       const { createClient } = await import('@supabase/supabase-js');
@@ -282,7 +283,7 @@ router.delete(
         message: 'Generation deleted successfully',
       });
     } catch (error) {
-      console.error('[Codeframe] Delete generation failed:', error);
+      logger.error('[Codeframe] Delete generation failed:', error);
 
       const { statusCode, body } = formatErrorResponse(error);
       res.status(statusCode).json(body);
@@ -303,7 +304,7 @@ router.get(
       const { category_id } = req.params;
       const { limit = 20, offset = 0 } = req.query;
 
-      console.log(`[Codeframe] Listing generations for category ${category_id}`);
+      logger.info(`[Codeframe] Listing generations for category ${category_id}`);
 
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
@@ -329,7 +330,7 @@ router.get(
         offset: parseInt(offset),
       });
     } catch (error) {
-      console.error('[Codeframe] List generations failed:', error);
+      logger.error('[Codeframe] List generations failed:', error);
 
       const { statusCode, body } = formatErrorResponse(error);
       res.status(statusCode).json(body);
@@ -360,7 +361,7 @@ router.patch(
       // Get user from session/auth
       const userId = req.user?.email || req.session?.user?.email || 'system';
 
-      console.log(`[Codeframe] User ${userId} ${status} brand node ${nodeId}`);
+      logger.info(`[Codeframe] User ${userId} ${status} brand node ${nodeId}`);
 
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
@@ -390,7 +391,7 @@ router.patch(
         message: `Brand ${status} successfully`,
       });
     } catch (error) {
-      console.error('[Codeframe] Approval update failed:', error);
+      logger.error('[Codeframe] Approval update failed:', error);
 
       const { statusCode, body } = formatErrorResponse(error);
       res.status(statusCode).json(body);
