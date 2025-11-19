@@ -84,13 +84,14 @@ export default function ImageTesterPage() {
         reasoning: data.reasoning,
         duration,
       });
-    } catch (error: any) {
+    } catch (error) {
       const duration = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setResults({
         model: selectedModel,
         images: [],
         duration,
-        error: error.message,
+        error: errorMessage,
       });
     } finally {
       setIsSearching(false);

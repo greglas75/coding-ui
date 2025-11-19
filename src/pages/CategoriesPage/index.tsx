@@ -79,7 +79,7 @@ export function CategoriesPage() {
     });
   }
 
-  function handleSaveCategorySettings(data: any) {
+  function handleSaveCategorySettings(data: Record<string, unknown>) {
     if (!editingCategory) return;
     saveCategorySettings(editingCategory, data, () => {
       setEditingCategory(null);

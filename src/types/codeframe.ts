@@ -41,7 +41,11 @@ export interface HierarchyNode {
   is_auto_generated?: boolean;
   example_texts?: Array<{ id: string; text: string }>;
   display_order?: number;
-  validation_evidence?: any; // Google validation results (search, images, Knowledge Graph)
+  validation_evidence?: {
+    search_results?: unknown[];
+    images?: unknown[];
+    knowledge_graph?: unknown;
+  }; // Google validation results (search, images, Knowledge Graph)
   variants?: Record<string, number>; // Brand name variants with counts (e.g., {"Sensodyne": 6, "سنسوداين": 3})
   approval_status?: 'pending' | 'approved' | 'rejected';
   approved_at?: string | null;

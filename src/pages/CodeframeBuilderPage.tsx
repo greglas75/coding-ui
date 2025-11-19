@@ -67,7 +67,20 @@ export function CodeframeBuilderPage() {
   /**
    * Parse error and return user-friendly message
    */
-  const getErrorMessage = (err: any): string => {
+  const getErrorMessage = (err: unknown): string => {
+    // Type guard for axios-like errors
+    const isAxiosError = (error: unknown): error is {
+      response?: { data?: { message?: string }; status?: number };
+      message?: string;
+      code?: string;
+    } => {
+      return typeof error === 'object' && error !== null;
+    };
+
+    if (!isAxiosError(err)) {
+      return 'Failed to generate codeframe. Please try again.';
+    }
+
     // API response error
     if (err?.response?.data?.message) {
       return err.response.data.message;

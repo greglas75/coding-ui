@@ -177,7 +177,7 @@ async function copyAISuggestionsToIdenticalAnswers(
   sourceId: number,
   answerText: string,
   categoryId: number,
-  aiSuggestions: any
+  aiSuggestions: AiSuggestions
 ) {
   try {
     // Find all identical answers in the same category (excluding source)
