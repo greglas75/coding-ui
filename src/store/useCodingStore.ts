@@ -69,7 +69,7 @@ interface CodingState {
   batchUpdateStatus: (answerIds: number[], status: string) => Promise<void>;
 
   // Filters
-  setFilter: (key: string, value: any) => void;
+  setFilter: (key: string, value: unknown) => void;
   resetFilters: () => void;
 
   // Utility
@@ -289,7 +289,7 @@ export const useCodingStore = create<CodingState>()(
             set(state => ({
               answers: state.answers.map(a =>
                 a.id === answerId
-                  ? { ...a, general_status: status as any }
+                  ? { ...a, general_status: status }
                   : a
               ),
               isSaving: false
@@ -370,7 +370,7 @@ export const useCodingStore = create<CodingState>()(
             set(state => ({
               answers: state.answers.map(a =>
                 answerIds.includes(a.id)
-                  ? { ...a, general_status: status as any }
+                  ? { ...a, general_status: status }
                   : a
               ),
               isSaving: false
