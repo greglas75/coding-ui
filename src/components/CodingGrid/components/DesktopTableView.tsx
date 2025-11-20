@@ -146,6 +146,7 @@ export function DesktopTableView({
       <div className="overflow-x-auto">
         <table
           className="w-full border-collapse min-w-[900px]"
+          style={{ tableLayout: 'fixed' }}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               simpleLogger.info('🧹 Clearing focus - clicked on table element');
@@ -153,6 +154,19 @@ export function DesktopTableView({
             }
           }}
         >
+          <colgroup>
+            <col style={{ width: '40px' }} />
+            <col style={{ width: '120px' }} />
+            <col style={{ width: '64px' }} />
+            <col style={{ width: 'auto' }} />
+            <col style={{ width: '260px' }} />
+            <col style={{ width: '220px' }} />
+            <col style={{ width: '150px' }} />
+            <col style={{ width: '60px' }} />
+            <col style={{ width: '240px' }} />
+            <col style={{ width: '220px' }} />
+            <col style={{ width: '140px' }} />
+          </colgroup>
           <TableHeader
             cellPad={cellPad}
             sortField={filtering.sortField}

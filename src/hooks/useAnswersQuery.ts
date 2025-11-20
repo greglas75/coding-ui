@@ -127,19 +127,35 @@ export function useAnswers(options: UseAnswersOptions) {
               });
             count = searchCount || 0;
           } else {
-            // Use optimized count function for status/language/country filters
-            const statusFilter = filters.types?.length ? filters.types :
-                                filters.status ? [filters.status].flat() : null;
+            // Use regular count query for status/language/country filters
+            // This is still faster than count: 'exact' on the main query due to smaller result set
+            let countQuery = supabase
+              .from('answers')
+              .select('id', { count: 'exact', head: true })
+              .eq('category_id', categoryId);
 
-            const { data: countData } = await supabase
-              .rpc('get_filtered_answer_count', {
-                p_category_id: categoryId,
-                p_status: statusFilter,
-                p_language: filters.language || null,
-                p_country: filters.country || null,
-              });
+            // Apply same filters
+            if (filters.types && filters.types.length > 0) {
+              const normalizedTypes = normalizeStatuses(filters.types);
+              countQuery = countQuery.in('general_status', normalizedTypes);
+            }
 
-            count = countData || 0;
+            if (filters.status) {
+              const statusArray = Array.isArray(filters.status) ? filters.status : [filters.status];
+              const normalizedStatuses = normalizeStatuses(statusArray);
+              countQuery = countQuery.in('general_status', normalizedStatuses);
+            }
+
+            if (filters.language) {
+              countQuery = countQuery.eq('language', filters.language);
+            }
+
+            if (filters.country) {
+              countQuery = countQuery.eq('country', filters.country);
+            }
+
+            const { count: filteredCount } = await countQuery;
+            count = filteredCount || 0;
           }
         }
 

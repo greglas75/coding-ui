@@ -8,16 +8,14 @@ import { toast } from 'sonner';
 
 interface ServerHealth {
   python: boolean | null;
-  node: boolean | null;
 }
 
 export function ServerStatus() {
   const [health, setHealth] = useState<ServerHealth>({
     python: null,
-    node: null,
   });
   const [isChecking, setIsChecking] = useState(true);
-  const [isRestarting, setIsRestarting] = useState({ python: false, node: false });
+  const [isRestarting, setIsRestarting] = useState({ python: false });
 
   const checkHealth = async () => {
     setIsChecking(true);
@@ -28,27 +26,16 @@ export function ServerStatus() {
       const pythonRes = await fetch('http://localhost:8000/health', {
         method: 'GET',
         signal: AbortSignal.timeout(3000),
+        mode: 'cors',
       });
       pythonHealthy = pythonRes.ok;
     } catch (err) {
+      // Silently fail - don't pollute console
       pythonHealthy = false;
-    }
-
-    // Check Node.js API (3020)
-    let nodeHealthy = false;
-    try {
-      const nodeRes = await fetch('http://localhost:3020/api/health', {
-        method: 'GET',
-        signal: AbortSignal.timeout(3000),
-      });
-      nodeHealthy = nodeRes.ok;
-    } catch (err) {
-      nodeHealthy = false;
     }
 
     setHealth({
       python: pythonHealthy,
-      node: nodeHealthy,
     });
     setIsChecking(false);
   };
@@ -71,31 +58,6 @@ export function ServerStatus() {
     } catch (err) {
       toast.error('Failed to restart Python backend');
       setIsRestarting({ ...isRestarting, python: false });
-    }
-  };
-
-  const handleRestartNode = async () => {
-    setIsRestarting({ ...isRestarting, node: true });
-    toast.info('Restarting Node.js backend...');
-
-    try {
-      await fetch('http://localhost:3020/api/admin/restart/node', {
-        method: 'POST',
-      });
-      toast.success('Node.js backend restarted! Waiting for it to be ready...');
-
-      // Wait 3 seconds then check health
-      setTimeout(() => {
-        checkHealth();
-        setIsRestarting({ ...isRestarting, node: false });
-      }, 3000);
-    } catch (err) {
-      // Expect this to fail since we're killing the server
-      toast.success('Node.js backend is restarting...');
-      setTimeout(() => {
-        checkHealth();
-        setIsRestarting({ ...isRestarting, node: false });
-      }, 3000);
     }
   };
 
@@ -130,25 +92,10 @@ export function ServerStatus() {
         <button
           onClick={handleRestartPython}
           disabled={isRestarting.python}
-          className="p-0.5 hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
+          className="p-0.5 hover:bg-gray-700 rounded transition-colors disabled:opacity-50 cursor-pointer"
           title="Restart Python backend (port 8000)"
         >
           <Power className={`h-3 w-3 text-gray-500 hover:text-orange-400 ${isRestarting.python ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
-
-      {/* Node.js API */}
-      <div className="flex items-center gap-1.5">
-        <StatusIcon status={health.node} />
-        <span className="text-gray-600 dark:text-gray-400 font-medium">Node.js</span>
-        <span className="text-gray-500 dark:text-gray-500 text-[10px]">:3020</span>
-        <button
-          onClick={handleRestartNode}
-          disabled={isRestarting.node}
-          className="p-0.5 hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
-          title="Restart Node.js backend (port 3020)"
-        >
-          <Power className={`h-3 w-3 text-gray-500 hover:text-orange-400 ${isRestarting.node ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
@@ -156,7 +103,7 @@ export function ServerStatus() {
       <button
         onClick={checkHealth}
         disabled={isChecking}
-        className="ml-2 p-1 hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
+        className="ml-2 p-1 hover:bg-gray-700 rounded transition-colors disabled:opacity-50 cursor-pointer"
         title="Refresh server status"
       >
         <RotateCw className={`h-3.5 w-3.5 text-gray-500 hover:text-gray-300 ${isChecking ? 'animate-spin' : ''}`} />

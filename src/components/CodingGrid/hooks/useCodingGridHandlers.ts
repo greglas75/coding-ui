@@ -130,7 +130,7 @@ export function useCodingGridHandlers({
     modals,
   ]);
 
-  const handleCodeSaved = useCallback(async () => {
+  const handleCodeSaved = useCallback(async (closeModal = true) => {
     const fallbackSelectedIds = selectedIds.length > 0 ? selectedIds : [];
     const preferredSelectedIds =
       batchSelectedIds.length > 0 ? batchSelectedIds : fallbackSelectedIds;
@@ -189,8 +189,12 @@ export function useCodingGridHandlers({
       simpleLogger.error('Error refreshing answers:', err);
     }
 
-    modals.setModalOpen(false);
-    modals.setSelectedAnswer(null);
+    // Only close modal if explicitly requested (e.g., after saving codes)
+    // Quick Status changes should NOT close the modal
+    if (closeModal) {
+      modals.setModalOpen(false);
+      modals.setSelectedAnswer(null);
+    }
   }, [
     selectedIds,
     batchSelectedIds,

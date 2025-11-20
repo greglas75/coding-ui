@@ -10,7 +10,7 @@ import { simpleLogger } from '../../../utils/logger';
 
 interface UseCodeActionsProps {
   selectedAnswerIds: number[];
-  onSaved: () => void;
+  onSaved: (closeModal?: boolean) => void;
   categoryId?: number;
 }
 

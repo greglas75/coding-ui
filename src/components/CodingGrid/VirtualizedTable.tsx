@@ -63,7 +63,20 @@ export function VirtualizedTable({
 
     // Wrap tr in table to satisfy HTML structure (react-window renders divs)
     return (
-      <table className="w-full border-collapse min-w-[900px]" style={style}>
+      <table className="w-full border-collapse min-w-[900px]" style={{ ...style, tableLayout: 'fixed' }}>
+        <colgroup>
+          <col style={{ width: '40px' }} />
+          <col style={{ width: '120px' }} />
+          <col style={{ width: '64px' }} />
+          <col style={{ width: 'auto' }} />
+          <col style={{ width: '260px' }} />
+          <col style={{ width: '220px' }} />
+          <col style={{ width: '150px' }} />
+          <col style={{ width: '60px' }} />
+          <col style={{ width: '240px' }} />
+          <col style={{ width: '220px' }} />
+          <col style={{ width: '140px' }} />
+        </colgroup>
         <tbody>
           <DesktopRow
             answer={answer}

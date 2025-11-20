@@ -62,10 +62,21 @@ const DesktopRowComponent: FC<DesktopRowProps> = ({
         }
         onClick(e);
       }}
-      onFocus={onFocus}
-      style={{ height: '60px', maxHeight: '60px' }}
+      onFocus={(e) => {
+        // Don't trigger onFocus when clicking on interactive elements
+        if (
+          e.target !== e.currentTarget &&
+          (e.relatedTarget instanceof HTMLButtonElement ||
+           e.target instanceof HTMLButtonElement ||
+           e.target instanceof HTMLInputElement)
+        ) {
+          return;
+        }
+        onFocus();
+      }}
+      style={{ height: '60px', maxHeight: '60px', minHeight: '60px' }}
       className={clsx(
-        "border-b border-zinc-100 dark:border-zinc-800 transition-colors cursor-pointer relative overflow-hidden",
+        "border-b border-zinc-100 dark:border-zinc-800 transition-colors cursor-pointer relative",
         isFocused
           ? "bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-500 ring-inset"
           : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50 bg-white dark:bg-zinc-900",
@@ -74,7 +85,7 @@ const DesktopRowComponent: FC<DesktopRowProps> = ({
       )}
     >
       {/* Selection Checkbox */}
-      <td className="px-2 w-8 align-middle max-h-[60px] overflow-hidden">
+      <td className="px-2 w-8 align-middle h-[60px] overflow-hidden">
         <SelectionCell
           answerId={answer.id}
           isSelected={isSelected}
@@ -83,17 +94,17 @@ const DesktopRowComponent: FC<DesktopRowProps> = ({
       </td>
 
       {/* Date */}
-      <td className="px-2 py-1 text-[11px] leading-tight text-zinc-500 whitespace-nowrap align-middle max-h-[60px] overflow-hidden">
+      <td className="px-2 py-1 text-[11px] leading-tight text-zinc-500 whitespace-nowrap align-middle h-[60px] overflow-hidden">
         {formatDate(answer.created_at)}
       </td>
 
       {/* Language */}
-      <td className="px-2 py-1 text-sm text-zinc-800 dark:text-zinc-100 text-center hidden sm:table-cell align-middle max-h-[60px] overflow-hidden">
+      <td className="px-2 py-1 text-sm text-zinc-800 dark:text-zinc-100 text-center hidden sm:table-cell align-middle h-[60px] overflow-hidden">
         {answer.language || '—'}
       </td>
 
       {/* Answer Text */}
-      <td className="px-2 py-1 text-sm text-zinc-800 dark:text-zinc-100 align-middle max-h-[60px] overflow-hidden">
+      <td className="px-2 py-1 text-sm text-zinc-800 dark:text-zinc-100 align-middle h-[60px] overflow-hidden">
         <AnswerTextCell
           text={answer.answer_text}
           translation={answer.translation_en}
@@ -101,7 +112,7 @@ const DesktopRowComponent: FC<DesktopRowProps> = ({
       </td>
 
       {/* Translation (full) */}
-      <td className="px-2 py-1 hidden md:table-cell align-middle max-h-[60px] overflow-hidden">
+      <td className="px-2 py-1 hidden md:table-cell align-middle h-[60px] overflow-hidden">
         {answer.translation_en ? (
           <div className="max-w-[320px] text-sm text-zinc-700 dark:text-zinc-300 truncate">
             {answer.translation_en}
@@ -112,7 +123,12 @@ const DesktopRowComponent: FC<DesktopRowProps> = ({
       </td>
 
       {/* Quick Status Buttons */}
-      <td className="px-2 py-1 align-middle max-h-[60px] overflow-hidden">
+      <td
+        className="px-2 py-1 align-middle h-[60px] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onFocus={(e) => e.stopPropagation()}
+      >
         <QuickStatusButtons
           answer={answer}
           onStatusChange={onQuickStatus}
@@ -120,12 +136,12 @@ const DesktopRowComponent: FC<DesktopRowProps> = ({
       </td>
 
       {/* General Status */}
-      <td className="px-2 py-1 align-middle max-h-[60px] overflow-hidden">
+      <td className="px-2 py-1 align-middle h-[60px] overflow-hidden">
         <StatusCell status={answer.general_status} />
       </td>
 
       {/* AI Button */}
-      <td className="px-2 py-1 hidden md:table-cell text-center align-middle max-h-[60px] overflow-hidden">
+      <td className="px-2 py-1 hidden md:table-cell text-center align-middle h-[60px] overflow-hidden">
         <AIButtonCell
           isCategorizing={isCategorizing}
           timestamp={answer.ai_suggestions?.timestamp}
@@ -134,7 +150,7 @@ const DesktopRowComponent: FC<DesktopRowProps> = ({
       </td>
 
       {/* AI Suggestions */}
-      <td className="px-2 py-1 hidden md:table-cell align-middle max-h-[60px] overflow-hidden">
+      <td className="px-2 py-1 hidden md:table-cell align-middle h-[60px] overflow-hidden">
         <AISuggestionsCell
           answerId={answer.id}
           aiSuggestions={answer.ai_suggestions}
@@ -148,7 +164,11 @@ const DesktopRowComponent: FC<DesktopRowProps> = ({
       </td>
 
       {/* Code */}
-      <td className="px-2 py-1 hidden md:table-cell align-middle max-h-[60px] overflow-hidden">
+      <td
+        className="px-2 py-1 hidden md:table-cell align-middle h-[60px] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <CodeCell
           answerId={answer.id}
           selectedCode={answer.selected_code}
@@ -160,7 +180,7 @@ const DesktopRowComponent: FC<DesktopRowProps> = ({
       </td>
 
       {/* Country */}
-      <td className="px-2 py-1 text-sm text-zinc-800 dark:text-zinc-100 hidden lg:table-cell align-middle max-h-[60px] overflow-hidden">
+      <td className="px-2 py-1 text-sm text-zinc-800 dark:text-zinc-100 hidden lg:table-cell align-middle h-[60px] overflow-hidden">
         {answer.country || '—'}
       </td>
     </tr>

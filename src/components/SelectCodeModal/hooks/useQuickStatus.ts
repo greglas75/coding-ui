@@ -8,7 +8,7 @@ import type { Answer } from '../../../types';
 import { simpleLogger } from '../../../utils/logger';
 
 interface UseQuickStatusProps {
-  onSaved: () => void;
+  onSaved: (closeModal?: boolean) => void;
 }
 
 export function useQuickStatus({ onSaved }: UseQuickStatusProps) {
@@ -67,7 +67,8 @@ export function useQuickStatus({ onSaved }: UseQuickStatusProps) {
       toast.error('Failed to update status');
       simpleLogger.error('Status update error:', error);
     } else {
-      onSaved(); // Refresh parent
+      // Don't close modal when changing Quick Status - just refresh data
+      onSaved(false);
     }
   };
 

@@ -49,7 +49,15 @@ const CodeCellComponent: FC<CodeCellProps> = ({
   return (
     <div className="flex items-center gap-1 max-h-[52px] overflow-hidden">
       <button
-        onClick={onClick}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          onClick();
+        }}
         disabled={disabled}
         title={selectedCode ? `${selectedCode}${formattedDateTime ? ' • ' + formattedDateTime : ''}` : 'Click to assign codes'}
         className={clsx(

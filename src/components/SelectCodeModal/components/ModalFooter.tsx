@@ -15,7 +15,7 @@ interface ModalFooterProps {
   onClose: () => void;
   onNavigate: (newIndex: number) => void;
   onSave: () => Promise<void>;
-  onSaved: () => void;
+  onSaved: (closeModal?: boolean) => void;
 }
 
 export function ModalFooter({
@@ -80,7 +80,8 @@ export function ModalFooter({
       simpleLogger.error('Status update error:', error);
     } else {
       toast.success(`Status updated to ${fullStatus}`);
-      onSaved();
+      // Don't close modal - just refresh data (closeModal = false)
+      onSaved(false);
     }
   };
 
@@ -89,7 +90,7 @@ export function ModalFooter({
       {/* Left: Cancel */}
       <button
         onClick={onClose}
-        className="px-4 py-2 text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white transition-colors"
+        className="px-4 py-2 text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white transition-colors cursor-pointer"
         title="Cancel without saving (ESC)"
       >
         Cancel
@@ -115,7 +116,7 @@ export function ModalFooter({
           <button
             onClick={onSave}
             disabled={selectedCodes.length === 0}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
             title={
               selectedCodes.length > 0
                 ? `Confirm ${selectedCodes.length} code(s) and close`
@@ -129,7 +130,7 @@ export function ModalFooter({
             <button
               onClick={handleConfirmAndNext}
               disabled={selectedCodes.length === 0}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 cursor-pointer"
               title={
                 selectedCodes.length > 0
                   ? `Confirm and move to next answer`
@@ -147,7 +148,7 @@ export function ModalFooter({
         <button
           onClick={() => onNavigate(currentAnswerIndex - 1)}
           disabled={currentAnswerIndex === 0}
-          className="px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-neutral-700 hover:bg-gray-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+          className="px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-neutral-700 hover:bg-gray-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1 cursor-pointer"
           title="Previous answer (←)"
         >
           <span>←</span> Previous
@@ -160,7 +161,7 @@ export function ModalFooter({
         <button
           onClick={() => onNavigate(currentAnswerIndex + 1)}
           disabled={currentAnswerIndex >= allAnswers.length - 1}
-          className="px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-neutral-700 hover:bg-gray-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+          className="px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-neutral-700 hover:bg-gray-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1 cursor-pointer"
           title="Next answer (→)"
         >
           Next <span>→</span>

@@ -32,12 +32,15 @@ export function useKeyboardNavigation({
     if (!open) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger shortcuts when typing in input fields
-      if (e.target instanceof HTMLInputElement) return;
-
+      // ESC always closes modal, even when typing in input
       if (e.key === 'Escape') {
+        e.preventDefault();
         onClose();
+        return;
       }
+
+      // Don't trigger other shortcuts when typing in input fields
+      if (e.target instanceof HTMLInputElement) return;
 
       // Arrow key navigation
       if (e.key === 'ArrowLeft' && currentAnswerIndex > 0) {

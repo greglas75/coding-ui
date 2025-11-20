@@ -59,7 +59,7 @@ export function SelectCodeModal({
     categoryId: _categoryId,
   });
 
-  // Keyboard navigation
+  // Keyboard navigation - ESC now always works
   useKeyboardNavigation({
     open,
     onClose,
@@ -108,16 +108,34 @@ export function SelectCodeModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      onClick={(e) => {
+        // Close on backdrop click
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div
         className="bg-white dark:bg-neutral-900 rounded-2xl p-6 max-w-5xl w-full h-[80vh] max-h-[600px] shadow-lg border border-gray-200 dark:border-neutral-700 flex flex-col"
         role="dialog"
+        aria-modal="true"
       >
         {/* Header */}
-        <div className="flex-shrink-0 mb-4">
+        <div className="flex-shrink-0 mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
             Select or Create Code
           </h2>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-full transition-colors cursor-pointer"
+            title="Close (ESC)"
+          >
+            <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Two-column layout */}

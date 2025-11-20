@@ -11,7 +11,7 @@ export interface SelectCodeModalProps {
   allAnswers: Answer[];
   currentAnswerIndex: number;
   preselectedCodes?: string[];
-  onSaved: () => void;
+  onSaved: (closeModal?: boolean) => void;
   onNavigate: (newIndex: number) => void;
   mode: 'overwrite' | 'additional';
   categoryId?: number;
