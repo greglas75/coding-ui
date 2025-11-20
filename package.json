@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "start": "node api-server.js",
     "dev": "vite",
     "dev:api": "node api-server.js",
     "dev:full": "concurrently \"npm run dev:api\" \"npm run dev\"",
