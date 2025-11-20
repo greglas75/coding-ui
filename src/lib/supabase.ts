@@ -1,11 +1,8 @@
 /**
  * Supabase Client and Helper Functions
  *
- * REFACTORED: This file now re-exports from modular structure.
- * For new code, import directly from supabase/* modules.
- *
- * @deprecated Import from supabase/* modules instead for better tree-shaking
+ * Re-exports from supabaseClient for backward compatibility.
  */
 
-// Re-export everything from modular structure for backward compatibility
-export * from './supabase';
+// Re-export from supabaseClient
+export { getSupabaseClient, supabase } from './supabaseClient';

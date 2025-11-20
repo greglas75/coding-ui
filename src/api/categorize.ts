@@ -5,9 +5,11 @@
  */
 
 import { categorizeAnswer } from '../lib/openai';
-import { supabase } from '../lib/supabase';
+import { getSupabaseClient } from '../lib/supabase';
 import type { AiSuggestions } from '../types';
 import { simpleLogger } from '../utils/logger';
+
+const supabase = getSupabaseClient();
 
 /**
  * Categorize a single answer using AI and store results in database

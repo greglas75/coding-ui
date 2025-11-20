@@ -1,10 +1,13 @@
 import { FolderTree, Settings } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { handleError } from '../lib/errors';
 import { optimisticArrayUpdate } from '../lib/optimisticUpdate';
-import { supabase } from '../lib/supabase';
+import { getSupabaseClient } from '../lib/supabase';
 import type { Category } from '../types';
+import { simpleLogger } from '../utils/logger';
 import { CodeframeBuilderModal } from './CodeframeBuilderModal';
+
+const supabase = getSupabaseClient();
 
 interface CategoryDetailsProps {
   selectedCategory: Category | null;
@@ -39,60 +42,61 @@ export function CategoryDetails({
     return () => clearTimeout(timer);
   }, [searchText]);
 
-  // Load real codes for selected category
-  useEffect(() => {
+  // Load codes function (shared between useEffect and callbacks)
+  const loadCodes = useCallback(async () => {
     if (!selectedCategory) {
       setRealCodes([]);
       return;
     }
 
-    const loadCodes = async () => {
-      setLoading(true);
-      try {
-        // Get codes assigned to this category only
-        const { data: codesData } = await supabase
-          .from('codes_categories')
-          .select(
-            `
-            code_id,
-            codes (
-              id,
-              name,
-              is_whitelisted
-            )
+    setLoading(true);
+    try {
+      // Get codes assigned to this category only
+      const { data: codesData } = await supabase
+        .from('codes_categories')
+        .select(
           `
+          code_id,
+          codes (
+            id,
+            name,
+            is_whitelisted
           )
-          .eq('category_id', selectedCategory.id);
+        `
+        )
+        .eq('category_id', selectedCategory.id);
 
-        // Transform the data to match our interface
-        interface CodesCategoriesRow {
-          code_id: number;
-          codes: {
-            id: number;
-            name: string;
-            is_whitelisted: boolean;
-          };
-        }
-        const enriched: CodeWithAssignment[] = (codesData || []).map((item: CodesCategoriesRow) => ({
-          id: item.codes.id,
-          name: item.codes.name,
-          is_whitelisted: item.codes.is_whitelisted,
-          assigned: true, // All codes here are assigned to this category
-        }));
-
-        setRealCodes(enriched);
-      } catch (error) {
-        handleError(error, {
-          context: { component: 'CategoryDetails', action: 'loadCodes' },
-          fallbackMessage: 'Failed to load codes for category',
-        });
-      } finally {
-        setLoading(false);
+      // Transform the data to match our interface
+      interface CodesCategoriesRow {
+        code_id: number;
+        codes: {
+          id: number;
+          name: string;
+          is_whitelisted: boolean;
+        };
       }
-    };
+      const enriched: CodeWithAssignment[] = (codesData || []).map((item: CodesCategoriesRow) => ({
+        id: item.codes.id,
+        name: item.codes.name,
+        is_whitelisted: item.codes.is_whitelisted,
+        assigned: true, // All codes here are assigned to this category
+      }));
 
-    loadCodes();
+      setRealCodes(enriched);
+    } catch (error) {
+      handleError(error, {
+        context: { component: 'CategoryDetails', action: 'loadCodes' },
+        fallbackMessage: 'Failed to load codes for category',
+      });
+    } finally {
+      setLoading(false);
+    }
   }, [selectedCategory]);
+
+  // Load real codes for selected category
+  useEffect(() => {
+    loadCodes();
+  }, [loadCodes]);
 
   const filteredCodes = realCodes.filter(code =>
     code.name.toLowerCase().includes(debouncedSearch.toLowerCase())
@@ -133,38 +137,6 @@ export function CategoryDetails({
     }
 
     // Refresh the codes list
-    const loadCodes = async () => {
-      const { data: codesData } = await supabase
-        .from('codes_categories')
-        .select(
-          `
-          code_id,
-          codes (
-            id,
-            name,
-            is_whitelisted
-          )
-        `
-        )
-        .eq('category_id', selectedCategory.id);
-
-      interface CodesCategoriesRow {
-        code_id: number;
-        codes: {
-          id: number;
-          name: string;
-          is_whitelisted: boolean;
-        };
-      }
-      const enriched: CodeWithAssignment[] = (codesData || []).map((item: CodesCategoriesRow) => ({
-        id: item.codes.id,
-        name: item.codes.name,
-        is_whitelisted: item.codes.is_whitelisted,
-        assigned: true,
-      }));
-
-      setRealCodes(enriched);
-    };
     loadCodes();
     onCodesChanged?.();
   }
