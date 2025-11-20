@@ -3,9 +3,11 @@
  *
  * Tracks performance metrics and sends to Sentry/analytics
  * Only active in development for debugging, silent in production
+ * Includes Core Web Vitals tracking with web-vitals library
  */
 
 import * as Sentry from '@sentry/react';
+import { getCLS, getFID, getFCP, getLCP, getTTFB, onINP, type Metric } from 'web-vitals';
 import { simpleLogger } from '../utils/logger';
 
 interface PerformanceMetric {
@@ -275,59 +277,85 @@ class PerformanceMonitorClass {
   }
 
   /**
-   * Start performance observer for Core Web Vitals
+   * Start performance observer for Core Web Vitals using web-vitals library
+   * Tracks: LCP, FID, CLS, FCP, TTFB, INP
    */
   observeCoreWebVitals() {
-    if (typeof window === 'undefined' || !('PerformanceObserver' in window)) {
+    if (typeof window === 'undefined') {
       return;
     }
 
-    // Largest Contentful Paint (LCP)
-    try {
-      const lcpObserver = new PerformanceObserver(list => {
-        for (const entry of list.getEntries()) {
-          const lcp = entry as PerformanceEntry;
-          this.record({
-            name: 'LCP (Largest Contentful Paint)',
-            duration: lcp.startTime,
-            timestamp: Date.now(),
-            category: 'render',
-            metadata: { entryType: lcp.entryType },
-          });
+    const handleWebVital = (metric: Metric) => {
+      const rating = this.getRating(metric.name, metric.value);
 
-          if (import.meta.env.DEV) {
-            simpleLogger.info(`🎯 LCP: ${lcp.startTime.toFixed(0)}ms`);
-          }
-        }
+      this.record({
+        name: metric.name,
+        duration: metric.value,
+        timestamp: Date.now(),
+        category: 'render',
+        metadata: {
+          rating,
+          id: metric.id,
+          navigationType: metric.navigationType,
+        },
       });
-      lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
-    } catch (error) {
-      // Observer not supported
+
+      // Log in development with appropriate emoji
+      if (import.meta.env.DEV) {
+        const emoji = rating === 'good' ? '✅' : rating === 'needs-improvement' ? '⚠️' : '❌';
+        const displayValue =
+          metric.name === 'CLS' ? metric.value.toFixed(3) : `${Math.round(metric.value)}ms`;
+        simpleLogger.info(`${emoji} ${metric.name}: ${displayValue} (${rating})`);
+      }
+
+      // Send poor metrics to Sentry
+      if (import.meta.env.PROD && rating === 'poor') {
+        Sentry.addBreadcrumb({
+          category: 'web-vitals',
+          message: `Poor ${metric.name}`,
+          level: 'warning',
+          data: {
+            value: metric.value,
+            rating,
+          },
+        });
+      }
+    };
+
+    // Initialize all Core Web Vitals tracking
+    getCLS(handleWebVital);
+    getFID(handleWebVital);
+    getFCP(handleWebVital);
+    getLCP(handleWebVital);
+    getTTFB(handleWebVital);
+    onINP(handleWebVital);
+
+    if (import.meta.env.DEV) {
+      simpleLogger.info(
+        '📊 Core Web Vitals monitoring initialized (LCP, FID, CLS, FCP, TTFB, INP)'
+      );
     }
+  }
 
-    // First Input Delay (FID)
-    try {
-      const fidObserver = new PerformanceObserver(list => {
-        for (const entry of list.getEntries()) {
-          const fid = entry as PerformanceEventTiming;
-          const delay = fid.processingStart - fid.startTime;
+  /**
+   * Get performance rating based on thresholds
+   */
+  private getRating(name: string, value: number): 'good' | 'needs-improvement' | 'poor' {
+    const thresholds: Record<string, { good: number; poor: number }> = {
+      LCP: { good: 2500, poor: 4000 },
+      FID: { good: 100, poor: 300 },
+      CLS: { good: 0.1, poor: 0.25 },
+      FCP: { good: 1800, poor: 3000 },
+      TTFB: { good: 800, poor: 1800 },
+      INP: { good: 200, poor: 500 },
+    };
 
-          this.record({
-            name: 'FID (First Input Delay)',
-            duration: delay,
-            timestamp: Date.now(),
-            category: 'render',
-          });
+    const threshold = thresholds[name];
+    if (!threshold) return 'good';
 
-          if (import.meta.env.DEV) {
-            simpleLogger.info(`⚡ FID: ${delay.toFixed(0)}ms`);
-          }
-        }
-      });
-      fidObserver.observe({ entryTypes: ['first-input'] });
-    } catch (error) {
-      // Observer not supported
-    }
+    if (value <= threshold.good) return 'good';
+    if (value <= threshold.poor) return 'needs-improvement';
+    return 'poor';
   }
 }
 
@@ -360,7 +388,8 @@ if (typeof window !== 'undefined') {
 
 // Expose to window for debugging
 if (typeof window !== 'undefined' && import.meta.env.DEV) {
-  (window as Window & { PerformanceMonitor: PerformanceMonitorClass }).PerformanceMonitor = PerformanceMonitor;
+  (window as Window & { PerformanceMonitor: PerformanceMonitorClass }).PerformanceMonitor =
+    PerformanceMonitor;
   simpleLogger.info('💡 Performance Monitor available: window.PerformanceMonitor');
   simpleLogger.info('   - .getMetrics() - all metrics');
   simpleLogger.info('   - .getSummary() - summary');

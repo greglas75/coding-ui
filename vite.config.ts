@@ -2,6 +2,7 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
 import viteCompression from 'vite-plugin-compression';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -21,7 +22,16 @@ export default defineConfig({
       threshold: 10240,
       deleteOriginFile: false,
     }),
-  ],
+    // Bundle analyzer - generates stats.html when ANALYZE=true
+    process.env.ANALYZE === 'true' &&
+      visualizer({
+        open: true,
+        filename: 'dist/stats.html',
+        gzipSize: true,
+        brotliSize: true,
+        template: 'treemap', // or 'sunburst', 'network'
+      }),
+  ].filter(Boolean),
 
   resolve: {
     alias: {
