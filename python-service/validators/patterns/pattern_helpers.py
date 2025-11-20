@@ -58,10 +58,7 @@ def build_sources_dict(
         }
 
     # Web Search AI (Tier 1.5) - NEW!
-    logger.info(f"🐛 DEBUG: web_brands_a type={type(web_brands_a)}, value={web_brands_a}")
-    logger.info(f"🐛 DEBUG: web_brands_b type={type(web_brands_b)}, value={web_brands_b}")
     if web_brands_a or web_brands_b:
-        logger.info(f"🐛 DEBUG: Adding web_search_ai to sources!")
         sources["web_search_ai_a"] = {
             "total_results": web_brands_a.get("total_results", 0) if web_brands_a else 0,
             "correct_matches": web_brands_a.get("correct_matches", 0) if web_brands_a else 0,
@@ -74,8 +71,6 @@ def build_sources_dict(
             "mismatched_count": web_brands_b.get("mismatched_count", 0) if web_brands_b else 0,
             "brands": web_brands_b.get("brands", {}) if web_brands_b else {},
         }
-    else:
-        logger.warning(f"🐛 DEBUG: NOT adding web_search_ai (condition false)!")
 
     if vision_results:
         sources["vision_ai"] = {

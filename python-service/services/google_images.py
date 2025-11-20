@@ -103,8 +103,8 @@ class GoogleImagesSearch:
         )
 
         return DualSearchResults(
-            search_a_results=search_a_results[:5],  # 5 results from Search A
-            search_b_results=search_b_results[:5],  # 5 results from Search B
+            search_a_results=search_a_results[:6],  # Limit to 6
+            search_b_results=search_b_results[:6],  # Limit to 6
             search_a_count=len(search_a_results),
             search_b_count=len(search_b_results),
             pattern=pattern,
@@ -126,7 +126,7 @@ class GoogleImagesSearch:
                 "cx": self.cse_id,
                 "q": query,
                 "searchType": "image",
-                "num": 5,  # Request 5 images per search (5+5=10 total)
+                "num": 6,  # Request 6 images
             }
 
             response = await client.get(self.base_url, params=params)

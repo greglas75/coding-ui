@@ -7,7 +7,7 @@ Analyzes product images to extract:
 - Variants/descriptors
 - Text visible on packaging
 
-CRITICAL: Analyze 5 images from Search A + 5 from Search B = 10 total
+CRITICAL: Analyze 6 images from Search A + 6 from Search B = 12 total
 """
 
 import logging
@@ -95,10 +95,10 @@ If image is not a product (e.g., store building, logo only), set is_product=fals
         image_urls: List[str],
     ) -> BatchVisionResults:
         """
-        Analyze batch of images (up to 10) IN PARALLEL.
+        Analyze batch of images (up to 12) IN PARALLEL.
 
         CRITICAL: Uses asyncio.gather() to process all images concurrently,
-        not sequentially! This reduces time from 30s to ~3s for 10 images.
+        not sequentially! This reduces time from 40s to ~4s for 10 images.
 
         Args:
             image_urls: List of image URLs to analyze

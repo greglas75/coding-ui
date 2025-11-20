@@ -1,7 +1,6 @@
 """
 Comprehensive Validator - Multi-stage validation orchestrator
 Coordinates translation, vision, and search validation
-WITH REDIS CACHING for 60-80% cost reduction
 """
 
 from typing import List, Dict, Optional
@@ -10,14 +9,12 @@ import logging
 from validators.translation_handler import TranslationHandler
 from validators.gemini_vision_analyzer import GeminiVisionAnalyzer
 from validators.search_validator import SearchValidator
-from validators.base_validator import BaseValidator
 from models.validation import EnhancedValidationResult
-from redis_cache import RedisCache
 
 logger = logging.getLogger(__name__)
 
 
-class ComprehensiveValidator(BaseValidator):
+class ComprehensiveValidator:
     """
     Orchestrates multi-stage validation:
     1. Language detection and translation
@@ -26,40 +23,29 @@ class ComprehensiveValidator(BaseValidator):
     4. Confidence scoring and recommendation
     """
 
-    def __init__(self, google_api_key: str, openai_key: Optional[str] = None, use_cache: bool = True):
+    def __init__(self, google_api_key: str, openai_key: Optional[str] = None):
         """
         Initialize validator with required API keys.
 
         Args:
             google_api_key: Google API key for Gemini Vision
             openai_key: Optional OpenAI key for future use
-            use_cache: Enable Redis caching (default: True)
         """
-        super().__init__()  # Initialize base validator
         self.translation_handler = TranslationHandler()
         self.vision_analyzer = GeminiVisionAnalyzer(google_api_key)
         self.search_validator = SearchValidator()
         self.google_api_key = google_api_key
         self.openai_key = openai_key
 
-        # Initialize Redis cache
-        self.cache = RedisCache() if use_cache else None
-        if self.cache and self.cache.enabled:
-            logger.info("✅ Redis caching enabled - expect 60-80% cost reduction!")
-        else:
-            logger.warning("⚠️  Redis caching disabled - full API costs apply")
-
     async def validate_response(
         self,
         user_response: str,
         images: List[str],
         google_search_results: dict,
-        language_code: Optional[str] = None,
-        bypass_cache: bool = False
+        language_code: Optional[str] = None
     ) -> EnhancedValidationResult:
         """
         Enhanced validation with:
-        - Redis caching (60-80% cost reduction)
         - Automatic translation detection
         - Variant counting (all spelling variations)
         - Multi-language support
@@ -70,18 +56,10 @@ class ComprehensiveValidator(BaseValidator):
             images: List of product image URLs
             google_search_results: Google search results dict
             language_code: ISO 639-1 code (auto-detected if None)
-            bypass_cache: Force fresh validation (default: False)
 
         Returns:
             EnhancedValidationResult with comprehensive analysis
         """
-        # CHECK CACHE FIRST
-        if self.cache and not bypass_cache:
-            cached_result = self.cache.get(user_response, images)
-            if cached_result:
-                logger.info(f"🚀 Cache HIT! Returning cached result for: {user_response}")
-                return EnhancedValidationResult(**cached_result)
-
         try:
             # STAGE 1: Translation and language detection
             logger.info(f"Stage 1: Analyzing user response: {user_response}")
@@ -174,11 +152,6 @@ class ComprehensiveValidator(BaseValidator):
                 show_reject_button=True,
                 requires_human_review=requires_review
             )
-
-            # CACHE THE RESULT
-            if self.cache:
-                self.cache.set(user_response, images, result)
-                logger.info(f"💾 Cached validation result for: {user_response}")
 
             logger.info(
                 f"Validation complete: {recommendation} (confidence: {confidence_score}%)"
@@ -274,8 +247,13 @@ class ComprehensiveValidator(BaseValidator):
         # Cap confidence at 100
         confidence_score = min(confidence_score, 100)
 
-        # Determine recommendation using base class method
-        recommendation = self.get_recommendation(confidence_score, risk_factors)
+        # Determine recommendation
+        if confidence_score >= 70 and len(risk_factors) == 0:
+            recommendation = "approve"
+        elif confidence_score < 40 or len(risk_factors) >= 3:
+            recommendation = "reject"
+        else:
+            recommendation = "review"  # Needs human review
 
         # Build reasoning text
         if reasoning_parts:
