@@ -1,6 +1,6 @@
-import { ChevronDown, ChevronUp, Filter, Plus, Save, Star, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Filter as FilterIcon, Plus, Save, Star, X } from 'lucide-react';
 import { useState } from 'react';
-import type { FilterGroup, FilterPreset, Filter as FilterType } from '../lib/filterEngine';
+import type { FilterGroup, FilterPreset, Filter } from '../lib/filterEngine';
 import { FilterEngine } from '../lib/filterEngine';
 
 interface Props {
@@ -48,7 +48,7 @@ export function AdvancedFiltersPanel({
     });
   };
 
-  const updateFilter = (filterId: string, updates: Partial<FilterType>) => {
+  const updateFilter = (filterId: string, updates: Partial<Filter>) => {
     onFilterChange({
       ...filterGroup,
       filters: filterGroup.filters.map(f =>
@@ -80,7 +80,7 @@ export function AdvancedFiltersPanel({
             onClick={() => setIsExpanded(!isExpanded)}
             className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
           >
-            <Filter size={16} />
+            <FilterIcon size={16} />
             Advanced Filters
             {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
@@ -246,7 +246,7 @@ export function AdvancedFiltersPanel({
           {/* Empty State */}
           {filterGroup.filters.length === 0 && (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              <Filter size={32} className="mx-auto mb-2 opacity-50" />
+              <FilterIcon size={32} className="mx-auto mb-2 opacity-50" />
               <p className="text-sm">No filters added yet</p>
               <p className="text-xs mt-1">Click the + button to add a filter</p>
             </div>
