@@ -36,7 +36,7 @@ class ErrorLogger {
       simpleLogger.error('🔴 Error logged:', errorLog);
     }
 
-    // External error tracking integration (Sentry, LogRocket) - future enhancement
+    // External error tracking is handled by Sentry via centralized logger
 
     // Save to localStorage for debugging
     try {

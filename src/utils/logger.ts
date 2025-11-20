@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
 // 📝 Centralized Logging System
-// Supports: Console, Sentry, LogRocket, Custom Services
+// Supports: Console, Sentry, Custom Services
 // ═══════════════════════════════════════════════════════════════
 
 import * as Sentry from '@sentry/react';
@@ -35,7 +35,6 @@ export interface LogEntry {
 interface LoggerConfig {
   enableConsole: boolean;
   enableSentry: boolean;
-  enableLogRocket: boolean;
   minLevel: LogLevel;
   maxStoredLogs: number;
   persistLogs: boolean;
@@ -44,7 +43,6 @@ interface LoggerConfig {
 const config: LoggerConfig = {
   enableConsole: true,
   enableSentry: import.meta.env.PROD, // Only in production
-  enableLogRocket: false, // Enable when LogRocket configured
   minLevel: import.meta.env.DEV ? 'debug' : 'info',
   maxStoredLogs: 1000,
   persistLogs: true,
@@ -189,16 +187,6 @@ function log(level: LogLevel, message: string, context?: LogContext, error?: Err
       });
     } catch (sentryError) {
       console.error('Failed to send to Sentry:', sentryError);
-    }
-  }
-
-  // LogRocket integration (future)
-  if (config.enableLogRocket) {
-    try {
-      // TODO: Integrate with LogRocket
-      // LogRocket.log(level, message, context);
-    } catch (logRocketError) {
-      console.error('Failed to send to LogRocket:', logRocketError);
     }
   }
 }
@@ -419,7 +407,6 @@ export function initLogger() {
   console.log('📝 Logger initialized', {
     console: config.enableConsole,
     sentry: config.enableSentry,
-    logRocket: config.enableLogRocket,
     minLevel: config.minLevel,
   });
 

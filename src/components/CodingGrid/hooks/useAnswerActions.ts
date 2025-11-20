@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
+import { handleError } from '../../../lib/errors';
 import { getSupabaseClient } from '../../../lib/supabase';
 import type { Answer, GeneralStatus } from '../../../types';
 import { simpleLogger } from '../../../utils/logger';
@@ -75,13 +76,21 @@ export function useAnswerActions({
         const { data: duplicates, error } = await query;
 
         if (error || !duplicates) {
-          simpleLogger.error('Error finding duplicates:', error);
+          handleError(error, {
+            context: { component: 'useAnswerActions', action: 'findDuplicates' },
+            fallbackMessage: 'Failed to find duplicate answers',
+            silent: true, // Don't show toast for this background operation
+          });
           return [];
         }
 
         return duplicates.map(d => d.id);
       } catch (error) {
-        simpleLogger.error('Error finding duplicates:', error);
+        handleError(error, {
+          context: { component: 'useAnswerActions', action: 'findDuplicates' },
+          fallbackMessage: 'Failed to find duplicate answers',
+          silent: true,
+        });
         return [];
       }
     },
@@ -276,11 +285,13 @@ export function useAnswerActions({
           });
         }
       } catch (error) {
-        simpleLogger.error('Error updating status:', error);
+        handleError(error, {
+          context: { component: 'useAnswerActions', action: 'handleQuickStatus' },
+          fallbackMessage: 'Failed to update status',
+        });
         setLocalAnswers(prev =>
           prev.map(a => (allIds.includes(a.id) ? (a.id === answer.id ? currentAnswer : a) : a))
         );
-        toast.error('Failed to update status');
       }
     },
     [
@@ -305,7 +316,10 @@ export function useAnswerActions({
         await categorizeAnswer(answerId);
         simpleLogger.info(`✅ AI categorization completed for answer ${answerId}`);
       } catch (error) {
-        simpleLogger.error(`❌ AI categorization failed for answer ${answerId}:`, error);
+        handleError(error, {
+          context: { component: 'useAnswerActions', action: 'handleSingleAICategorize', metadata: { answerId } },
+          fallbackMessage: 'AI categorization failed',
+        });
       } finally {
         // Clear categorizing state when done
         setIsCategorizingRow(prev => {
