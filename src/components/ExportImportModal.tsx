@@ -2,6 +2,7 @@ import { Download, FileJson, FileSpreadsheet, FileText, Upload, X } from 'lucide
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { handleError } from '../lib/errors';
 import { ExportEngine, type ExportOptions } from '../lib/exportEngine';
 import { ImportEngine } from '../lib/importEngine';
 import { simpleLogger } from '../utils/logger';
@@ -34,8 +35,10 @@ export function ExportImportModal({ onClose, categoryId }: Props) {
       const result = await exportEngine.export(exportOptions);
       toast.success(`Exported to ${result.filename}`);
     } catch (error) {
-      simpleLogger.error('Export error:', error);
-      toast.error(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      handleError(error, {
+        context: { component: 'ExportImportModal', action: 'export' },
+        fallbackMessage: 'Export failed',
+      });
     } finally {
       setExporting(false);
     }
@@ -74,8 +77,10 @@ export function ExportImportModal({ onClose, categoryId }: Props) {
         simpleLogger.error('Import errors:', result.errors);
       }
     } catch (error) {
-      simpleLogger.error('Import error:', error);
-      toast.error(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      handleError(error, {
+        context: { component: 'ExportImportModal', action: 'import' },
+        fallbackMessage: 'Import failed',
+      });
     } finally {
       setImporting(false);
       e.target.value = ''; // Reset input

@@ -1,9 +1,9 @@
 import { FolderTree, Settings } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { handleError } from '../lib/errors';
 import { optimisticArrayUpdate } from '../lib/optimisticUpdate';
 import { supabase } from '../lib/supabase';
 import type { Category } from '../types';
-import { simpleLogger } from '../utils/logger';
 import { CodeframeBuilderModal } from './CodeframeBuilderModal';
 
 interface CategoryDetailsProps {
@@ -82,7 +82,10 @@ export function CategoryDetails({
 
         setRealCodes(enriched);
       } catch (error) {
-        simpleLogger.error('Error loading codes for category:', error);
+        handleError(error, {
+          context: { component: 'CategoryDetails', action: 'loadCodes' },
+          fallbackMessage: 'Failed to load codes for category',
+        });
       } finally {
         setLoading(false);
       }
@@ -122,7 +125,10 @@ export function CategoryDetails({
     const { error } = await supabase.from('codes_categories').insert(relations);
 
     if (error) {
-      simpleLogger.error('Error assigning codes to category:', error);
+      handleError(error, {
+        context: { component: 'CategoryDetails', action: 'selectAll' },
+        fallbackMessage: 'Failed to assign codes to category',
+      });
       return;
     }
 

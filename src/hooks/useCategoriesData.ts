@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { handleError } from '../lib/errors';
 import { supabase } from '../lib/supabase';
 import { simpleLogger } from '../utils/logger';
 
@@ -107,7 +108,10 @@ export function useCategoriesData() {
 
       setCategories(categoriesWithStats);
     } catch (err) {
-      simpleLogger.error('Error in fetchCategories:', err);
+      handleError(err, {
+        context: { component: 'useCategoriesData', action: 'fetchCategories' },
+        fallbackMessage: 'Failed to fetch categories',
+      });
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch categories';
       setError(errorMessage);
     } finally {
@@ -127,8 +131,10 @@ export function useCategoriesData() {
       .single();
 
     if (error) {
-      simpleLogger.error('Error adding category:', error);
-      toast.error('Failed to add category');
+      handleError(error, {
+        context: { component: 'useCategoriesData', action: 'addCategory' },
+        fallbackMessage: 'Failed to add category',
+      });
       return;
     }
 
