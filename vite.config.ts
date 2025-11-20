@@ -51,7 +51,6 @@ export default defineConfig({
           'ai-vendor': ['openai', '@anthropic-ai/sdk', '@google/generative-ai'],
           'headless-vendor': ['@headlessui/react', 'focus-trap-react'],
           'virtual-vendor': ['react-window', 'react-virtualized-auto-sizer'],
-          'dnd-vendor': ['react-dnd', 'react-dnd-html5-backend'],
           'tree-vendor': ['react-arborist'],
         },
         chunkFileNames: 'assets/js/[name]-[hash].js',
