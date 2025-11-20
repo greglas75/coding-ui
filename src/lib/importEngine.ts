@@ -1,8 +1,13 @@
-import * as XLSX from 'xlsx';
 import { getSupabaseClient } from './supabase';
 import { simpleLogger } from '../utils/logger';
 
 const supabase = getSupabaseClient();
+
+// Lazy load XLSX to reduce initial bundle size (saves ~1.4MB!)
+async function loadXLSX() {
+  const XLSX = await import('xlsx');
+  return XLSX.default || XLSX;
+}
 
 export interface ImportResult {
   success: boolean;
@@ -31,6 +36,7 @@ export class ImportEngine {
 
       // Read file
       const buffer = await file.arrayBuffer();
+      const XLSX = await loadXLSX();
       const workbook = XLSX.read(buffer);
 
       // Get first sheet (or "Codes" sheet if exists)
@@ -210,6 +216,7 @@ export class ImportEngine {
   async validateFile(file: File): Promise<{ valid: boolean; error?: string }> {
     try {
       const buffer = await file.arrayBuffer();
+      const XLSX = await loadXLSX();
       const workbook = XLSX.read(buffer);
 
       if (workbook.SheetNames.length === 0) {

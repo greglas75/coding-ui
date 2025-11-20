@@ -1,8 +1,13 @@
-import * as XLSX from 'xlsx';
 import { getSupabaseClient } from './supabase';
 import { simpleLogger } from '../utils/logger';
 
 const supabase = getSupabaseClient();
+
+// Lazy load XLSX to reduce initial bundle size (saves ~1.4MB!)
+async function loadXLSX() {
+  const XLSX = await import('xlsx');
+  return XLSX.default || XLSX;
+}
 
 export type ExportFormat = 'excel' | 'csv' | 'json';
 
@@ -119,7 +124,8 @@ export class ExportEngine {
     }
   }
 
-  private generateExcel(data: ExportData) {
+  private async generateExcel(data: ExportData) {
+    const XLSX = await loadXLSX();
     const workbook = XLSX.utils.book_new();
 
     // Categories sheet
