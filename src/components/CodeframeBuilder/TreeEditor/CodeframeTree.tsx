@@ -4,6 +4,7 @@
  */
 import type { HierarchyNode } from '@/types/codeframe';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { simpleLogger } from '../../../utils/logger';
 import { BrandInsightsModal } from '../modals/BrandInsightsModal';
 import { BulkActions } from './BulkActions';
 import { TreeNode } from './TreeNode';
@@ -116,7 +117,7 @@ export function CodeframeTree({
       }
 
       const result = await response.json();
-      console.log('Brand approved successfully:', result);
+      simpleLogger.info('Brand approved successfully:', result);
 
       // Navigate to next brand or close modal
       if (currentBrandIndex < brandCodes.length - 1) {
@@ -125,7 +126,7 @@ export function CodeframeTree({
         handleCloseModal();
       }
     } catch (error) {
-      console.error('Failed to approve brand:', error);
+      simpleLogger.error('Failed to approve brand:', error);
       alert('Failed to approve brand. Please try again.');
     }
   }, [selectedBrandNode, currentBrandIndex, brandCodes, handleCloseModal]);
@@ -150,7 +151,7 @@ export function CodeframeTree({
       }
 
       const result = await response.json();
-      console.log('Brand rejected successfully:', result);
+      simpleLogger.info('Brand rejected successfully:', result);
 
       // Navigate to next brand or close modal
       if (currentBrandIndex < brandCodes.length - 1) {
@@ -159,7 +160,7 @@ export function CodeframeTree({
         handleCloseModal();
       }
     } catch (error) {
-      console.error('Failed to reject brand:', error);
+      simpleLogger.error('Failed to reject brand:', error);
       alert('Failed to reject brand. Please try again.');
     }
   }, [selectedBrandNode, currentBrandIndex, brandCodes, handleCloseModal]);
@@ -192,7 +193,7 @@ export function CodeframeTree({
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Failed to export JSON:', error);
+      simpleLogger.error('Failed to export JSON:', error);
       alert('Failed to export JSON. Please try again.');
     }
   }, [data]);
@@ -247,7 +248,7 @@ export function CodeframeTree({
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Failed to export CSV:', error);
+      simpleLogger.error('Failed to export CSV:', error);
       alert('Failed to export CSV. Please try again.');
     }
   }, [data]);
@@ -317,10 +318,10 @@ export function CodeframeTree({
       );
 
       await Promise.all(promises);
-      console.log(`Approved ${checkboxSelectedNodes.size} brands`);
+      simpleLogger.info(`Approved ${checkboxSelectedNodes.size} brands`);
       setCheckboxSelectedNodes(new Set());
     } catch (error) {
-      console.error('Failed to approve selected brands:', error);
+      simpleLogger.error('Failed to approve selected brands:', error);
       alert('Failed to approve some brands. Please try again.');
     }
   }, [checkboxSelectedNodes]);
@@ -339,10 +340,10 @@ export function CodeframeTree({
       );
 
       await Promise.all(promises);
-      console.log(`Rejected ${checkboxSelectedNodes.size} brands`);
+      simpleLogger.info(`Rejected ${checkboxSelectedNodes.size} brands`);
       setCheckboxSelectedNodes(new Set());
     } catch (error) {
-      console.error('Failed to reject selected brands:', error);
+      simpleLogger.error('Failed to reject selected brands:', error);
       alert('Failed to reject some brands. Please try again.');
     }
   }, [checkboxSelectedNodes]);
@@ -499,9 +500,9 @@ export function CodeframeTree({
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ status: 'approved' }),
                     });
-                    console.log(`Approved brand: ${node.name}`);
+                    simpleLogger.info(`Approved brand: ${node.name}`);
                   } catch (error) {
-                    console.error('Failed to approve brand:', error);
+                    simpleLogger.error('Failed to approve brand:', error);
                     alert('Failed to approve brand. Please try again.');
                   }
                 }
@@ -516,9 +517,9 @@ export function CodeframeTree({
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ status: 'rejected' }),
                     });
-                    console.log(`Rejected brand: ${node.name}`);
+                    simpleLogger.info(`Rejected brand: ${node.name}`);
                   } catch (error) {
-                    console.error('Failed to reject brand:', error);
+                    simpleLogger.error('Failed to reject brand:', error);
                     alert('Failed to reject brand. Please try again.');
                   }
                 }

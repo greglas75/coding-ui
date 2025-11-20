@@ -21,6 +21,7 @@ import {
   Square,
 } from 'lucide-react';
 import type { HierarchyNode } from '@/types/codeframe';
+import { simpleLogger } from '../../../utils/logger';
 import { StatBadge } from './StatBadge';
 
 interface TreeNodeProps {
@@ -133,7 +134,7 @@ export function TreeNode({
         isVerified: searchCount > 0 || imageCount > 0,
       };
     } catch (e) {
-      console.error('Failed to parse validation_evidence:', e);
+      simpleLogger.error('Failed to parse validation_evidence:', e);
       return null;
     }
   };
@@ -434,7 +435,7 @@ export function TreeNode({
             );
           }
         } catch (e) {
-          console.error('Failed to parse variants:', e);
+          simpleLogger.error('Failed to parse variants:', e);
         }
         return null;
       })()}
@@ -456,7 +457,7 @@ export function TreeNode({
             );
           }
         } catch (e) {
-          console.error('Failed to parse example_texts:', e);
+          simpleLogger.error('Failed to parse example_texts:', e);
         }
         return null;
       })()}
@@ -618,7 +619,7 @@ export function TreeNode({
             </div>
           );
         } catch (e) {
-          console.error('Failed to parse validation details:', e);
+          simpleLogger.error('Failed to parse validation details:', e);
           return null;
         }
       })()}
