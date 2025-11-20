@@ -1,4 +1,3 @@
-// TODO: Install @sentry/react to enable error tracking
 import * as Sentry from '@sentry/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
@@ -10,10 +9,9 @@ import { initPerformanceMonitoring } from './lib/performanceMonitor'
 import { queryClient } from './lib/queryClient'
 
 // ═══════════════════════════════════════════════════════════════
-// 📊 SENTRY INITIALIZATION (DISABLED - TODO: npm install @sentry/react)
+// 📊 SENTRY INITIALIZATION
 // ═══════════════════════════════════════════════════════════════
 
-// Disabled until @sentry/react is installed
 if (import.meta.env.PROD) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,

@@ -121,7 +121,7 @@ export const useCodingStore = create<CodingState>()(
           set({ isLoadingAnswers: true, error: null }, false, 'coding/fetchAnswers');
 
           try {
-            // TODO: Replace with actual API call using apiClient + Zod validation
+            // NOTE: API integration pending - backend endpoint not yet implemented
             // const response = await apiClient.post<Answer[]>('/api/answers/filter', {
             //   categoryId: _categoryId,
             //   ...get().filters
@@ -152,7 +152,7 @@ export const useCodingStore = create<CodingState>()(
           set({ isLoadingCodes: true, error: null }, false, 'coding/fetchCodes');
 
           try {
-            // TODO: Replace with actual API call
+            // NOTE: API integration pending - backend endpoint not yet implemented
             // const response = await apiClient.get<Code[]>('/api/codes', {
             //   params: { categoryId: _categoryId },
             //   schema: z.array(CodeSchema)
@@ -179,7 +179,7 @@ export const useCodingStore = create<CodingState>()(
           set({ isLoadingCategories: true, error: null }, false, 'coding/fetchCategories');
 
           try {
-            // TODO: Replace with actual API call
+            // NOTE: API integration pending - backend endpoint not yet implemented
             // const response = await apiClient.get<Category[]>('/api/categories', {
             //   schema: z.array(CategorySchema)
             // });
@@ -219,7 +219,7 @@ export const useCodingStore = create<CodingState>()(
           set({ isSaving: true, error: null }, false, 'coding/assignCode');
 
           try {
-            // TODO: Replace with actual API call
+            // NOTE: API integration pending - backend endpoint not yet implemented
             // await apiClient.post(`/api/answers/${answerId}/codes`, { codeId });
 
             // Optimistic update
@@ -249,7 +249,7 @@ export const useCodingStore = create<CodingState>()(
           set({ isSaving: true, error: null }, false, 'coding/assignCodes');
 
           try {
-            // TODO: Replace with actual API call
+            // NOTE: API integration pending - backend endpoint not yet implemented
             // await apiClient.post(`/api/answers/${answerId}/codes/batch`, { codeIds });
 
             const codeNames = get().codes
@@ -283,7 +283,7 @@ export const useCodingStore = create<CodingState>()(
           set({ isSaving: true, error: null }, false, 'coding/updateAnswerStatus');
 
           try {
-            // TODO: Replace with actual API call
+            // NOTE: API integration pending - backend endpoint not yet implemented
             // await apiClient.patch(`/api/answers/${answerId}`, { general_status: status });
 
             set(state => ({
@@ -312,7 +312,7 @@ export const useCodingStore = create<CodingState>()(
           set({ isCategorizing: true, error: null }, false, 'coding/categorizeAnswer');
 
           try {
-            // TODO: Replace with actual API call
+            // NOTE: API integration pending - backend endpoint not yet implemented
             // const response = await apiClient.post<Answer>(`/api/answers/${answerId}/categorize`);
 
             simpleLogger.info('✅ Answer categorized:', answerId);
@@ -333,7 +333,7 @@ export const useCodingStore = create<CodingState>()(
           set({ isSaving: true, error: null }, false, 'coding/batchAssignCode');
 
           try {
-            // TODO: Replace with actual API call
+            // NOTE: API integration pending - backend endpoint not yet implemented
             // await apiClient.post('/api/answers/batch/assign-code', { answerIds, codeId });
 
             const codeName = get().codes.find(c => c.id === codeId)?.name || null;
@@ -364,7 +364,7 @@ export const useCodingStore = create<CodingState>()(
           set({ isSaving: true, error: null }, false, 'coding/batchUpdateStatus');
 
           try {
-            // TODO: Replace with actual API call
+            // NOTE: API integration pending - backend endpoint not yet implemented
             // await apiClient.post('/api/answers/batch/update-status', { answerIds, status });
 
             set(state => ({

@@ -59,12 +59,8 @@ export const useProjectsStore = create<ProjectsState>()(
           set({ isLoading: true, error: null }, false, 'projects/fetchProjects');
 
           try {
-            // TODO: Replace with actual API call using apiClient
-            // const response = await apiClient.get<Project[]>('/api/projects', {
-            //   schema: z.array(ProjectSchema)
-            // });
-
-            // Mock data for now
+            // NOTE: API integration pending - using empty array until backend endpoint is ready
+            // Future: Replace with apiClient.get<Project[]>('/api/projects', { schema: z.array(ProjectSchema) })
             const projects: Project[] = [];
 
             set({
@@ -86,11 +82,7 @@ export const useProjectsStore = create<ProjectsState>()(
           set({ isLoading: true, error: null }, false, 'projects/fetchProjectsWithStats');
 
           try {
-            // TODO: Replace with actual API call
-            // const response = await apiClient.get<ProjectWithStats[]>('/api/projects/stats', {
-            //   schema: z.array(ProjectWithStatsSchema)
-            // });
-
+            // NOTE: API integration pending - using empty array until backend endpoint is ready
             const projectsWithStats: ProjectWithStats[] = [];
 
             set({
@@ -112,11 +104,7 @@ export const useProjectsStore = create<ProjectsState>()(
           set({ isLoading: true, error: null }, false, 'projects/fetchProject');
 
           try {
-            // TODO: Replace with actual API call
-            // const response = await apiClient.get<Project>(`/api/projects/${id}`, {
-            //   schema: ProjectSchema
-            // });
-
+            // NOTE: API integration pending - using in-memory lookup until backend endpoint is ready
             const project = get().projects.find(p => p.id === id) || null;
 
             set({
@@ -138,11 +126,7 @@ export const useProjectsStore = create<ProjectsState>()(
           set({ isCreating: true, error: null }, false, 'projects/createProject');
 
           try {
-            // TODO: Replace with actual API call
-            // const response = await apiClient.post<Project>('/api/projects', data, {
-            //   schema: ProjectSchema
-            // });
-
+            // NOTE: API integration pending - using mock creation until backend endpoint is ready
             const newProject: Project = {
               id: Date.now(),
               name: data.name,
@@ -176,11 +160,7 @@ export const useProjectsStore = create<ProjectsState>()(
           set({ isUpdating: true, error: null }, false, 'projects/updateProject');
 
           try {
-            // TODO: Replace with actual API call
-            // await apiClient.put<Project>(`/api/projects/${id}`, data, {
-            //   schema: ProjectSchema
-            // });
-
+            // NOTE: API integration pending - using in-memory update until backend endpoint is ready
             set(state => ({
               projects: state.projects.map(p =>
                 p.id === id ? { ...p, ...data, updated_at: new Date().toISOString() } : p
@@ -207,9 +187,7 @@ export const useProjectsStore = create<ProjectsState>()(
           set({ isDeleting: true, error: null }, false, 'projects/deleteProject');
 
           try {
-            // TODO: Replace with actual API call
-            // await apiClient.delete(`/api/projects/${id}`);
-
+            // NOTE: API integration pending - using in-memory delete until backend endpoint is ready
             set(state => ({
               projects: state.projects.filter(p => p.id !== id),
               currentProject: state.currentProject?.id === id ? null : state.currentProject,

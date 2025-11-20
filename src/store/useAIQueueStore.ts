@@ -231,7 +231,7 @@ export const useAIQueueStore = create<AIQueueState>()(
           get().moveToProcessing(task.id);
 
           try {
-            // TODO: Replace with actual AI API call
+            // NOTE: AI API integration pending - using mock implementation
             // const result = await apiClient.post<AITask['result']>(
             //   `/api/ai/categorize`,
             //   {

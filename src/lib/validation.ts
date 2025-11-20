@@ -364,10 +364,11 @@ export function getFriendlyErrorMessage(error: unknown): string {
 
 /**
  * Log security event (for monitoring)
+ * Security events are automatically sent to Sentry via the centralized logger
  */
 export function logSecurityEvent(event: string, details?: Record<string, any>) {
   simpleLogger.warn(`🔒 Security Event: ${event}`, details);
 
-  // TODO: Send to monitoring service (Sentry, etc.)
-  // sentrySDK.captureMessage(event, { level: 'warning', extra: details });
+  // Security warnings are automatically captured by Sentry via logger.ts
+  // No additional integration needed - the simpleLogger handles it
 }

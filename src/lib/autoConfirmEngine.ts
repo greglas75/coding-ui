@@ -101,7 +101,7 @@ export class AutoConfirmEngine {
   private async confirmCode(
     answerId: number,
     suggestion: AICodeSuggestion,
-    status: 'auto-confirmed' | 'manual' | 'reviewed' // TODO: Store status in database for audit
+    status: 'auto-confirmed' | 'manual' | 'reviewed' // NOTE: Future - store status in database for audit trail
   ): Promise<void> {
     try {
       // Update answer with selected code

@@ -10,34 +10,14 @@
  * - Session replay for debugging
  */
 
-// TODO: Install @sentry/react to enable error tracking
-// import * as Sentry from '@sentry/react';
+import * as Sentry from '@sentry/react';
 import { simpleLogger } from '../utils/logger';
-
-interface SentryStub {
-  addBreadcrumb: (breadcrumb: unknown) => void;
-  captureException: (error: unknown, context?: unknown) => void;
-  captureMessage: (message: string, options?: unknown) => void;
-  setUser: (user: unknown) => void;
-  setContext: (key: string, data: unknown) => void;
-  startSpan: <T>(options: unknown, callback: () => T) => T;
-}
-
-const Sentry: SentryStub = {
-  addBreadcrumb: () => {},
-  captureException: () => {},
-  captureMessage: () => {},
-  setUser: () => {},
-  setContext: () => {},
-  startSpan: (_options, callback) => callback(),
-};
 
 /**
  * Check if Sentry is initialized
  */
 export function isSentryEnabled(): boolean {
-  return false; // Disabled until @sentry/react is installed
-  // return !!import.meta.env.VITE_SENTRY_DSN && import.meta.env.PROD;
+  return !!import.meta.env.VITE_SENTRY_DSN && import.meta.env.PROD;
 }
 
 /**

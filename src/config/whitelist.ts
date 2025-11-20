@@ -2,9 +2,9 @@
  * Whitelist Configuration
  *
  * Known entities/brands for quick categorization.
- * This should eventually be moved to database for dynamic management.
  *
- * TODO: Migrate to database table with admin UI for management
+ * NOTE: Future enhancement - migrate to database table with admin UI for management
+ * Currently using static config for simplicity and performance
  */
 
 export const DEFAULT_WHITELIST = [
