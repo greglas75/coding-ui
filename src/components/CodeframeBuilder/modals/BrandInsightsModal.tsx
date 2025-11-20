@@ -2,7 +2,18 @@
  * Brand Insights Modal - Comprehensive Validation Display
  * Shows EnhancedValidationResult with full validation breakdown
  */
-import { X, CheckCircle, AlertCircle, Globe, Image as ImageIcon, ChevronLeft, ChevronRight, Brain, Eye, TrendingUp } from 'lucide-react';
+import {
+  X,
+  CheckCircle,
+  AlertCircle,
+  Globe,
+  Image as ImageIcon,
+  ChevronLeft,
+  ChevronRight,
+  Brain,
+  Eye,
+  TrendingUp,
+} from 'lucide-react';
 import { type FC } from 'react';
 import type { HierarchyNode } from '@/types/codeframe';
 
@@ -34,14 +45,15 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
   // Parse validation_evidence as EnhancedValidationResult
   let validationData: Record<string, unknown> | null = null;
   try {
-    validationData = typeof node.validation_evidence === 'string'
-      ? JSON.parse(node.validation_evidence)
-      : (node.validation_evidence as Record<string, unknown>);
+    validationData =
+      typeof node.validation_evidence === 'string'
+        ? JSON.parse(node.validation_evidence)
+        : (node.validation_evidence as Record<string, unknown>);
   } catch (e) {
     console.error('Failed to parse validation_evidence:', e);
   }
 
-  console.log('🔍 BrandInsightsModal - validation data:', validationData);
+  console.warn('🔍 BrandInsightsModal - validation data:', validationData);
 
   // Extract data from EnhancedValidationResult format
   const userResponse = validationData?.user_response || node.name;
@@ -85,7 +97,7 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
     >
       <div
         className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20">
@@ -156,8 +168,8 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
                       confidence >= 80
                         ? 'bg-green-500'
                         : confidence >= 50
-                        ? 'bg-yellow-500'
-                        : 'bg-red-500'
+                          ? 'bg-yellow-500'
+                          : 'bg-red-500'
                     }`}
                     style={{ width: `${confidence}%` }}
                   />
@@ -172,14 +184,17 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
                 <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-purple-200 dark:border-purple-700">
                   <div className="flex items-center gap-2 mb-2">
                     <Eye className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">AI Vision</span>
+                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+                      AI Vision
+                    </span>
                   </div>
                   <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                     {visionAnalysis.confidence_score || visionAnalysis.confidence || 'N/A'}
                     {typeof visionAnalysis.confidence_score === 'number' && '/100'}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {visionAnalysis.products_identified || visionAnalysis.total_products || 0} products
+                    {visionAnalysis.products_identified || visionAnalysis.total_products || 0}{' '}
+                    products
                   </div>
                 </div>
               )}
@@ -189,7 +204,9 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
                 <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
                   <div className="flex items-center gap-2 mb-2">
                     <Globe className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Google Search</span>
+                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+                      Google Search
+                    </span>
                   </div>
                   <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                     {searchValidation.confidence_score || searchValidation.confidence || 'N/A'}
@@ -206,7 +223,9 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
                 <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-green-200 dark:border-green-700">
                   <div className="flex items-center gap-2 mb-2">
                     <ImageIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
-                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Google Images</span>
+                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+                      Google Images
+                    </span>
                   </div>
                   <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                     {visionAnalysis.image_match_score}/100
@@ -288,44 +307,51 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
               </h3>
               <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg mb-3 border border-yellow-200 dark:border-yellow-800">
                 <p className="text-sm font-medium text-yellow-900 dark:text-yellow-200">
-                  🔍 Search phrase: <span className="font-mono text-orange-600 dark:text-orange-400">"{searchValidation.search_phrase || userResponse}"</span>
+                  🔍 Search phrase:{' '}
+                  <span className="font-mono text-orange-600 dark:text-orange-400">
+                    "{searchValidation.search_phrase || userResponse}"
+                  </span>
                 </p>
               </div>
               <div className="space-y-2">
-                {searchValidation.web_results.slice(0, 5).map((result: Record<string, string>, i: number) => {
-                  const url = result.link || result.url;
-                  let hostname = url;
-                  try {
-                    hostname = new URL(url).hostname;
-                  } catch (e) {
-                    // Keep original
-                  }
+                {searchValidation.web_results
+                  .slice(0, 5)
+                  .map((result: Record<string, string>, i: number) => {
+                    const url = result.link || result.url;
+                    let hostname = url;
+                    try {
+                      hostname = new URL(url).hostname;
+                    } catch (e) {
+                      // Keep original
+                    }
 
-                  return (
-                    <a
-                      key={i}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border border-gray-200 dark:border-gray-700"
-                    >
-                      <div className="flex items-start gap-2">
-                        <span className="text-blue-600 dark:text-blue-400 font-medium">{i + 1}.</span>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-blue-600 dark:text-blue-400 text-sm hover:underline truncate">
-                            {result.title}
-                          </h4>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                            {result.snippet}
-                          </p>
-                          <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                            {hostname}
-                          </p>
+                    return (
+                      <a
+                        key={i}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border border-gray-200 dark:border-gray-700"
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="text-blue-600 dark:text-blue-400 font-medium">
+                            {i + 1}.
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-blue-600 dark:text-blue-400 text-sm hover:underline truncate">
+                              {result.title}
+                            </h4>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                              {result.snippet}
+                            </p>
+                            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                              {hostname}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    </a>
-                  );
-                })}
+                      </a>
+                    );
+                  })}
               </div>
             </div>
           )}
@@ -338,39 +364,47 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
                 IMAGES ANALYZED ({visionAnalysis.analyzed_images.length})
               </h3>
               <div className="grid grid-cols-6 gap-2">
-                {visionAnalysis.analyzed_images.slice(0, 6).map((img: Record<string, unknown> | string, i: number) => (
-                  <div
-                    key={i}
-                    className="relative aspect-square bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden group hover:ring-2 hover:ring-purple-500 transition-all"
-                  >
-                    <img
-                      src={typeof img === 'string' ? img : (img.url as string || img.link as string || '')}
-                      alt={`Product ${i + 1}`}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                    {typeof img === 'object' && img.similarity && (
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/75 text-white text-xs p-1 text-center">
-                        {Math.round((img.similarity as number) * 100)}%
-                      </div>
-                    )}
-                  </div>
-                ))}
+                {visionAnalysis.analyzed_images
+                  .slice(0, 6)
+                  .map((img: Record<string, unknown> | string, i: number) => (
+                    <div
+                      key={i}
+                      className="relative aspect-square bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden group hover:ring-2 hover:ring-purple-500 transition-all"
+                    >
+                      <img
+                        src={
+                          typeof img === 'string'
+                            ? img
+                            : (img.url as string) || (img.link as string) || ''
+                        }
+                        alt={`Product ${i + 1}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={e => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      {typeof img === 'object' && img.similarity && (
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/75 text-white text-xs p-1 text-center">
+                          {Math.round((img.similarity as number) * 100)}%
+                        </div>
+                      )}
+                    </div>
+                  ))}
               </div>
             </div>
           )}
 
           {/* RECOMMENDATION */}
-          <div className={`rounded-lg p-5 border-2 ${
-            recommendation === 'approve'
-              ? 'bg-green-50 dark:bg-green-900/20 border-green-500'
-              : recommendation === 'reject'
-              ? 'bg-red-50 dark:bg-red-900/20 border-red-500'
-              : 'bg-gray-50 dark:bg-gray-900/50 border-gray-300'
-          }`}>
+          <div
+            className={`rounded-lg p-5 border-2 ${
+              recommendation === 'approve'
+                ? 'bg-green-50 dark:bg-green-900/20 border-green-500'
+                : recommendation === 'reject'
+                  ? 'bg-red-50 dark:bg-red-900/20 border-red-500'
+                  : 'bg-gray-50 dark:bg-gray-900/50 border-gray-300'
+            }`}
+          >
             <div className="flex items-start gap-3">
               {recommendation === 'approve' ? (
                 <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0" />
@@ -386,7 +420,9 @@ export const BrandInsightsModal: FC<BrandInsightsModalProps> = ({
                 </p>
                 {riskFactors.length > 0 && (
                   <div className="mt-3 space-y-1">
-                    <p className="text-xs font-semibold text-red-800 dark:text-red-300">Risk Factors:</p>
+                    <p className="text-xs font-semibold text-red-800 dark:text-red-300">
+                      Risk Factors:
+                    </p>
                     {riskFactors.map((risk: string, i: number) => (
                       <p key={i} className="text-xs text-red-700 dark:text-red-400">
                         • {risk}

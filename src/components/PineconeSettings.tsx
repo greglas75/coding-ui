@@ -93,7 +93,7 @@ export function PineconeSettings() {
 
         // Log additional details to console for debugging
         if (data.details) {
-          console.log('Pinecone connection details:', data.details);
+          console.warn('Pinecone connection details:', data.details);
         }
       } else {
         toast.error(data.message || 'Connection test failed', {
@@ -108,9 +108,12 @@ export function PineconeSettings() {
     } catch (error) {
       toast.dismiss(loadingToast);
       console.error('Failed to test Pinecone connection:', error);
-      toast.error(`Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`, {
-        duration: 7000,
-      });
+      toast.error(
+        `Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        {
+          duration: 7000,
+        }
+      );
     }
   };
 
@@ -219,10 +222,12 @@ export function PineconeSettings() {
             </h3>
             <div className="text-xs text-blue-800 dark:text-blue-200 space-y-2">
               <p>
-                <strong>Brand Embeddings:</strong> Stores brand vectors in <code>tgm-brand-embeddings</code> index for semantic similarity search
+                <strong>Brand Embeddings:</strong> Stores brand vectors in{' '}
+                <code>tgm-brand-embeddings</code> index for semantic similarity search
               </p>
               <p>
-                <strong>Codeframe Clustering:</strong> Used for answer embeddings in open-ended analysis
+                <strong>Codeframe Clustering:</strong> Used for answer embeddings in open-ended
+                analysis
               </p>
               <p className="mt-3">
                 Get your API key from{' '}
@@ -272,7 +277,9 @@ export function PineconeSettings() {
               Vector Database
             </h3>
             <p className="text-sm text-purple-800 dark:text-purple-200">
-              Pinecone stores vector embeddings for semantic similarity search. It's used for brand matching (finding similar brands) and codeframe clustering (grouping similar answers). Free tier includes 1M vectors and 100k queries/month.
+              Pinecone stores vector embeddings for semantic similarity search. It's used for brand
+              matching (finding similar brands) and codeframe clustering (grouping similar answers).
+              Free tier includes 1M vectors and 100k queries/month.
             </p>
           </div>
         </div>

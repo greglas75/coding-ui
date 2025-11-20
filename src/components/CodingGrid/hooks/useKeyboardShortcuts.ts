@@ -26,11 +26,7 @@ export function useKeyboardShortcuts({
     (event: KeyboardEvent) => {
       // Ignore if typing in input
       const target = event.target as HTMLElement;
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
-      ) {
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return;
       }
 
@@ -62,8 +58,10 @@ export function useKeyboardShortcuts({
         case 'b':
           handleQuickStatus(focusedAnswer, 'BL');
           break;
-        case 'c':
-          const hasAI = focusedAnswer.ai_suggestions?.suggestions && focusedAnswer.ai_suggestions.suggestions.length > 0;
+        case 'c': {
+          const hasAI =
+            focusedAnswer.ai_suggestions?.suggestions &&
+            focusedAnswer.ai_suggestions.suggestions.length > 0;
           if (hasAI) {
             const topSuggestion = focusedAnswer.ai_suggestions!.suggestions![0];
             handleAcceptSuggestion(focusedAnswer.id, topSuggestion);
@@ -71,6 +69,7 @@ export function useKeyboardShortcuts({
             handleQuickStatus(focusedAnswer, 'C');
           }
           break;
+        }
         case 'o':
           handleQuickStatus(focusedAnswer, 'Oth');
           break;
@@ -86,26 +85,38 @@ export function useKeyboardShortcuts({
         case 's':
           openCodeModal(focusedAnswer);
           break;
-        case 'arrowdown':
+        case 'arrowdown': {
           event.preventDefault();
           const currentIndex = localAnswers.findIndex(a => a.id === focusedRowId);
           if (currentIndex < localAnswers.length - 1) {
             setFocusedRowId(localAnswers[currentIndex + 1].id);
           }
           break;
-        case 'arrowup':
+        }
+        case 'arrowup': {
           event.preventDefault();
           const prevIndex = localAnswers.findIndex(a => a.id === focusedRowId);
           if (prevIndex > 0) {
             setFocusedRowId(localAnswers[prevIndex - 1].id);
           }
           break;
+        }
         case 'escape':
           setFocusedRowId(null);
           break;
       }
     },
-    [focusedRowId, localAnswers, handleQuickStatus, handleAcceptSuggestion, handleSingleAICategorize, openCodeModal, undo, redo, setFocusedRowId]
+    [
+      focusedRowId,
+      localAnswers,
+      handleQuickStatus,
+      handleAcceptSuggestion,
+      handleSingleAICategorize,
+      openCodeModal,
+      undo,
+      redo,
+      setFocusedRowId,
+    ]
   );
 
   useEffect(() => {

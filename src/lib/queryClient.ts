@@ -34,5 +34,5 @@ export const queryClient = new QueryClient({
 
 // Log cache initialization in development
 if (import.meta.env.DEV) {
-  console.info('✅ React Query cache initialized with optimized defaults');
+  console.warn('✅ React Query cache initialized with optimized defaults');
 }

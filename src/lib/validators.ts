@@ -28,7 +28,10 @@ export function validateCategoryId(id: unknown): number {
   return parsed;
 }
 
-export function validateFilterValue(value: unknown, type: 'search' | 'status' | 'codes'): string | string[] {
+export function validateFilterValue(
+  value: unknown,
+  type: 'search' | 'status' | 'codes'
+): string | string[] {
   switch (type) {
     case 'search':
       if (typeof value !== 'string') {
@@ -42,16 +45,26 @@ export function validateFilterValue(value: unknown, type: 'search' | 'status' | 
       }
       return value.trim();
 
-    case 'status':
+    case 'status': {
       if (!Array.isArray(value)) {
         throw new ValidationError('Status filter must be an array', 'status');
       }
-      const validStatuses = ['uncategorized', 'whitelist', 'blacklist', 'categorized', 'global_blacklist', 'ignored', 'other', 'gibberish'];
+      const validStatuses = [
+        'uncategorized',
+        'whitelist',
+        'blacklist',
+        'categorized',
+        'global_blacklist',
+        'ignored',
+        'other',
+        'gibberish',
+      ];
       const invalid = value.filter(v => !validStatuses.includes(v));
       if (invalid.length > 0) {
         throw new ValidationError(`Invalid status values: ${invalid.join(', ')}`, 'status');
       }
       return value;
+    }
 
     case 'codes':
       if (!Array.isArray(value)) {

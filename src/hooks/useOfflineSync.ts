@@ -71,31 +71,34 @@ export function useOfflineSync() {
   /**
    * Queue change for sync (works offline)
    */
-  const queueChange = useCallback(async (change: {
-    action: 'update' | 'insert' | 'delete';
-    table: string;
-    data: ChangeData;
-  }): Promise<string> => {
-    try {
-      const changeId = await addPendingChange(change);
-      setPendingCount(prev => prev + 1);
+  const queueChange = useCallback(
+    async (change: {
+      action: 'update' | 'insert' | 'delete';
+      table: string;
+      data: ChangeData;
+    }): Promise<string> => {
+      try {
+        const changeId = await addPendingChange(change);
+        setPendingCount(prev => prev + 1);
 
-      if (isOnline) {
-        // Try to sync immediately if online
-        simpleLogger.info('🔄 Online - attempting immediate sync');
-        syncPendingChanges();
-      } else {
-        setSyncStatus('offline');
-        simpleLogger.info('📴 Offline - queued for later sync');
+        if (isOnline) {
+          // Try to sync immediately if online
+          simpleLogger.info('🔄 Online - attempting immediate sync');
+          syncPendingChanges();
+        } else {
+          setSyncStatus('offline');
+          simpleLogger.info('📴 Offline - queued for later sync');
+        }
+
+        return changeId;
+      } catch (error) {
+        simpleLogger.error('Failed to queue change:', error);
+        toast.error('Failed to save changes');
+        throw error;
       }
-
-      return changeId;
-    } catch (error) {
-      simpleLogger.error('Failed to queue change:', error);
-      toast.error('Failed to save changes');
-      throw error;
-    }
-  }, [isOnline]);
+    },
+    [isOnline]
+  );
 
   /**
    * Sync all pending changes to Supabase
@@ -131,12 +134,15 @@ export function useOfflineSync() {
       const syncedIds: string[] = [];
 
       // Grupuj zmiany po tabeli + akcji
-      const grouped = unsyncedChanges.reduce((acc, change) => {
-        const key = `${change.table}-${change.action}`;
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(change);
-        return acc;
-      }, {} as Record<string, typeof unsyncedChanges>);
+      const grouped = unsyncedChanges.reduce(
+        (acc, change) => {
+          const key = `${change.table}-${change.action}`;
+          if (!acc[key]) acc[key] = [];
+          acc[key].push(change);
+          return acc;
+        },
+        {} as Record<string, typeof unsyncedChanges>
+      );
 
       simpleLogger.info(`📦 Grouped into ${Object.keys(grouped).length} batches`);
 
@@ -151,11 +157,13 @@ export function useOfflineSync() {
 
             const bulkRecords = changes.flatMap(change => {
               const ids = change.data.ids || [change.data.id];
-              return ids.filter((id): id is number => id !== undefined).map((id) => ({
-                id,
-                ...change.data.updates,
-                updated_at: new Date().toISOString()
-              }));
+              return ids
+                .filter((id): id is number => id !== undefined)
+                .map(id => ({
+                  id,
+                  ...change.data.updates,
+                  updated_at: new Date().toISOString(),
+                }));
             });
 
             const { error: bulkError } = await supabase
@@ -167,7 +175,6 @@ export function useOfflineSync() {
             syncedIds.push(...changes.map(c => c.id));
             syncedCount += changes.length;
             processedCount += changes.length;
-
           } else if (action === 'insert' && changes.length > 1) {
             simpleLogger.info(`🚀 Batch inserting ${changes.length} records in ${table}`);
 
@@ -179,25 +186,26 @@ export function useOfflineSync() {
             syncedIds.push(...changes.map(c => c.id));
             syncedCount += changes.length;
             processedCount += changes.length;
-
           } else if (action === 'delete' && changes.length > 1) {
             simpleLogger.info(`🚀 Batch deleting ${changes.length} records in ${table}`);
 
             const idsToDelete = changes.flatMap(c => c.data.ids || [c.data.id]);
 
-            const { error: deleteError } = await supabase.from(table).delete().in('id', idsToDelete);
+            const { error: deleteError } = await supabase
+              .from(table)
+              .delete()
+              .in('id', idsToDelete);
             if (deleteError) throw deleteError;
 
             syncedIds.push(...changes.map(c => c.id));
             syncedCount += changes.length;
             processedCount += changes.length;
-
           } else {
             // Pojedyncze operacje (fallback)
             for (const change of changes) {
               try {
                 switch (change.action) {
-                  case 'update':
+                  case 'update': {
                     const updateIds = change.data.ids || [change.data.id].filter(Boolean);
                     const { error: updateError } = await supabase
                       .from(table)
@@ -205,13 +213,15 @@ export function useOfflineSync() {
                       .in('id', updateIds);
                     if (updateError) throw updateError;
                     break;
+                  }
 
-                  case 'insert':
+                  case 'insert': {
                     const { error: insertError } = await supabase.from(table).insert(change.data);
                     if (insertError) throw insertError;
                     break;
+                  }
 
-                  case 'delete':
+                  case 'delete': {
                     const deleteIds = change.data.ids || [change.data.id].filter(Boolean);
                     const { error: deleteError } = await supabase
                       .from(table)
@@ -219,22 +229,23 @@ export function useOfflineSync() {
                       .in('id', deleteIds);
                     if (deleteError) throw deleteError;
                     break;
+                  }
                 }
 
                 syncedIds.push(change.id);
                 syncedCount++;
                 processedCount++;
-
               } catch (error) {
                 simpleLogger.error(`❌ Failed to sync single change:`, error);
                 failedCount++;
-                errors.push(`${change.action} on ${table}: ${error instanceof Error ? error.message : 'Unknown'}`);
+                errors.push(
+                  `${change.action} on ${table}: ${error instanceof Error ? error.message : 'Unknown'}`
+                );
               }
             }
           }
 
           setSyncProgress({ current: processedCount, total: unsyncedChanges.length });
-
         } catch (error) {
           simpleLogger.error(`❌ Batch operation failed for ${key}:`, error);
           failedCount += changes.length;
@@ -261,13 +272,16 @@ export function useOfflineSync() {
 
       simpleLogger.info(`📊 Sync complete: ${syncedCount} synced, ${failedCount} failed`);
       return { synced: syncedCount, failed: failedCount, errors };
-
     } catch (error) {
       simpleLogger.error('❌ Sync process failed:', error);
       setSyncStatus('offline');
       setSyncProgress({ current: 0, total: 0 });
       toast.error('Sync process failed');
-      return { synced: 0, failed: 0, errors: [error instanceof Error ? error.message : 'Unknown error'] };
+      return {
+        synced: 0,
+        failed: 0,
+        errors: [error instanceof Error ? error.message : 'Unknown error'],
+      };
     }
   }, [isOnline]);
 

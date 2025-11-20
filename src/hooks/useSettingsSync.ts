@@ -5,7 +5,15 @@
 
 import { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { getAllAPIKeys, setAnthropicAPIKey, setOpenAIAPIKey, setGoogleGeminiAPIKey, setGoogleCSEAPIKey, setGoogleCSECXID, setPineconeAPIKey } from '../utils/apiKeys';
+import {
+  getAllAPIKeys,
+  setAnthropicAPIKey,
+  setOpenAIAPIKey,
+  setGoogleGeminiAPIKey,
+  setGoogleCSEAPIKey,
+  setGoogleCSECXID,
+  setPineconeAPIKey,
+} from '../utils/apiKeys';
 import { toast } from 'sonner';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3020';
@@ -27,7 +35,7 @@ export function useSettingsSync() {
   // Fetch settings from server and apply locally
   const fetchAndApplySettings = useCallback(async () => {
     if (!session) {
-      console.log('No session available, skipping fetch');
+      console.warn('No session available, skipping fetch');
       return false;
     }
 
@@ -37,7 +45,7 @@ export function useSettingsSync() {
       const response = await fetch(`${API_BASE}/api/settings-sync`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -52,7 +60,8 @@ export function useSettingsSync() {
         // Apply settings to localStorage
         if (data.settings.anthropic_api_key) setAnthropicAPIKey(data.settings.anthropic_api_key);
         if (data.settings.openai_api_key) setOpenAIAPIKey(data.settings.openai_api_key);
-        if (data.settings.google_gemini_api_key) setGoogleGeminiAPIKey(data.settings.google_gemini_api_key);
+        if (data.settings.google_gemini_api_key)
+          setGoogleGeminiAPIKey(data.settings.google_gemini_api_key);
         if (data.settings.google_cse_api_key) setGoogleCSEAPIKey(data.settings.google_cse_api_key);
         if (data.settings.google_cse_cx_id) setGoogleCSECXID(data.settings.google_cse_cx_id);
         if (data.settings.pinecone_api_key) setPineconeAPIKey(data.settings.pinecone_api_key);
@@ -91,7 +100,7 @@ export function useSettingsSync() {
       const response = await fetch(`${API_BASE}/api/settings-sync`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ settings: localSettings }),
@@ -122,7 +131,7 @@ export function useSettingsSync() {
   // Sync: fetch from server, compare timestamps, and merge
   const syncSettings = useCallback(async () => {
     if (!session) {
-      console.log('No session available, skipping sync');
+      console.warn('No session available, skipping sync');
       return;
     }
 

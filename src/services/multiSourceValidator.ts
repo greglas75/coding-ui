@@ -14,34 +14,34 @@ import {
   getGoogleCSEAPIKey,
   getGoogleCSECXID,
   getPineconeAPIKey,
-  getOpenAIAPIKey
+  getOpenAIAPIKey,
 } from '../utils/apiKeys';
 import { simpleLogger } from '../utils/logger';
 
 // ✅ Use Vite proxy instead of direct connection to avoid CORS
 // Vite config proxies /api/validate to http://localhost:8000
-const API_BASE = '';  // Empty = use relative path through Vite proxy
+const API_BASE = ''; // Empty = use relative path through Vite proxy
 
 /**
  * Validation types from Python backend
  * Must match ValidationType enum in python-service/validators/multi_source_validator.py
  */
 export type ValidationType =
-  | 'global_code'          // Global code matched (I don't know, None, etc.)
-  | 'brand_match'          // Existing brand matched in Pinecone
-  | 'category_error'       // User text exists but in different category
+  | 'global_code' // Global code matched (I don't know, None, etc.)
+  | 'brand_match' // Existing brand matched in Pinecone
+  | 'category_error' // User text exists but in different category
   | 'ambiguous_descriptor' // Term is product descriptor, not brand
-  | 'clear_match'          // High confidence match from multiple sources
-  | 'unclear';             // Low confidence, needs manual review
+  | 'clear_match' // High confidence match from multiple sources
+  | 'unclear'; // Low confidence, needs manual review
 
 /**
  * UI actions from Python backend
  */
 export type UIAction =
-  | 'approve'             // Auto-approve
-  | 'ask_user_choose'     // Show disambiguation options
-  | 'review_category'     // Category error - suggest change
-  | 'manual_review';      // Unclear - flag for manual review
+  | 'approve' // Auto-approve
+  | 'ask_user_choose' // Show disambiguation options
+  | 'review_category' // Category error - suggest change
+  | 'manual_review'; // Unclear - flag for manual review
 
 /**
  * Disambiguation candidate
@@ -120,14 +120,17 @@ export interface MultiSourceValidationResult {
     snippet: string;
     url: string;
   }>;
-  kg_details?: Record<string, {
-    name: string;
-    entity_type: string;
-    category: string;
-    description: string;
-    verified: boolean;
-    matches_user_category: boolean;
-  }>;
+  kg_details?: Record<
+    string,
+    {
+      name: string;
+      entity_type: string;
+      category: string;
+      description: string;
+      verified: boolean;
+      matches_user_category: boolean;
+    }
+  >;
 
   // Metrics
   cost: number;
@@ -178,7 +181,9 @@ export async function validateBrandMultiSource(
   category: string,
   language: string = 'en'
 ): Promise<MultiSourceValidationResult> {
-  simpleLogger.info(`🔍 Multi-source validation: "${userResponse}" | Category: ${category} | Language: ${language}`);
+  simpleLogger.info(
+    `🔍 Multi-source validation: "${userResponse}" | Category: ${category} | Language: ${language}`
+  );
 
   try {
     // Get API keys from Settings
@@ -272,7 +277,9 @@ export async function validateBrandMultiSource(
         // Failed to fetch (CORS or connection refused)
         if (error.message.includes('Failed to fetch')) {
           simpleLogger.error('🚫 Failed to fetch - CORS or backend down', error);
-          throw new Error('Cannot connect to backend - check CORS settings or if service is running');
+          throw new Error(
+            'Cannot connect to backend - check CORS settings or if service is running'
+          );
         }
       }
 
@@ -303,11 +310,9 @@ export function convertToAISuggestion(
   switch (result.type) {
     case 'global_code':
     case 'brand_match':
-    case 'clear_match':
+    case 'clear_match': {
       // Find matching code
-      const matchingCode = codes.find(
-        c => c.name.toLowerCase() === result.brand?.toLowerCase()
-      );
+      const matchingCode = codes.find(c => c.name.toLowerCase() === result.brand?.toLowerCase());
 
       if (!matchingCode && result.brand) {
         // Brand detected but not in code list - mark as new
@@ -329,6 +334,7 @@ export function convertToAISuggestion(
         };
       }
       break;
+    }
 
     case 'ambiguous_descriptor':
       // For ambiguous, return highest scoring candidate

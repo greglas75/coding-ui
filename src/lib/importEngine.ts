@@ -28,7 +28,7 @@ export class ImportEngine {
       imported: 0,
       failed: 0,
       skipped: 0,
-      errors: []
+      errors: [],
     };
 
     try {
@@ -40,7 +40,7 @@ export class ImportEngine {
       const workbook = XLSX.read(buffer);
 
       // Get first sheet (or "Codes" sheet if exists)
-      let sheet = workbook.Sheets['Codes'] || workbook.Sheets[workbook.SheetNames[0]];
+      const sheet = workbook.Sheets['Codes'] || workbook.Sheets[workbook.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(sheet);
 
       simpleLogger.info(`📄 Read ${data.length} rows from file`);
@@ -64,10 +64,7 @@ export class ImportEngine {
           const codeIds = codeCategories.map(cc => cc.code_id);
 
           // Delete from codes_categories first
-          await supabase
-            .from('codes_categories')
-            .delete()
-            .eq('category_id', categoryId);
+          await supabase.from('codes_categories').delete().eq('category_id', categoryId);
 
           // Then delete codes (if not used by other categories)
           for (const codeId of codeIds) {
@@ -78,10 +75,7 @@ export class ImportEngine {
               .limit(1);
 
             if (!otherUsage || otherUsage.length === 0) {
-              await supabase
-                .from('codes')
-                .delete()
-                .eq('id', codeId);
+              await supabase.from('codes').delete().eq('id', codeId);
             }
           }
 
@@ -95,12 +89,13 @@ export class ImportEngine {
 
         try {
           // Validation - check for Name field (case insensitive)
-          const nameField = row.Name || row.name || row.NAME || row['Code Name'] || row['code name'];
+          const nameField =
+            row.Name || row.name || row.NAME || row['Code Name'] || row['code name'];
 
-          if (!nameField || typeof nameField !== 'string' && typeof nameField !== 'number') {
+          if (!nameField || (typeof nameField !== 'string' && typeof nameField !== 'number')) {
             result.errors.push({
               row: i + 2, // +2 because Excel is 1-indexed and has header
-              error: 'Name is required and must be a string or number'
+              error: 'Name is required and must be a string or number',
             });
             result.failed++;
             continue;
@@ -109,7 +104,7 @@ export class ImportEngine {
           if (!nameField.toString().trim()) {
             result.errors.push({
               row: i + 2, // +2 because Excel is 1-indexed and has header
-              error: 'Name is required'
+              error: 'Name is required',
             });
             result.failed++;
             continue;
@@ -142,12 +137,10 @@ export class ImportEngine {
                 continue; // Skip existing
               } else {
                 // Code exists but not linked to this category - link it
-                await supabase
-                  .from('codes_categories')
-                  .insert({
-                    code_id: existingCode.id,
-                    category_id: categoryId
-                  });
+                await supabase.from('codes_categories').insert({
+                  code_id: existingCode.id,
+                  category_id: categoryId,
+                });
 
                 simpleLogger.info(`🔗 Linked existing code to category: ${codeName}`);
                 result.imported++;
@@ -163,7 +156,7 @@ export class ImportEngine {
           const { data: newCode, error: insertError } = await supabase
             .from('codes')
             .insert({
-              name: codeName
+              name: codeName,
             })
             .select('id')
             .single();
@@ -172,12 +165,10 @@ export class ImportEngine {
 
           // Link to category if provided
           if (categoryId && newCode) {
-            const { error: linkError } = await supabase
-              .from('codes_categories')
-              .insert({
-                code_id: newCode.id,
-                category_id: categoryId
-              });
+            const { error: linkError } = await supabase.from('codes_categories').insert({
+              code_id: newCode.id,
+              category_id: categoryId,
+            });
 
             if (linkError) throw linkError;
           }
@@ -189,14 +180,16 @@ export class ImportEngine {
           simpleLogger.error(`❌ Error importing row ${i + 2}:`, error);
           result.errors.push({
             row: i + 2,
-            error: errorMessage
+            error: errorMessage,
           });
           result.failed++;
         }
       }
 
       result.success = result.imported > 0;
-      simpleLogger.info(`📊 Import complete: ${result.imported} imported, ${result.failed} failed, ${result.skipped} skipped`);
+      simpleLogger.info(
+        `📊 Import complete: ${result.imported} imported, ${result.failed} failed, ${result.skipped} skipped`
+      );
 
       return result;
     } catch (error) {
@@ -205,7 +198,7 @@ export class ImportEngine {
       return {
         ...result,
         success: false,
-        errors: [{ row: 0, error: `File error: ${errorMessage}` }]
+        errors: [{ row: 0, error: `File error: ${errorMessage}` }],
       };
     }
   }

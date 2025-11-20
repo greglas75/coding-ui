@@ -37,7 +37,7 @@ export function getSupabaseClient(): SupabaseClient {
 
     // Debug guard in development
     if (import.meta.env.DEV) {
-      console.info('✅ Supabase client initialized once (singleton)');
+      console.warn('✅ Supabase client initialized once (singleton)');
     }
   }
 

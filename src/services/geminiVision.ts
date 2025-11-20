@@ -424,5 +424,7 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
   }
   (window as unknown as DebugWindow).clearCorsBlacklist = clearCorsBlacklist;
   (window as unknown as DebugWindow).viewCorsBlacklist = viewCorsBlacklist;
-  console.info('🛠️ Debug helpers available: window.clearCorsBlacklist(), window.viewCorsBlacklist()');
+  console.warn(
+    '🛠️ Debug helpers available: window.clearCorsBlacklist(), window.viewCorsBlacklist()'
+  );
 }

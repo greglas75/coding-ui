@@ -1,12 +1,27 @@
 import type { Answer } from '../types';
 import { simpleLogger } from '../utils/logger';
 
-export type FilterValue = string | number | string[] | number[] | [string, string] | [number, number];
+export type FilterValue =
+  | string
+  | number
+  | string[]
+  | number[]
+  | [string, string]
+  | [number, number];
 
 export interface Filter {
   id: string;
   field: 'code' | 'status' | 'text' | 'date' | 'category' | 'assignedBy';
-  operator: 'equals' | 'contains' | 'startsWith' | 'endsWith' | 'in' | 'notIn' | 'before' | 'after' | 'between';
+  operator:
+    | 'equals'
+    | 'contains'
+    | 'startsWith'
+    | 'endsWith'
+    | 'in'
+    | 'notIn'
+    | 'before'
+    | 'after'
+    | 'between';
   value: FilterValue;
 }
 
@@ -26,20 +41,17 @@ export class FilterEngine {
   /**
    * Apply filters to answers array
    */
-  async applyFilters(
-    answers: Answer[],
-    filterGroup: FilterGroup
-  ): Promise<Answer[]> {
+  async applyFilters(answers: Answer[], filterGroup: FilterGroup): Promise<Answer[]> {
     if (filterGroup.filters.length === 0) {
       return answers;
     }
 
-    simpleLogger.info(`🔍 Applying ${filterGroup.filters.length} filters with ${filterGroup.logic} logic`);
+    simpleLogger.info(
+      `🔍 Applying ${filterGroup.filters.length} filters with ${filterGroup.logic} logic`
+    );
 
     return answers.filter(answer => {
-      const results = filterGroup.filters.map(filter =>
-        this.evaluateFilter(answer, filter)
-      );
+      const results = filterGroup.filters.map(filter => this.evaluateFilter(answer, filter));
 
       if (filterGroup.logic === 'AND') {
         return results.every(r => r);
@@ -68,13 +80,19 @@ export class FilterEngine {
             String(v).toLowerCase().includes(String(filter.value).toLowerCase())
           );
         }
-        return String(fieldValue || '').toLowerCase().includes(String(filter.value).toLowerCase());
+        return String(fieldValue || '')
+          .toLowerCase()
+          .includes(String(filter.value).toLowerCase());
 
       case 'startsWith':
-        return String(fieldValue || '').toLowerCase().startsWith(String(filter.value).toLowerCase());
+        return String(fieldValue || '')
+          .toLowerCase()
+          .startsWith(String(filter.value).toLowerCase());
 
       case 'endsWith':
-        return String(fieldValue || '').toLowerCase().endsWith(String(filter.value).toLowerCase());
+        return String(fieldValue || '')
+          .toLowerCase()
+          .endsWith(String(filter.value).toLowerCase());
 
       case 'in':
         if (Array.isArray(filter.value)) {
@@ -102,13 +120,11 @@ export class FilterEngine {
         if (!fieldValue) return false;
         return new Date(fieldValue) > new Date(filter.value);
 
-      case 'between':
+      case 'between': {
         if (!fieldValue || !Array.isArray(filter.value) || filter.value.length !== 2) return false;
         const date = new Date(fieldValue);
-        return (
-          date >= new Date(filter.value[0]) &&
-          date <= new Date(filter.value[1])
-        );
+        return date >= new Date(filter.value[0]) && date <= new Date(filter.value[1]);
+      }
 
       default:
         return true;
@@ -145,7 +161,10 @@ export class FilterEngine {
     if (!searchTerm || !text) return text;
 
     const regex = new RegExp(`(${this.escapeRegex(searchTerm)})`, 'gi');
-    return text.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100 px-0.5 rounded">$1</mark>');
+    return text.replace(
+      regex,
+      '<mark class="bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100 px-0.5 rounded">$1</mark>'
+    );
   }
 
   /**
@@ -186,7 +205,10 @@ export class FilterEngine {
       return { valid: false, error: 'Value is required' };
     }
 
-    if (filter.operator === 'between' && (!Array.isArray(filter.value) || filter.value.length !== 2)) {
+    if (
+      filter.operator === 'between' &&
+      (!Array.isArray(filter.value) || filter.value.length !== 2)
+    ) {
       return { valid: false, error: 'Between operator requires two values' };
     }
 
@@ -201,7 +223,7 @@ export class FilterEngine {
       id: crypto.randomUUID(),
       field: 'text',
       operator: 'contains',
-      value: ''
+      value: '',
     };
   }
 }

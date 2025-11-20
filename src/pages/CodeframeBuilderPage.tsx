@@ -69,7 +69,9 @@ export function CodeframeBuilderPage() {
    */
   const getErrorMessage = (err: unknown): string => {
     // Type guard for axios-like errors
-    const isAxiosError = (error: unknown): error is {
+    const isAxiosError = (
+      error: unknown
+    ): error is {
       response?: { data?: { message?: string }; status?: number };
       message?: string;
       code?: string;
@@ -122,12 +124,18 @@ export function CodeframeBuilderPage() {
     }
 
     // Invalid API key
-    if (err?.message?.toLowerCase().includes('api key') || err?.message?.toLowerCase().includes('unauthorized')) {
+    if (
+      err?.message?.toLowerCase().includes('api key') ||
+      err?.message?.toLowerCase().includes('unauthorized')
+    ) {
       return 'Invalid API key. Please check your ANTHROPIC_API_KEY configuration.';
     }
 
     // Not enough data
-    if (err?.message?.toLowerCase().includes('not enough') || err?.message?.toLowerCase().includes('minimum')) {
+    if (
+      err?.message?.toLowerCase().includes('not enough') ||
+      err?.message?.toLowerCase().includes('minimum')
+    ) {
       return 'Not enough answers to generate codeframe. Please add at least 50 uncategorized answers.';
     }
 
@@ -148,10 +156,10 @@ export function CodeframeBuilderPage() {
 
       // For brand coding, the response includes brand_codeframe data
       if (config.coding_type === 'brand' && response.brand_codeframe) {
-        console.log('📦 Brand codeframe data received:', {
+        console.warn('📦 Brand codeframe data received:', {
           verified: response.brand_codeframe.verified_brands?.length || 0,
           review: response.brand_codeframe.needs_review?.length || 0,
-          spam: response.brand_codeframe.spam_invalid?.length || 0
+          spam: response.brand_codeframe.spam_invalid?.length || 0,
         });
 
         // Store brand codeframe data for Step4TreeEditor
@@ -183,10 +191,7 @@ export function CodeframeBuilderPage() {
     <MainLayout
       title="AI Codeframe Builder"
       maxWidth="wide"
-      breadcrumbs={[
-        { label: 'Home', href: '/' },
-        { label: 'Codeframe Builder' }
-      ]}
+      breadcrumbs={[{ label: 'Home', href: '/' }, { label: 'Codeframe Builder' }]}
     >
       {/* Description */}
       <div className="mb-6">
@@ -234,7 +239,7 @@ export function CodeframeBuilderPage() {
             generation={generation}
             codingType={config.coding_type}
             onComplete={() => setCurrentStep(4)}
-            onError={(error) => {
+            onError={error => {
               simpleLogger.error('Processing error:', error);
               const errorMessage = getErrorMessage(error);
               toast.error(errorMessage, {
@@ -256,12 +261,7 @@ export function CodeframeBuilderPage() {
           />
         )}
 
-        {currentStep === 5 && (
-          <Step5Apply
-            generation={generation}
-            onComplete={handleComplete}
-          />
-        )}
+        {currentStep === 5 && <Step5Apply generation={generation} onComplete={handleComplete} />}
       </div>
 
       {/* Error Display */}

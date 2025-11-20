@@ -5,7 +5,12 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import axios from 'axios';
 import type { CodeframeConfig, GenerationResponse } from '@/types/codeframe';
-import { getAnthropicAPIKey, getGoogleCSEAPIKey, getGoogleCSECXID, getPineconeAPIKey } from '@/utils/apiKeys';
+import {
+  getAnthropicAPIKey,
+  getGoogleCSEAPIKey,
+  getGoogleCSECXID,
+  getPineconeAPIKey,
+} from '@/utils/apiKeys';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3020';
 
@@ -20,14 +25,17 @@ export function useCodeframeGeneration() {
       const googleCxId = getGoogleCSECXID();
       const pineconeKey = getPineconeAPIKey();
 
-      console.log('🚀 Starting codeframe generation...');
-      console.log('📋 Config:', { ...config, answer_ids: `${config.answer_ids?.length || 0} answers` });
-      console.log('🔑 API Keys:', {
+      console.warn('🚀 Starting codeframe generation...');
+      console.warn('📋 Config:', {
+        ...config,
+        answer_ids: `${config.answer_ids?.length || 0} answers`,
+      });
+      console.warn('🔑 API Keys:', {
         anthropic: !!anthropicKey,
         google: !!googleApiKey,
         google_cx: !!googleCxId,
         pinecone: !!pineconeKey,
-        pinecone_length: pineconeKey?.length || 0
+        pinecone_length: pineconeKey?.length || 0,
       });
 
       const response = await axios.post<GenerationResponse>(
@@ -41,10 +49,10 @@ export function useCodeframeGeneration() {
         }
       );
 
-      console.log('✅ Generation started:', response.data);
+      console.warn('✅ Generation started:', response.data);
       return response.data;
     },
-    onSuccess: (data) => {
+    onSuccess: data => {
       setGeneration(data);
     },
   });

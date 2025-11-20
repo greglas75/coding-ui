@@ -21,10 +21,25 @@ export interface ExportOptions {
 }
 
 interface ExportData {
-  categories?: Array<{id: number; name: string; description?: string}>;
-  codes?: Array<{id: number; name: string; category_id?: number; created_at?: string}>;
-  answers?: Array<{id: number; answer_text: string; translation_en?: string; category_id?: number; general_status?: string; selected_code?: string; coding_date?: string; created_at?: string}>;
-  codedAnswers?: Array<{id: number; answer_text: string; selected_code: string; category_id?: number; coding_date?: string}>;
+  categories?: Array<{ id: number; name: string; description?: string }>;
+  codes?: Array<{ id: number; name: string; category_id?: number; created_at?: string }>;
+  answers?: Array<{
+    id: number;
+    answer_text: string;
+    translation_en?: string;
+    category_id?: number;
+    general_status?: string;
+    selected_code?: string;
+    coding_date?: string;
+    created_at?: string;
+  }>;
+  codedAnswers?: Array<{
+    id: number;
+    answer_text: string;
+    selected_code: string;
+    category_id?: number;
+    coding_date?: string;
+  }>;
 }
 
 export class ExportEngine {
@@ -48,9 +63,7 @@ export class ExportEngine {
 
       // Export Codes
       if (options.includeCodes) {
-        let query = supabase
-          .from('codes')
-          .select('id, name, category_id, created_at');
+        const query = supabase.from('codes').select('id, name, category_id, created_at');
 
         if (options.categoryId) {
           // Get codes for specific category via codes_categories
@@ -80,7 +93,9 @@ export class ExportEngine {
       if (options.includeAnswers) {
         let query = supabase
           .from('answers')
-          .select('id, answer_text, translation_en, category_id, general_status, selected_code, coding_date, created_at');
+          .select(
+            'id, answer_text, translation_en, category_id, general_status, selected_code, coding_date, created_at'
+          );
 
         if (options.categoryId) {
           query = query.eq('category_id', options.categoryId);
@@ -134,7 +149,7 @@ export class ExportEngine {
         ID: cat.id,
         Name: cat.name,
         Description: cat.description || '',
-        'Created At': new Date(cat.created_at).toLocaleString()
+        'Created At': new Date(cat.created_at).toLocaleString(),
       }));
       const ws = XLSX.utils.json_to_sheet(categoriesFormatted);
       XLSX.utils.book_append_sheet(workbook, ws, 'Categories');
@@ -146,7 +161,7 @@ export class ExportEngine {
         ID: code.id,
         Name: code.name,
         'Category ID': code.category_id || '',
-        'Created At': new Date(code.created_at).toLocaleString()
+        'Created At': new Date(code.created_at).toLocaleString(),
       }));
       const ws = XLSX.utils.json_to_sheet(codesFormatted);
       XLSX.utils.book_append_sheet(workbook, ws, 'Codes');
@@ -157,12 +172,12 @@ export class ExportEngine {
       const answersFormatted = data.answers.map(answer => ({
         ID: answer.id,
         'Answer Text': answer.answer_text,
-        'Translation': answer.translation_en || '',
+        Translation: answer.translation_en || '',
         'Category ID': answer.category_id,
         'General Status': answer.general_status,
         'Selected Code': answer.selected_code || '',
         'Coding Date': answer.coding_date ? new Date(answer.coding_date).toLocaleString() : '',
-        'Created At': new Date(answer.created_at).toLocaleString()
+        'Created At': new Date(answer.created_at).toLocaleString(),
       }));
       const ws = XLSX.utils.json_to_sheet(answersFormatted);
       XLSX.utils.book_append_sheet(workbook, ws, 'Answers');
@@ -172,10 +187,11 @@ export class ExportEngine {
     if (data.codedAnswers && data.codedAnswers.length > 0) {
       const formatted = data.codedAnswers.map(answer => ({
         'Answer ID': answer.id,
-        'Answer Text': answer.answer_text?.substring(0, 100) + (answer.answer_text?.length > 100 ? '...' : ''),
+        'Answer Text':
+          answer.answer_text?.substring(0, 100) + (answer.answer_text?.length > 100 ? '...' : ''),
         'Selected Code': answer.selected_code,
         'Category ID': answer.category_id,
-        'Coding Date': answer.coding_date ? new Date(answer.coding_date).toLocaleString() : ''
+        'Coding Date': answer.coding_date ? new Date(answer.coding_date).toLocaleString() : '',
       }));
       const ws = XLSX.utils.json_to_sheet(formatted);
       XLSX.utils.book_append_sheet(workbook, ws, 'Coded Answers');
@@ -184,7 +200,7 @@ export class ExportEngine {
     // Generate file
     const buffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
     const blob = new Blob([buffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
 
     const timestamp = new Date().toISOString().split('T')[0];
@@ -207,17 +223,14 @@ export class ExportEngine {
       throw new Error('No codes to export');
     }
 
-    const codesFormatted = data.codes.map((code: {
-      id: number;
-      name: string;
-      category_id?: number;
-      created_at?: string;
-    }) => ({
-      Name: code.name,
-      'Category ID': code.category_id || '',
-      ID: code.id,
-      'Created At': new Date(code.created_at).toLocaleString()
-    }));
+    const codesFormatted = data.codes.map(
+      (code: { id: number; name: string; category_id?: number; created_at?: string }) => ({
+        Name: code.name,
+        'Category ID': code.category_id || '',
+        ID: code.id,
+        'Created At': new Date(code.created_at).toLocaleString(),
+      })
+    );
 
     const ws = XLSX.utils.json_to_sheet(codesFormatted);
     const csv = XLSX.utils.sheet_to_csv(ws);
