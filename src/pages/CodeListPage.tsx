@@ -57,13 +57,13 @@ export function CodeListPage() {
   // Load categories using professional fetcher
   useEffect(() => {
     const loadCategories = async () => {
-      simpleLogger.info("CodeListPage - fetching categories...");
+      simpleLogger.info('CodeListPage - fetching categories...');
       const result = await fetchCategories();
 
       if (result.success) {
         setCategories(result.data);
       } else {
-        simpleLogger.error("Error fetching categories:", result.error);
+        simpleLogger.error('Error fetching categories:', result.error);
         // Note: error is now handled by queryError from useCodes hook
       }
     };
@@ -74,34 +74,34 @@ export function CodeListPage() {
   // Update code name
   async function updateCodeName(id: number, newName: string) {
     if (!newName.trim()) {
-      toast.error("Code name cannot be empty");
+      toast.error('Code name cannot be empty');
       return;
     }
 
     if (newName.trim().length > 100) {
-      toast.error("Code name cannot be longer than 100 characters");
+      toast.error('Code name cannot be longer than 100 characters');
       return;
     }
 
     try {
-        simpleLogger.info("🟡 Renaming code:", id, "→", newName);
-        const { error } = await supabase
-          .from('codes')
-          .update({
-            name: newName.trim(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', id);
+      simpleLogger.info('🟡 Renaming code:', id, '→', newName);
+      const { error } = await supabase
+        .from('codes')
+        .update({
+          name: newName.trim(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
 
-        if (error) throw error;
+      if (error) throw error;
 
-        simpleLogger.info("✅ Code name updated successfully:", newName);
+      simpleLogger.info('✅ Code name updated successfully:', newName);
       toast.success(`Code renamed to "${newName}"`);
 
       // Refetch to get updated data with usage counts
       await refetchCodes();
     } catch (error) {
-      simpleLogger.error("❌ Failed to update code name:", error);
+      simpleLogger.error('❌ Failed to update code name:', error);
       toast.error('Failed to update code name');
     }
   }
@@ -109,15 +109,15 @@ export function CodeListPage() {
   // Toggle whitelist status
   async function toggleWhitelist(id: number, isWhitelisted: boolean) {
     try {
-        const { error } = await supabase
-          .from('codes')
-          .update({
-            is_whitelisted: isWhitelisted,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', id);
+      const { error } = await supabase
+        .from('codes')
+        .update({
+          is_whitelisted: isWhitelisted,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
 
-        if (error) throw error;
+      if (error) throw error;
 
       toast.success(isWhitelisted ? 'Added to whitelist' : 'Removed from whitelist');
       await refetchCodes();
@@ -130,30 +130,28 @@ export function CodeListPage() {
   // Update code categories
   async function updateCodeCategories(id: number, categoryIds: number[]) {
     try {
-    // Delete existing relations
-    const { error: deleteError } = await supabase
-      .from('codes_categories')
-      .delete()
-      .eq('code_id', id);
-
-    if (deleteError) {
-      simpleLogger.error('Error deleting category relations:', deleteError);
-        throw deleteError;
-    }
-
-    // Insert new relations
-    if (categoryIds.length > 0) {
-      const relations = categoryIds.map(categoryId => ({
-        code_id: id,
-        category_id: categoryId
-      }));
-
-      const { error: insertError } = await supabase
+      // Delete existing relations
+      const { error: deleteError } = await supabase
         .from('codes_categories')
-        .insert(relations);
+        .delete()
+        .eq('code_id', id);
 
-      if (insertError) {
-        simpleLogger.error('Error inserting category relations:', insertError);
+      if (deleteError) {
+        simpleLogger.error('Error deleting category relations:', deleteError);
+        throw deleteError;
+      }
+
+      // Insert new relations
+      if (categoryIds.length > 0) {
+        const relations = categoryIds.map(categoryId => ({
+          code_id: id,
+          category_id: categoryId,
+        }));
+
+        const { error: insertError } = await supabase.from('codes_categories').insert(relations);
+
+        if (insertError) {
+          simpleLogger.error('Error inserting category relations:', insertError);
           throw insertError;
         }
       }
@@ -171,12 +169,9 @@ export function CodeListPage() {
     const usageCount = codeUsageCounts[id] || 0;
 
     if (usageCount > 0) {
-      toast.error(
-        `Cannot delete "${name}"`,
-        {
-          description: `This code is used in ${usageCount} answer${usageCount !== 1 ? 's' : ''}. Remove it from all answers first.`,
-        }
-      );
+      toast.error(`Cannot delete "${name}"`, {
+        description: `This code is used in ${usageCount} answer${usageCount !== 1 ? 's' : ''}. Remove it from all answers first.`,
+      });
       return;
     }
 
@@ -190,21 +185,18 @@ export function CodeListPage() {
     setDeleting(true);
 
     try {
-          // Delete from codes_categories first (foreign key constraint)
-          const { error: relationsError } = await supabase
-            .from('codes_categories')
-            .delete()
-            .eq('code_id', codeToDelete.id);
+      // Delete from codes_categories first (foreign key constraint)
+      const { error: relationsError } = await supabase
+        .from('codes_categories')
+        .delete()
+        .eq('code_id', codeToDelete.id);
 
-          if (relationsError) throw relationsError;
+      if (relationsError) throw relationsError;
 
-          // Delete from codes
-          const { error } = await supabase
-            .from('codes')
-            .delete()
-            .eq('id', codeToDelete.id);
+      // Delete from codes
+      const { error } = await supabase.from('codes').delete().eq('id', codeToDelete.id);
 
-          if (error) throw error;
+      if (error) throw error;
 
       toast.success(`Code "${codeToDelete.name}" deleted`);
 
@@ -225,36 +217,30 @@ export function CodeListPage() {
   // Add new code
   async function addCode(name: string, categoryIds: number[]) {
     try {
-    const { data, error } = await supabase
-      .from('codes')
-      .insert({ name })
-      .select()
-      .single();
+      const { data, error } = await supabase.from('codes').insert({ name }).select().single();
 
-    if (error) {
-      simpleLogger.error('Error adding code:', error);
+      if (error) {
+        simpleLogger.error('Error adding code:', error);
         throw error;
-    }
-
-    // Add category relations
-    if (categoryIds.length > 0) {
-      const relations = categoryIds.map(categoryId => ({
-        code_id: data.id,
-        category_id: categoryId
-      }));
-
-      const { error: relationsError } = await supabase
-        .from('codes_categories')
-        .insert(relations);
-
-      if (relationsError) {
-        simpleLogger.error('Error adding category relations:', relationsError);
-        throw relationsError;
       }
-    }
+
+      // Add category relations
+      if (categoryIds.length > 0) {
+        const relations = categoryIds.map(categoryId => ({
+          code_id: data.id,
+          category_id: categoryId,
+        }));
+
+        const { error: relationsError } = await supabase.from('codes_categories').insert(relations);
+
+        if (relationsError) {
+          simpleLogger.error('Error adding category relations:', relationsError);
+          throw relationsError;
+        }
+      }
 
       toast.success(`Code "${name}" added`);
-    setModalOpen(false);
+      setModalOpen(false);
 
       // Refetch to get updated codes with usage counts
       await refetchCodes();
@@ -288,13 +274,11 @@ export function CodeListPage() {
         const relations = insertedCodes.flatMap(code =>
           categoryIds.map(categoryId => ({
             code_id: code.id,
-            category_id: categoryId
+            category_id: categoryId,
           }))
         );
 
-        const { error: relationsError } = await supabase
-          .from('codes_categories')
-          .insert(relations);
+        const { error: relationsError } = await supabase.from('codes_categories').insert(relations);
 
         if (relationsError) {
           simpleLogger.error('Error adding category relations:', relationsError);
@@ -312,30 +296,29 @@ export function CodeListPage() {
     }
   }
 
-  if (loading) return (
-    <MainLayout>
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        <p className="ml-4 text-gray-500 dark:text-gray-400">Loading codes...</p>
-      </div>
-    </MainLayout>
-  );
+  if (loading)
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <p className="ml-4 text-gray-500 dark:text-gray-400">Loading codes...</p>
+        </div>
+      </MainLayout>
+    );
 
-  if (error) return (
-    <MainLayout>
-      <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-red-700 dark:text-red-400">
-        Error: {error}
-      </div>
-    </MainLayout>
-  );
+  if (error)
+    return (
+      <MainLayout>
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-red-700 dark:text-red-400">
+          Error: {error}
+        </div>
+      </MainLayout>
+    );
 
   return (
     <MainLayout
       title="Code List"
-      breadcrumbs={[
-        { label: 'Home', href: '/', icon: <Home size={14} /> },
-        { label: 'Code List' }
-      ]}
+      breadcrumbs={[{ label: 'Home', href: '/', icon: <Home size={14} /> }, { label: 'Code List' }]}
       maxWidth="wide"
     >
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border shadow-sm overflow-hidden">
@@ -347,7 +330,7 @@ export function CodeListPage() {
           categoryFilter={categoryFilter}
           setCategoryFilter={setCategoryFilter}
           categories={categories}
-          onReload={fetchCodes}
+          onReload={refetchCodes}
           isLoading={loading}
           onAddCode={async () => {
             // Refresh categories before opening modal

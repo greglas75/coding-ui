@@ -1,5 +1,5 @@
 import { FolderTree, Settings } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { handleError } from '../lib/errors';
 import { optimisticArrayUpdate } from '../lib/optimisticUpdate';
 import { getSupabaseClient } from '../lib/supabase';
@@ -98,8 +98,10 @@ export function CategoryDetails({
     loadCodes();
   }, [loadCodes]);
 
-  const filteredCodes = realCodes.filter(code =>
-    code.name.toLowerCase().includes(debouncedSearch.toLowerCase())
+  // Memoize filtered codes to avoid recalculation on every render
+  const filteredCodes = useMemo(
+    () => realCodes.filter(code => code.name.toLowerCase().includes(debouncedSearch.toLowerCase())),
+    [realCodes, debouncedSearch]
   );
 
   async function handleSelectAll() {

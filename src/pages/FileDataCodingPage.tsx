@@ -5,6 +5,7 @@ import { ImportHistoryTable } from '../components/ImportHistoryTable';
 import { MainLayout } from '../components/layout/MainLayout';
 import { fetchCategories } from '../lib/fetchCategories';
 import { uploadFile } from '../services/apiClient';
+import { simpleLogger } from '../utils/logger';
 import type { Category } from '../types';
 
 // ═══════════════════════════════════════════════════════════════
@@ -87,7 +88,7 @@ export function FileDataCodingPage() {
       }
 
       // Validate structure (must have at least ID and text)
-      const invalidRows = rows.filter((r) => !r[0] || !r[1]);
+      const invalidRows = rows.filter(r => !r[0] || !r[1]);
       if (invalidRows.length > 0) {
         setPreviewError(`Found ${invalidRows.length} row(s) missing required ID or text columns.`);
       }
@@ -112,6 +113,18 @@ export function FileDataCodingPage() {
 
       if (!validTypes.includes(fileExt)) {
         toast.error('Invalid file type. Please upload .csv or .xlsx file.');
+        return;
+      }
+
+      // Validate file size (max 10MB to prevent browser freeze)
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+      if (selectedFile.size > MAX_FILE_SIZE) {
+        toast.error('File too large. Maximum size is 10MB.');
+        simpleLogger.warn('File size exceeded:', {
+          size: selectedFile.size,
+          maxSize: MAX_FILE_SIZE,
+          fileName: selectedFile.name,
+        });
         return;
       }
 
@@ -167,7 +180,7 @@ export function FileDataCodingPage() {
         count: result.imported,
         message: `Successfully imported ${result.imported} records${
           result.skipped > 0 ? ` (${result.skipped} skipped)` : ''
-        }`
+        }`,
       });
 
       toast.success(
@@ -193,7 +206,7 @@ export function FileDataCodingPage() {
       simpleLogger.error('Upload error:', error);
       setUploadResult({
         success: false,
-        message: error.message || 'Upload failed'
+        message: error.message || 'Upload failed',
       });
       toast.error(`Failed: ${error.message}`);
     } finally {
@@ -206,7 +219,7 @@ export function FileDataCodingPage() {
       title="File Data Coding"
       breadcrumbs={[
         { label: 'Home', href: '/', icon: <Home size={14} /> },
-        { label: 'File Data Coding' }
+        { label: 'File Data Coding' },
       ]}
       maxWidth="default"
     >
@@ -220,7 +233,8 @@ export function FileDataCodingPage() {
                 Bulk Import Answers from File
               </h3>
               <p className="text-xs text-blue-700 dark:text-blue-400">
-                Upload CSV or Excel files with answer data for automatic coding. Files should contain: id, text, language (optional), country (optional).
+                Upload CSV or Excel files with answer data for automatic coding. Files should
+                contain: id, text, language (optional), country (optional).
               </p>
             </div>
           </div>
@@ -236,7 +250,9 @@ export function FileDataCodingPage() {
               </label>
               <select
                 value={selectedCategory || ''}
-                onChange={(e) => setSelectedCategory(e.target.value ? parseInt(e.target.value) : null)}
+                onChange={e =>
+                  setSelectedCategory(e.target.value ? parseInt(e.target.value) : null)
+                }
                 className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 rounded-md focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-gray-100"
               >
                 <option value="">Select a category...</option>
@@ -370,11 +386,13 @@ export function FileDataCodingPage() {
 
           {/* Upload Result */}
           {uploadResult && (
-            <div className={`mt-4 p-4 rounded-lg border ${
-              uploadResult.success
-                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-            }`}>
+            <div
+              className={`mt-4 p-4 rounded-lg border ${
+                uploadResult.success
+                  ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                  : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+              }`}
+            >
               <div className="flex items-start gap-2">
                 {uploadResult.success ? (
                   <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
@@ -382,18 +400,22 @@ export function FileDataCodingPage() {
                   <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                 )}
                 <div>
-                  <p className={`text-sm font-medium ${
-                    uploadResult.success
-                      ? 'text-green-800 dark:text-green-300'
-                      : 'text-red-800 dark:text-red-300'
-                  }`}>
+                  <p
+                    className={`text-sm font-medium ${
+                      uploadResult.success
+                        ? 'text-green-800 dark:text-green-300'
+                        : 'text-red-800 dark:text-red-300'
+                    }`}
+                  >
                     {uploadResult.success ? 'Upload Successful' : 'Upload Failed'}
                   </p>
-                  <p className={`text-xs mt-1 ${
-                    uploadResult.success
-                      ? 'text-green-700 dark:text-green-400'
-                      : 'text-red-700 dark:text-red-400'
-                  }`}>
+                  <p
+                    className={`text-xs mt-1 ${
+                      uploadResult.success
+                        ? 'text-green-700 dark:text-green-400'
+                        : 'text-red-700 dark:text-red-400'
+                    }`}
+                  >
                     {uploadResult.message}
                     {uploadResult.count && ` (${uploadResult.count} records)`}
                   </p>
@@ -414,36 +436,60 @@ export function FileDataCodingPage() {
             <div>
               <h3 className="font-medium mb-2">📋 CSV/Excel Columns:</h3>
               <ul className="list-disc list-inside space-y-1 ml-2">
-                <li><strong>Column 1 (id):</strong> Unique identifier - <span className="text-red-600">Required</span></li>
-                <li><strong>Column 2 (text):</strong> Answer text to be coded - <span className="text-red-600">Required</span></li>
-                <li><strong>Column 3 (language):</strong> Language code (e.g., "en", "pl") - <span className="text-gray-500">Optional</span></li>
-                <li><strong>Column 4 (country):</strong> Country name (e.g., "Poland", "USA") - <span className="text-gray-500">Optional</span></li>
+                <li>
+                  <strong>Column 1 (id):</strong> Unique identifier -{' '}
+                  <span className="text-red-600">Required</span>
+                </li>
+                <li>
+                  <strong>Column 2 (text):</strong> Answer text to be coded -{' '}
+                  <span className="text-red-600">Required</span>
+                </li>
+                <li>
+                  <strong>Column 3 (language):</strong> Language code (e.g., "en", "pl") -{' '}
+                  <span className="text-gray-500">Optional</span>
+                </li>
+                <li>
+                  <strong>Column 4 (country):</strong> Country name (e.g., "Poland", "USA") -{' '}
+                  <span className="text-gray-500">Optional</span>
+                </li>
               </ul>
             </div>
 
             <div className="p-4 bg-gray-50 dark:bg-neutral-800 rounded-md border border-gray-200 dark:border-neutral-700">
               <p className="font-medium mb-2">📄 Example CSV content:</p>
               <pre className="text-xs font-mono text-gray-800 dark:text-gray-200 overflow-x-auto">
-1,Nike shoes are great,en,Poland
-2,Adidas running gear,en,USA
-3,Gucci bag expensive,,Vietnam
-4,Dior perfume smells good,en
-5,Chanel makeup quality,en,France</pre>
+                1,Nike shoes are great,en,Poland 2,Adidas running gear,en,USA 3,Gucci bag
+                expensive,,Vietnam 4,Dior perfume smells good,en 5,Chanel makeup quality,en,France
+              </pre>
             </div>
 
             <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
               <div className="flex items-start gap-2">
-                <AlertCircle size={16} className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+                <AlertCircle
+                  size={16}
+                  className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5"
+                />
                 <div>
                   <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300 mb-1">
                     Important Notes:
                   </p>
                   <ul className="text-xs text-yellow-700 dark:text-yellow-400 space-y-1">
-                    <li>• <strong>No header row</strong> - Start directly with data</li>
-                    <li>• <strong>Comma-separated</strong> - Use commas as delimiters</li>
-                    <li>• <strong>Leave empty for optional</strong> - Use empty string or skip trailing commas</li>
-                    <li>• <strong>Unique IDs</strong> - Ensure each row has a unique identifier</li>
-                    <li>• <strong>Max file size:</strong> 10MB recommended</li>
+                    <li>
+                      • <strong>No header row</strong> - Start directly with data
+                    </li>
+                    <li>
+                      • <strong>Comma-separated</strong> - Use commas as delimiters
+                    </li>
+                    <li>
+                      • <strong>Leave empty for optional</strong> - Use empty string or skip
+                      trailing commas
+                    </li>
+                    <li>
+                      • <strong>Unique IDs</strong> - Ensure each row has a unique identifier
+                    </li>
+                    <li>
+                      • <strong>Max file size:</strong> 10MB recommended
+                    </li>
                   </ul>
                 </div>
               </div>
@@ -467,7 +513,9 @@ export function FileDataCodingPage() {
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-neutral-700 p-4">
               <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Categories</div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{categories.length}</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {categories.length}
+              </div>
             </div>
             <div className="bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-neutral-700 p-4">
               <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Supported Formats</div>
