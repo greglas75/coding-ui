@@ -3,7 +3,7 @@
 // Tracks Core Web Vitals and custom performance metrics
 // ═══════════════════════════════════════════════════════════════
 
-import { getCLS, getFID, getFCP, getLCP, getTTFB, onINP, type Metric } from 'web-vitals';
+import { onCLS, onFCP, onINP, onLCP, onTTFB, type Metric } from 'web-vitals';
 import { simpleLogger } from '../utils/logger';
 
 // ───────────────────────────────────────────────────────────────
@@ -39,7 +39,6 @@ export interface APIPerformance {
 const PERFORMANCE_BUDGETS = {
   // Core Web Vitals thresholds (good/needs-improvement)
   LCP: { good: 2500, poor: 4000 }, // Largest Contentful Paint (ms)
-  FID: { good: 100, poor: 300 }, // First Input Delay (ms)
   CLS: { good: 0.1, poor: 0.25 }, // Cumulative Layout Shift
   FCP: { good: 1800, poor: 3000 }, // First Contentful Paint (ms)
   TTFB: { good: 800, poor: 1800 }, // Time to First Byte (ms)
@@ -113,11 +112,10 @@ function handleMetric(metric: Metric) {
 export function initWebVitals() {
   if (typeof window === 'undefined') return;
 
-  getCLS(handleMetric);
-  getFID(handleMetric);
-  getFCP(handleMetric);
-  getLCP(handleMetric);
-  getTTFB(handleMetric);
+  onCLS(handleMetric);
+  onFCP(handleMetric);
+  onLCP(handleMetric);
+  onTTFB(handleMetric);
   onINP(handleMetric);
 
   simpleLogger.info('📊 Web Vitals monitoring initialized');

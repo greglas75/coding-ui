@@ -7,7 +7,7 @@
  */
 
 import * as Sentry from '@sentry/react';
-import { getCLS, getFID, getFCP, getLCP, getTTFB, onINP, type Metric } from 'web-vitals';
+import { onCLS, onFCP, onINP, onLCP, onTTFB, type Metric } from 'web-vitals';
 import { simpleLogger } from '../utils/logger';
 
 interface PerformanceMetric {
@@ -323,17 +323,14 @@ class PerformanceMonitorClass {
     };
 
     // Initialize all Core Web Vitals tracking
-    getCLS(handleWebVital);
-    getFID(handleWebVital);
-    getFCP(handleWebVital);
-    getLCP(handleWebVital);
-    getTTFB(handleWebVital);
+    onCLS(handleWebVital);
+    onFCP(handleWebVital);
+    onLCP(handleWebVital);
+    onTTFB(handleWebVital);
     onINP(handleWebVital);
 
     if (import.meta.env.DEV) {
-      simpleLogger.info(
-        '📊 Core Web Vitals monitoring initialized (LCP, FID, CLS, FCP, TTFB, INP)'
-      );
+      simpleLogger.info('📊 Core Web Vitals monitoring initialized (LCP, CLS, FCP, TTFB, INP)');
     }
   }
 
@@ -343,7 +340,6 @@ class PerformanceMonitorClass {
   private getRating(name: string, value: number): 'good' | 'needs-improvement' | 'poor' {
     const thresholds: Record<string, { good: number; poor: number }> = {
       LCP: { good: 2500, poor: 4000 },
-      FID: { good: 100, poor: 300 },
       CLS: { good: 0.1, poor: 0.25 },
       FCP: { good: 1800, poor: 3000 },
       TTFB: { good: 800, poor: 1800 },

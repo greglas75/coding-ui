@@ -92,7 +92,7 @@ export async function fetchCodesOptimized(
 
   let query = supabase
     .from('codes')
-    .select('*', { count: 'exact' })
+    .select('id, name, is_whitelisted, created_at, updated_at', { count: 'exact' })
     .order('name', { ascending: true })
     .range(start, end);
 
@@ -156,4 +156,3 @@ export async function fetchCodesOptimized(
     page,
   };
 }
-

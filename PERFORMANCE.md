@@ -8,8 +8,6 @@ The application automatically tracks all Core Web Vitals metrics:
 
 - **LCP (Largest Contentful Paint)** - Main content load time
   - Good: ≤ 2.5s | Needs Improvement: ≤ 4s | Poor: > 4s
-- **FID (First Input Delay)** - Interactivity responsiveness
-  - Good: ≤ 100ms | Needs Improvement: ≤ 300ms | Poor: > 300ms
 - **CLS (Cumulative Layout Shift)** - Visual stability
   - Good: ≤ 0.1 | Needs Improvement: ≤ 0.25 | Poor: > 0.25
 - **FCP (First Contentful Paint)** - First content render
@@ -18,6 +16,8 @@ The application automatically tracks all Core Web Vitals metrics:
   - Good: ≤ 800ms | Needs Improvement: ≤ 1.8s | Poor: > 1.8s
 - **INP (Interaction to Next Paint)** - Input responsiveness
   - Good: ≤ 200ms | Needs Improvement: ≤ 500ms | Poor: > 500ms
+
+**Note**: FID (First Input Delay) has been deprecated and replaced by INP in web-vitals v5.
 
 ## 🛠️ How It Works
 

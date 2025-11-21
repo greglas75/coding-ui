@@ -237,6 +237,26 @@ const globalLimiter = rateLimit({
 app.use(globalLimiter);
 log.info(`✅ Rate limiting enabled: ${isProd ? 100 : 300} req/min`);
 
+// 🚀 PERFORMANCE: Cache headers for GET requests
+// Cache static data for 60 seconds to reduce database load
+app.use((req, res, next) => {
+  if (req.method === 'GET') {
+    // Cache categories, codes, and settings for 60 seconds
+    if (req.path.match(/\/(categories|codes|settings)/)) {
+      res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+    }
+    // Cache analytics and dashboard data for 5 minutes
+    else if (req.path.match(/\/(analytics|dashboard|cost)/)) {
+      res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
+    }
+    // Default: no cache for dynamic content
+    else {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+  }
+  next();
+});
+
 // Specjalny rate limiter dla kosztownych operacji (upload, AI)
 const uploadRateLimitMiddleware = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minut

@@ -1,14 +1,22 @@
+import { lazy, Suspense } from 'react';
 import { X } from 'lucide-react';
 import { SelectCodeModal } from '../../SelectCodeModal';
 import { RollbackConfirmationModal } from '../../RollbackConfirmationModal';
 import { BatchProgressModal } from '../../BatchProgressModal';
-import { ExportImportModal } from '../../ExportImportModal';
-import { AnalyticsDashboard } from '../../AnalyticsDashboard';
 import { AutoConfirmSettings } from '../../AutoConfirmSettings';
 import type { Answer } from '../../../types';
 import type { BatchProgress } from '../../../lib/batchAIProcessor';
 import type { BatchAIProcessor } from '../../../lib/batchAIProcessor';
 import type { AutoConfirmEngine } from '../../../lib/autoConfirmEngine';
+
+// 🚀 Lazy load heavy components (xlsx ~100KB, recharts ~200KB)
+// Only load when modals are opened, reducing initial bundle size
+const ExportImportModal = lazy(() =>
+  import('../../ExportImportModal').then(m => ({ default: m.ExportImportModal }))
+);
+const AnalyticsDashboard = lazy(() =>
+  import('../../AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard }))
+);
 
 interface ModalsSectionProps {
   modals: {
@@ -68,16 +76,16 @@ export function ModalsSection({
           batchSelectedIds.length > 0
             ? batchSelectedIds
             : modals.selectedAnswer
-            ? [modals.selectedAnswer.id]
-            : []
+              ? [modals.selectedAnswer.id]
+              : []
         }
         allAnswers={answers}
         currentAnswerIndex={
-          modals.selectedAnswer ? answers.findIndex((a) => a.id === modals.selectedAnswer!.id) : 0
+          modals.selectedAnswer ? answers.findIndex(a => a.id === modals.selectedAnswer!.id) : 0
         }
         preselectedCodes={modals.preselectedCodes}
         onSaved={handleCodeSaved}
-        onNavigate={(newIndex) => {
+        onNavigate={newIndex => {
           const newAnswer = answers[newIndex];
           if (newAnswer) {
             modals.setSelectedAnswer(newAnswer);
@@ -89,7 +97,7 @@ export function ModalsSection({
         selectedAnswer={modals.selectedAnswer?.answer_text || ''}
         translation={modals.selectedAnswer?.translation_en || ''}
         aiSuggestions={modals.selectedAnswer?.ai_suggestions || undefined}
-        onGenerateAISuggestions={(answerId) => {
+        onGenerateAISuggestions={answerId => {
           answerActions.handleSingleAICategorize(answerId);
         }}
       />
@@ -145,10 +153,18 @@ export function ModalsSection({
       )}
 
       {modals.showExportImport && (
-        <ExportImportModal
-          onClose={() => modals.setShowExportImport(false)}
-          categoryId={currentCategoryId}
-        />
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="text-white">Loading...</div>
+            </div>
+          }
+        >
+          <ExportImportModal
+            onClose={() => modals.setShowExportImport(false)}
+            categoryId={currentCategoryId}
+          />
+        </Suspense>
       )}
 
       {modals.showAnalytics && (
@@ -161,7 +177,9 @@ export function ModalsSection({
               </button>
             </div>
             <div className="p-6">
-              <AnalyticsDashboard categoryId={currentCategoryId} />
+              <Suspense fallback={<div className="text-center py-8">Loading analytics...</div>}>
+                <AnalyticsDashboard categoryId={currentCategoryId} />
+              </Suspense>
             </div>
           </div>
         </div>
@@ -176,4 +194,3 @@ export function ModalsSection({
     </>
   );
 }
-
